@@ -17,7 +17,7 @@ pytest
 ruff check .
 ```
 
-В Windows используйте `.venv\Scripts\activate`. На компьютере автора найден системный Python 3.9.6; он ниже требуемой версии. Инструкции аудита и установки приведены в [Wiki](wiki/README.md).
+В Windows используйте `.venv\Scripts\activate`. Проект использует Python 3.12+, установленный отдельно от системного Python macOS. Инструкции аудита и установки приведены в [Wiki](wiki/README.md).
 
 ## Документация
 

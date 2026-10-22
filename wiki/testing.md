@@ -16,4 +16,4 @@
 
 ## Результат первого запуска
 
-Проверки 2026-10-22: smoke-import пакета и версии прошёл на системном Python 3.9.6; `compileall` и `git diff --check` прошли. Локальные `pytest` и Ruff не установлены. GitHub Actions успешно выполнил `pip install -e '.[dev]'`, `pytest` и `ruff check .` для Python 3.12 и 3.13 на `main` (`5627e4f`) и `beta` (`8ac0d63`). Обнаруженные предупреждения по Node.js 20 и переходу `ubuntu-latest` устранены: используются официальные actions на Node.js 24 и фиксированный `ubuntu-24.04` runner.
+Проверки 2026-10-22: после установки Homebrew Python 3.12.15 и создания `.venv` команда установки `.[dev]` прошла; `pytest` — 1 passed; `ruff check .` — All checks passed. Ранее smoke-import, `compileall` и `git diff --check` также прошли. GitHub Actions успешно выполнил установку, pytest и Ruff для Python 3.12 и 3.13 на `main` (`5627e4f`) и последнем проверенном `beta` коммите (`80133f3`). Используются actions на Node.js 24 и фиксированный `ubuntu-24.04` runner.
