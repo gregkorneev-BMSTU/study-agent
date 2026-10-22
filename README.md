@@ -12,7 +12,7 @@
 ```sh
 python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install '.[dev]'
 pytest
 ruff check .
 ```

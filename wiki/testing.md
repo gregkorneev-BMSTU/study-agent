@@ -16,4 +16,4 @@
 
 ## Результат первого запуска
 
-Проверки 2026-10-22: после установки Homebrew Python 3.12.15 и создания `.venv` команда установки `.[dev]` прошла; `pytest` — 1 passed; `ruff check .` — All checks passed. Ранее smoke-import, `compileall` и `git diff --check` также прошли. GitHub Actions успешно выполнил установку, pytest и Ruff для Python 3.12 и 3.13 на `main` (`5627e4f`) и последнем проверенном `beta` коммите (`80133f3`). Используются actions на Node.js 24 и фиксированный `ubuntu-24.04` runner.
+Проверки 2026-10-22: после установки Homebrew Python 3.12.15 и создания `.venv` команда установки `.[dev]` прошла; `pytest` — 5 passed; `ruff check .` — All checks passed. Проверены фильтр `.txt`/`.md`, чтение UTF-8, отказ для traversal и символьных ссылок. Для локального запуска pytest добавляет `src/` через конфигурацию; README использует обычную установку пакета вместо editable `.pth`. GitHub Actions успешно выполнил установку, pytest и Ruff для Python 3.12 и 3.13; используются actions на Node.js 24 и фиксированный `ubuntu-24.04` runner.
