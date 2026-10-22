@@ -16,4 +16,4 @@
 
 ## Результат первого запуска
 
-Проверки 2026-10-22: smoke-import пакета и версии прошёл на системном Python 3.9.6; `compileall` и `git diff --check` прошли. `pytest --version` и `ruff --version` завершились `No module named pytest` / `No module named ruff`; тесты pytest и линтинг поэтому не выполнены. Python 3.12+ также отсутствует. После настройки отдельного актуального Python нужно выполнить `python -m pip install -e '.[dev]'`, `pytest` и `ruff check .`.
+Проверки 2026-10-22: smoke-import пакета и версии прошёл на системном Python 3.9.6; `compileall` и `git diff --check` прошли. Локальные `pytest` и Ruff не установлены. GitHub Actions успешно выполнил `pip install -e '.[dev]'`, `pytest` и `ruff check .` для Python 3.12 и 3.13 на `main` (`5627e4f`) и `beta` (`00de845`). Запуск CI отметил предупреждение о действиях `checkout@v4` и `setup-python@v5`, использующих устаревающий Node.js 20 runtime, и об изменении образа `ubuntu-latest`; обновить версии actions и runner при следующем CI maintenance.
