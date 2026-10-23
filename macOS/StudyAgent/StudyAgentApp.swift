@@ -1,16 +1,8 @@
-import AppKit
 import SwiftUI
 
 @main
 struct StudyAgentApp: App {
     @StateObject private var model = StudyAgentModel()
-
-    init() {
-        if let iconURL = Bundle.main.url(forResource: "AppIcon_1024", withExtension: "png"),
-           let icon = NSImage(contentsOf: iconURL) {
-            NSApplication.shared.applicationIconImage = icon
-        }
-    }
 
     var body: some Scene {
         WindowGroup("Study Agent", id: "main") {

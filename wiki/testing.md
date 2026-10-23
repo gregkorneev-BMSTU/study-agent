@@ -29,3 +29,5 @@
 Настройки macOS 2026-10-24: удалено ручное поле тега Ollama, оставлен список установленных моделей. `xcodebuild` Debug arm64 — успешно; `ruff check .` — успешно; `pytest --ignore=tests/test_switch.py` — 25 passed. Полный `pytest` повторно аварийно завершился в известном `tests/test_switch.py` при создании Qt `minimal` application.
 
 Настройки прозрачности macOS 2026-10-24: переключатель удалён, а toolbar использует автоматический системный фон. `xcodebuild` Debug arm64 — успешно; `ruff check .` — успешно; `pytest --ignore=tests/test_switch.py` — 25 passed.
+
+Dock-иконка macOS 2026-10-24: удалено ручное назначение 1024×1024 PNG через `NSApplication.applicationIconImage`; размер берётся из Xcode `AppIcon` asset catalog. Release arm64 `xcodebuild` — успешно.
