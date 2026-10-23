@@ -5,41 +5,50 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject private var model: StudyAgentModel
 
+    private static let sidebarLogo: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "AppIcon_1024", withExtension: "png") else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }()
+
     var body: some View {
-        NavigationSplitView {
-            List(selection: $model.selectedSection) {
-                Section {
-                    ForEach(MainSection.allCases) { section in
-                        Label(section.title, systemImage: section.symbol)
-                            .tag(section)
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationTitle("Study Agent")
-            .safeAreaInset(edge: .top, spacing: 0) {
+        HSplitView {
+            VStack(spacing: 0) {
                 HStack(spacing: 10) {
-                    Image("StudyAgentLogo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 30, height: 30)
-                        .accessibilityHidden(true)
+                    if let logo = Self.sidebarLogo {
+                        Image(nsImage: logo)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 30, height: 30)
+                            .accessibilityHidden(true)
+                    }
                     Text("Study Agent")
                         .font(.headline)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-            }
-            .safeAreaInset(edge: .bottom) {
+                .padding(.vertical, 12)
+
+                List(selection: $model.selectedSection) {
+                    ForEach(MainSection.allCases) { section in
+                        Label(section.title, systemImage: section.symbol)
+                            .tag(section)
+                    }
+                }
+                .listStyle(.sidebar)
+                .modifier(HighContrast(enabled: model.highContrast))
+
                 Label(model.ollamaStatus, systemImage: "circle.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .accessibilityLabel(model.ollamaStatus)
             }
-        } detail: {
+            .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
+
             Group {
                 switch model.selectedSection {
                 case .search:
@@ -50,11 +59,11 @@ struct ContentView: View {
                     SettingsPanel()
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .modifier(AdaptiveToolbarBackground(reduceTransparency: model.reduceTransparency))
+            .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .modifier(HighContrast(enabled: model.highContrast))
         }
-        .navigationSplitViewStyle(.balanced)
-        .contrast(model.highContrast ? 1.18 : 1.0)
+        .frame(minWidth: 760, minHeight: 560)
+        .modifier(AdaptiveToolbarBackground(reduceTransparency: model.reduceTransparency))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if model.selectedSection == .library {
@@ -88,6 +97,19 @@ struct ContentView: View {
             model.refreshModels()
         }
         .animation(model.reduceMotion ? nil : .easeOut(duration: 0.15), value: model.selectedSection)
+    }
+}
+
+private struct HighContrast: ViewModifier {
+    let enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if enabled {
+            content.contrast(1.18)
+        } else {
+            content
+        }
     }
 }
 
@@ -206,6 +228,7 @@ private struct LibraryPanel: View {
             Spacer(minLength: 0)
         }
         .padding(28)
+        .foregroundStyle(Color(nsColor: .labelColor))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Добавить папку", systemImage: "folder.badge.plus") {
