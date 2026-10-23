@@ -44,6 +44,9 @@ def test_brand_and_surface_tokens_match_approved_palette() -> None:
         "#203956",
     )
     assert dark.brand_sky == "#6FB7FF"
+    assert light.switch_on == "#34C759"
+    assert dark.switch_on == "#30D158"
+    assert light.switch_thumb == dark.switch_thumb == "#FFFFFF"
 
 
 def test_text_and_semantic_states_meet_wcag_aa_on_content_surfaces() -> None:
@@ -86,8 +89,8 @@ def test_accessibility_options_make_sidebar_opaque_and_focus_clear() -> None:
     assert tokens.control_edge == tokens.text
     assert "border: 2px solid" in stylesheet
     assert "QListWidget:focus" in stylesheet
-    assert "QCheckBox::indicator:checked" in stylesheet
-    assert "QCheckBox:focus" in stylesheet
+    assert "QCheckBox::indicator" not in stylesheet
+    assert tokens.switch_off == tokens.text
     assert "QLabel#status[state=\"error\"]" in stylesheet
 
 

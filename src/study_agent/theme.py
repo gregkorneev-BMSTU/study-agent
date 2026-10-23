@@ -4,6 +4,22 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class SwitchMetrics:
+    width: int
+    height: int
+    gap: int
+    thumb_inset: int
+    focus_inset: int
+    focus_width: int
+
+
+SWITCH_METRICS = {
+    "regular": SwitchMetrics(50, 30, 12, 3, 3, 2),
+    "compact": SwitchMetrics(44, 26, 10, 3, 3, 2),
+}
+
+
+@dataclass(frozen=True)
 class ThemeTokens:
     window: str
     content: str
@@ -27,6 +43,11 @@ class ThemeTokens:
     warning: str
     error: str
     progress: str
+    switch_on: str
+    switch_off: str
+    switch_thumb: str
+    switch_border: str
+    switch_border_width: int
     brand_bright: str
     brand_sky: str
     brand_ice: str
@@ -57,6 +78,11 @@ _DARK = ThemeTokens(
     warning="#F4C56A",
     error="#FF8A80",
     progress="#6FB7FF",
+    switch_on="#30D158",
+    switch_off="#636366",
+    switch_thumb="#FFFFFF",
+    switch_border="#617B99",
+    switch_border_width=1,
     brand_bright="#2589FC",
     brand_sky="#6FB7FF",
     brand_ice="#9FD7FC",
@@ -87,6 +113,11 @@ _LIGHT = ThemeTokens(
     warning="#8A5A00",
     error="#B42318",
     progress="#0B65F2",
+    switch_on="#34C759",
+    switch_off="#8E8E93",
+    switch_thumb="#FFFFFF",
+    switch_border="#60758F",
+    switch_border_width=1,
     brand_bright="#2589FC",
     brand_sky="#50A2FD",
     brand_ice="#9FD7FC",
@@ -110,6 +141,9 @@ def tokens_for(mode: str, *, reduce_transparency: bool, high_contrast: bool) -> 
                 "muted": base.text,
                 "focus": base.accent,
                 "separator": base.text,
+                "switch_off": base.text,
+                "switch_border": base.text,
+                "switch_border_width": 2,
             }
         )
     return base
@@ -158,10 +192,6 @@ QLineEdit, QTextEdit, QComboBox {{ background: {t.field}; border: 1px solid {t.c
   border-radius: 11px; padding: 10px 12px; selection-background-color: {t.selection}; }}
 QLineEdit::placeholder {{ color: {t.muted}; }}
 QCheckBox {{ spacing: 9px; }}
-QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px;
-  background: {t.field}; border: 1px solid {t.control_edge}; }}
-QCheckBox::indicator:checked {{ background: {t.accent}; border: 1px solid {t.focus}; }}
-QCheckBox::indicator:disabled {{ background: {t.content}; border: 1px solid {t.separator}; }}
 QComboBox::drop-down {{ border: 0; width: 28px; }}
 QComboBox QAbstractItemView {{ background: {t.card}; border: 1px solid {t.control_edge};
   selection-background-color: {t.selection}; }}
@@ -177,6 +207,6 @@ QProgressBar {{ background: {t.content}; border: 1px solid {t.edge}; border-radi
   text-align: center; }}
 QProgressBar::chunk {{ background: {t.progress}; border-radius: 3px; }}
 QToolTip {{ background: {t.card}; color: {t.text}; border: 1px solid {t.edge}; }}
-QPushButton:focus, QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QCheckBox:focus,
+QPushButton:focus, QLineEdit:focus, QTextEdit:focus, QComboBox:focus,
 QListWidget:focus {{ border: {edge_width}px solid {t.focus}; }}
 """

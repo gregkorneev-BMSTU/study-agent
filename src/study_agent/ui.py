@@ -27,7 +27,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -51,6 +50,7 @@ from PySide6.QtWidgets import (
 from study_agent.ollama import answer, list_models
 from study_agent.search import SearchHit, search_sources
 from study_agent.sources import LocalFolderSource
+from study_agent.switch import AppleSwitch
 from study_agent.theme import ThemeTokens, build_stylesheet, tokens_for
 
 DEFAULT_MODEL = "qwen3.5:4b"
@@ -555,7 +555,10 @@ class MainWindow(QMainWindow):
         self.theme_combo.setToolTip("Выберите тему приложения или следуйте системной теме.")
         self.theme_combo.currentIndexChanged.connect(self._appearance_changed)
         appearance_layout.addWidget(self.theme_combo)
-        self.reduce_transparency = QCheckBox("Уменьшить прозрачность поверхностей")
+        reduce_motion_enabled = SETTINGS.value("appearance/reduce_motion", False, type=bool)
+        self.reduce_transparency = AppleSwitch(
+            "Уменьшить прозрачность поверхностей", reduce_motion=reduce_motion_enabled
+        )
         self.reduce_transparency.setChecked(
             SETTINGS.value("appearance/reduce_transparency", False, type=bool)
         )
@@ -564,13 +567,22 @@ class MainWindow(QMainWindow):
         )
         self.reduce_transparency.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.reduce_transparency)
-        self.high_contrast = QCheckBox("Повышенный контраст")
+        self.high_contrast = AppleSwitch(
+            "Повышенный контраст", reduce_motion=reduce_motion_enabled
+        )
         self.high_contrast.setChecked(SETTINGS.value("appearance/high_contrast", False, type=bool))
         self.high_contrast.setToolTip("Усилить контраст текста, границ и клавиатурного фокуса.")
         self.high_contrast.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.high_contrast)
-        self.reduce_motion = QCheckBox("Уменьшить движение")
-        self.reduce_motion.setChecked(SETTINGS.value("appearance/reduce_motion", False, type=bool))
+        self.reduce_motion = AppleSwitch(
+            "Уменьшить движение", reduce_motion=reduce_motion_enabled
+        )
+        self.setting_switches = (
+            self.reduce_transparency,
+            self.high_contrast,
+            self.reduce_motion,
+        )
+        self.reduce_motion.setChecked(reduce_motion_enabled)
         self.reduce_motion.setToolTip("Отключить короткое затухание при переходе между разделами.")
         self.reduce_motion.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.reduce_motion)
@@ -583,6 +595,8 @@ class MainWindow(QMainWindow):
         SETTINGS.setValue("appearance/reduce_transparency", self.reduce_transparency.isChecked())
         SETTINGS.setValue("appearance/high_contrast", self.high_contrast.isChecked())
         SETTINGS.setValue("appearance/reduce_motion", self.reduce_motion.isChecked())
+        for switch in self.setting_switches:
+            switch.set_reduce_motion(self.reduce_motion.isChecked())
         if self.reduce_motion.isChecked() and hasattr(self, "_page_animation"):
             self._page_animation.stop()
             self._page_opacity.setOpacity(1.0)
@@ -619,6 +633,15 @@ class MainWindow(QMainWindow):
                 high_contrast=self.high_contrast.isChecked(),
             )
         )
+        for switch in self.setting_switches:
+            switch.set_colors(
+                on=tokens.switch_on,
+                off=tokens.switch_off,
+                thumb=tokens.switch_thumb,
+                border=tokens.switch_border,
+                border_width=tokens.switch_border_width,
+                focus=tokens.focus,
+            )
         self._update_navigation_icons(tokens)
 
     def _update_navigation_icons(self, tokens: ThemeTokens | None = None) -> None:
