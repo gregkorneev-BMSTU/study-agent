@@ -55,10 +55,11 @@ ruff check .
 
 Запустите интерфейс в активированном окружении командой `python -m study_agent`. Проверки не загружают модели и не обращаются к пользовательским папкам. Для локальных ответов нужно отдельно установить и запустить Ollama.
 
-Если на macOS при запуске появляется ошибка Qt `Could not find the Qt platform plugin "cocoa"`, восстановите Qt-пакеты в активированном окружении и повторите запуск:
+Если на macOS при запуске появляется ошибка Qt `Could not find the Qt platform plugin "cocoa"`, из корня проекта активируйте `.venv` и восстановите совместимую ветку Qt:
 
 ```sh
-python -m pip install --force-reinstall --no-cache-dir PySide6-Essentials shiboken6
+source .venv/bin/activate
+python -m pip install --force-reinstall --no-cache-dir 'PySide6-Essentials>=6.10.3,<6.11'
 ```
 
 ## Установить локальную модель
