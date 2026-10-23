@@ -27,3 +27,5 @@
 Панель About 2026-10-24: Release target Xcode собрался под arm64; в сгенерированном `Info.plist` проверены `CFBundleShortVersionString=0.1.0`, `CFBundleVersion=1`, `NSHumanReadableCopyright=Developer: Gregory Korneev`, `CFBundleIconName=AppIcon` и `CFBundleIconFile=AppIcon`. Весы/модели для этой проверки не использовались.
 
 Настройки macOS 2026-10-24: удалено ручное поле тега Ollama, оставлен список установленных моделей. `xcodebuild` Debug arm64 — успешно; `ruff check .` — успешно; `pytest --ignore=tests/test_switch.py` — 25 passed. Полный `pytest` повторно аварийно завершился в известном `tests/test_switch.py` при создании Qt `minimal` application.
+
+Настройки прозрачности macOS 2026-10-24: переключатель удалён, а toolbar использует автоматический системный фон. `xcodebuild` Debug arm64 — успешно; `ruff check .` — успешно; `pytest --ignore=tests/test_switch.py` — 25 passed.

@@ -103,9 +103,6 @@ final class StudyAgentModel: ObservableObject {
     @Published var theme: AppTheme {
         didSet { defaults.set(theme.rawValue, forKey: Keys.theme) }
     }
-    @Published var reduceTransparency: Bool {
-        didSet { defaults.set(reduceTransparency, forKey: Keys.reduceTransparency) }
-    }
     @Published var highContrast: Bool {
         didSet { defaults.set(highContrast, forKey: Keys.highContrast) }
     }
@@ -122,7 +119,6 @@ final class StudyAgentModel: ObservableObject {
         let savedTheme = defaults.string(forKey: Keys.theme).flatMap(AppTheme.init(rawValue:))
         theme = savedTheme ?? .system
         modelName = defaults.string(forKey: Keys.model) ?? "qwen3.5:4b"
-        reduceTransparency = defaults.bool(forKey: Keys.reduceTransparency)
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
@@ -363,7 +359,7 @@ final class StudyAgentModel: ObservableObject {
            let model = legacy?.string(forKey: "model") {
             defaults.set(model, forKey: Keys.model)
         }
-        for key in [Keys.theme, Keys.reduceTransparency, Keys.highContrast, Keys.reduceMotion] {
+        for key in [Keys.theme, Keys.highContrast, Keys.reduceMotion] {
             if defaults.object(forKey: key) == nil, let value = legacy?.object(forKey: key) {
                 defaults.set(value, forKey: key)
             }
@@ -389,7 +385,6 @@ private enum Keys {
     static let folders = "library.bookmarks.v1"
     static let model = "model"
     static let theme = "appearance/theme"
-    static let reduceTransparency = "appearance/reduce_transparency"
     static let highContrast = "appearance/high_contrast"
     static let reduceMotion = "appearance/reduce_motion"
     static let migrated = "migration.fromQt.v1"

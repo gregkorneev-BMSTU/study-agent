@@ -63,7 +63,6 @@ struct ContentView: View {
             .modifier(HighContrast(enabled: model.highContrast))
         }
         .frame(minWidth: 760, minHeight: 560)
-        .modifier(AdaptiveToolbarBackground(reduceTransparency: model.reduceTransparency))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if model.selectedSection == .library {
@@ -301,8 +300,6 @@ struct SettingsPanel: View {
                         Text(theme.title).tag(theme)
                     }
                 }
-                Toggle("Уменьшить прозрачность поверхностей", isOn: $model.reduceTransparency)
-                    .toggleStyle(.switch)
                 Toggle("Повышенный контраст", isOn: $model.highContrast)
                     .toggleStyle(.switch)
                 Toggle("Уменьшить движение", isOn: $model.reduceMotion)
@@ -346,18 +343,5 @@ private struct PageHeading: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct AdaptiveToolbarBackground: ViewModifier {
-    let reduceTransparency: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if reduceTransparency {
-            content.toolbarBackground(Color(nsColor: .windowBackgroundColor), for: .windowToolbar)
-        } else {
-            content.toolbarBackground(.automatic, for: .windowToolbar)
-        }
     }
 }
