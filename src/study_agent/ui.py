@@ -4,13 +4,23 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSettings, Qt, QThread, QUrl, Signal
+from PySide6.QtCore import (
+    QEasingCurve,
+    QPropertyAnimation,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    QUrl,
+    Signal,
+)
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
     QColor,
     QDesktopServices,
     QGuiApplication,
+    QIcon,
     QKeySequence,
     QPainter,
     QPixmap,
@@ -41,7 +51,7 @@ from PySide6.QtWidgets import (
 from study_agent.ollama import answer, list_models
 from study_agent.search import SearchHit, search_sources
 from study_agent.sources import LocalFolderSource
-from study_agent.theme import build_stylesheet, tokens_for
+from study_agent.theme import ThemeTokens, build_stylesheet, tokens_for
 
 DEFAULT_MODEL = "qwen3.5:4b"
 SETTINGS = QSettings("StudyAgent", "StudyAgent")
@@ -73,6 +83,25 @@ def set_status(label: QLabel, text: str, state: str) -> None:
     label.setProperty("state", state)
     label.style().unpolish(label)
     label.style().polish(label)
+
+
+def _tinted_symbol_icon(name: str, color: str) -> QIcon:
+    path = _sf_symbol_path(name)
+    source = QPixmap(str(path))
+    source.setDevicePixelRatio(3)
+    tinted = QPixmap(source.size())
+    tinted.setDevicePixelRatio(3)
+    tinted.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(tinted)
+    painter.drawPixmap(0, 0, source)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    painter.fillRect(0, 0, 24, 24, QColor(color))
+    painter.end()
+    return QIcon(tinted)
+
+
+def _sf_symbol_path(name: str) -> Path:
+    return Path(__file__).parent / "assets" / "sf_symbols" / f"{name}.png"
 
 
 class Worker(QThread):
@@ -367,8 +396,15 @@ class MainWindow(QMainWindow):
         layout.addWidget(caption)
         layout.addSpacing(22)
         self.nav_buttons: list[QPushButton] = []
-        for index, label in enumerate(("⌕   Поиск", "▤   Библиотека", "⚙   Настройки")):
+        self.nav_symbols = ("search", "library", "settings")
+        labels = ("Поиск", "Библиотека", "Настройки")
+        fallback_symbols = ("⌕", "▤", "⚙")
+        for index, (label, fallback) in enumerate(zip(labels, fallback_symbols, strict=True)):
             button = named(QPushButton(label), "nav")
+            if sys.platform == "darwin":
+                button.setIconSize(QSize(18, 18))
+            else:
+                button.setText(f"{fallback}   {label}")
             button.setCheckable(True)
             button.setChecked(index == 0)
             button.clicked.connect(lambda _checked=False, i=index: self._navigate(i))
@@ -570,13 +606,12 @@ class MainWindow(QMainWindow):
         return "dark"
 
     def _apply_appearance(self) -> None:
-        self.canvas.set_background_color(
-            tokens_for(
-                self._resolved_theme(),
-                reduce_transparency=self.reduce_transparency.isChecked(),
-                high_contrast=self.high_contrast.isChecked(),
-            ).window
+        tokens = tokens_for(
+            self._resolved_theme(),
+            reduce_transparency=self.reduce_transparency.isChecked(),
+            high_contrast=self.high_contrast.isChecked(),
         )
+        self.canvas.set_background_color(tokens.window)
         QApplication.instance().setStyleSheet(
             build_stylesheet(
                 self._resolved_theme(),
@@ -584,6 +619,20 @@ class MainWindow(QMainWindow):
                 high_contrast=self.high_contrast.isChecked(),
             )
         )
+        self._update_navigation_icons(tokens)
+
+    def _update_navigation_icons(self, tokens: ThemeTokens | None = None) -> None:
+        if sys.platform != "darwin":
+            return
+        if tokens is None:
+            tokens = tokens_for(
+                self._resolved_theme(),
+                reduce_transparency=self.reduce_transparency.isChecked(),
+                high_contrast=self.high_contrast.isChecked(),
+            )
+        for button, symbol in zip(self.nav_buttons, self.nav_symbols, strict=True):
+            color = tokens.text if button.isChecked() else tokens.secondary
+            button.setIcon(_tinted_symbol_icon(symbol, color))
 
     def _navigate(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
@@ -591,6 +640,7 @@ class MainWindow(QMainWindow):
             button.setChecked(i == index)
         for page, action in getattr(self, "view_actions", {}).items():
             action.setChecked(page == index)
+        self._update_navigation_icons()
         if not self.reduce_motion.isChecked():
             self._page_animation.stop()
             self._page_opacity.setOpacity(0.94)

@@ -10,6 +10,10 @@
 
 Цвета и общий Qt stylesheet собраны в `src/study_agent/theme.py`. `ThemeTokens` — единая схема для фонов, панелей, текста, фирменных оттенков, границ, интерактивных состояний и семантической обратной связи.
 
+## Иконография
+
+На macOS навигация использует SF Symbols `magnifyingglass`, `books.vertical` и `gearshape` для поиска, библиотеки и настроек. PNG-шаблоны находятся в `src/study_agent/assets/sf_symbols`; интерфейс окрашивает их цветом вторичного текста, а активный раздел — цветом основного текста. На других платформах сохраняется простой текстовый fallback. См. [Apple HIG: SF Symbols](https://developer.apple.com/design/human-interface-guidelines/sf-symbols/).
+
 | Роль | Светлая тема | Тёмная тема |
 | --- | --- | --- |
 | Основной фон | `#F7FAFF` | `#101C2E` |

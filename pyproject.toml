@@ -22,6 +22,9 @@ packaging = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+study_agent = ["assets/sf_symbols/*.png"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
