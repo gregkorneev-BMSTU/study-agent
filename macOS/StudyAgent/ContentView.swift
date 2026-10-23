@@ -273,8 +273,6 @@ struct SettingsPanel: View {
     var body: some View {
         Form {
             Section("Локальная языковая модель") {
-                TextField("Тег модели Ollama", text: $model.modelName)
-                    .textFieldStyle(.roundedBorder)
                 if !model.modelNames.isEmpty {
                     Picker("Установленная модель", selection: $model.modelName) {
                         ForEach(model.modelNames, id: \.self) { name in

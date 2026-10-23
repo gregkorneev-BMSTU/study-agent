@@ -25,3 +25,5 @@
 Проверки OCR-изменений 2026-10-24: `ruff check .` прошёл; `pytest --ignore=tests/test_switch.py` — 25 passed. Полный `pytest` по-прежнему аварийно завершает Python при создании Qt `minimal` application в `tests/test_switch.py` на локальном PySide6 plugin loader. В тестах OCR используется синтетическая подмена PDFium/Chandra; модельные веса не загружались.
 
 Панель About 2026-10-24: Release target Xcode собрался под arm64; в сгенерированном `Info.plist` проверены `CFBundleShortVersionString=0.1.0`, `CFBundleVersion=1`, `NSHumanReadableCopyright=Developer: Gregory Korneev`, `CFBundleIconName=AppIcon` и `CFBundleIconFile=AppIcon`. Весы/модели для этой проверки не использовались.
+
+Настройки macOS 2026-10-24: удалено ручное поле тега Ollama, оставлен список установленных моделей. `xcodebuild` Debug arm64 — успешно; `ruff check .` — успешно; `pytest --ignore=tests/test_switch.py` — 25 passed. Полный `pytest` повторно аварийно завершился в известном `tests/test_switch.py` при создании Qt `minimal` application.
