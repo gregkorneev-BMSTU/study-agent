@@ -5,7 +5,7 @@ import pytest
 from study_agent.sources import LocalFolderSource
 
 
-def test_lists_and_reads_only_markdown_and_text(tmp_path: Path) -> None:
+def test_lists_supported_formats_and_reads_text_files(tmp_path: Path) -> None:
     (tmp_path / "week-1").mkdir()
     (tmp_path / "week-1" / "notes.md").write_text("# Notes", encoding="utf-8")
     (tmp_path / "summary.TXT").write_text("Summary", encoding="utf-8")
@@ -14,7 +14,11 @@ def test_lists_and_reads_only_markdown_and_text(tmp_path: Path) -> None:
     source = LocalFolderSource(tmp_path)
 
     documents = source.list_documents()
-    assert [document.document_id for document in documents] == ["summary.TXT", "week-1/notes.md"]
+    assert [document.document_id for document in documents] == [
+        "slides.pdf",
+        "summary.TXT",
+        "week-1/notes.md",
+    ]
     assert source.read("week-1/notes.md") == "# Notes"
 
 

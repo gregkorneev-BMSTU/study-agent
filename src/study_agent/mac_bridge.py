@@ -53,7 +53,7 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
         else:
             raise ValueError("Unknown backend command")
         return {"request_id": request_id, "ok": True, "result": result}
-    except (OSError, OllamaError, TypeError, ValueError) as error:
+    except (OSError, OllamaError, RuntimeError, TypeError, ValueError) as error:
         return {
             "request_id": request_id,
             "ok": False,

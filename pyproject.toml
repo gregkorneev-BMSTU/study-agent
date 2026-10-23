@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Local-first search and analysis of educational materials"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["PySide6-Essentials>=6.10.3,<6.11"]
+dependencies = ["PySide6-Essentials>=6.10.3,<6.11", "pypdfium2>=4.30.0"]
 
 [project.optional-dependencies]
 dev = [
@@ -17,6 +17,9 @@ dev = [
 ]
 packaging = [
     "pyinstaller>=6.10,<7",
+]
+ocr = [
+    "chandra-ocr[hf]>=0.2,<0.3",
 ]
 
 [tool.setuptools.packages.find]

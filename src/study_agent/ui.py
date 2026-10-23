@@ -477,7 +477,9 @@ class MainWindow(QMainWindow):
         actions.addWidget(add)
         actions.addStretch()
         layout.addLayout(actions)
-        self.library_summary = named(QLabel("Поддерживаются файлы Markdown и TXT."), "muted")
+        self.library_summary = named(
+            QLabel("PDF, изображения, Markdown и TXT; сканы обрабатываются локально."), "muted"
+        )
         layout.addWidget(self.library_summary)
         self.source_list = QListWidget()
         layout.addWidget(self.source_list, 1)
@@ -686,9 +688,9 @@ class MainWindow(QMainWindow):
             item.setData(Qt.ItemDataRole.UserRole, str(path))
             self.source_list.addItem(item)
         self.library_summary.setText(
-            f"{len(self.sources)} папок · {document_count} файлов Markdown/TXT"
+            f"{len(self.sources)} папок · {document_count} файлов"
             if self.sources
-            else "Поддерживаются файлы Markdown и TXT."
+            else "PDF, изображения, Markdown и TXT; сканы обрабатываются локально."
         )
         self.search_state.setText(
             f"Папок: {len(self.sources)} · файлов: {document_count}. Задайте вопрос по материалам."

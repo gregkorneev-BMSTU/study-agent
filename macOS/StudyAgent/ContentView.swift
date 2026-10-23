@@ -207,7 +207,7 @@ private struct LibraryPanel: View {
                 ContentUnavailableView {
                     Label("Папки пока не добавлены", systemImage: "folder.badge.plus")
                 } description: {
-                    Text("Добавьте папку с файлами Markdown или TXT.")
+                    Text("Добавьте папку с PDF, изображениями, Markdown или TXT.")
                 } actions: {
                     Button("Добавить папку…", systemImage: "folder.badge.plus") {
                         model.isImportingFolders = true
@@ -251,7 +251,7 @@ private struct SourceRow: View {
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 4) {
                 Text(source.name).font(.headline)
-                Text("\(source.documentCount) файлов Markdown и TXT")
+                Text("\(source.documentCount) файлов поддерживаемых форматов")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

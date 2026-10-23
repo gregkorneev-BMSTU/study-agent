@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-SUPPORTED_SUFFIXES = {".md", ".txt"}
+from study_agent.extractors import OCR_SUFFIXES, extract_document
+
+SUPPORTED_SUFFIXES = {".md", ".txt", *OCR_SUFFIXES}
 
 
 @dataclass(frozen=True)
@@ -19,7 +21,7 @@ class DocumentRef:
 
 
 class LocalFolderSource:
-    """Enumerate and read Markdown or plain-text files under a selected directory."""
+    """Enumerate and read supported local study materials."""
 
     def __init__(self, root: Path) -> None:
         self.root = root.expanduser().resolve(strict=True)
@@ -58,4 +60,4 @@ class LocalFolderSource:
         resolved_path = path.resolve(strict=True)
         if not resolved_path.is_relative_to(self.root) or not resolved_path.is_file():
             raise ValueError("document_id does not identify a file inside the selected folder")
-        return resolved_path.read_text(encoding="utf-8")
+        return extract_document(resolved_path)
