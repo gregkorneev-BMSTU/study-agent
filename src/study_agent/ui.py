@@ -40,6 +40,14 @@ def named(widget: QWidget, name: str) -> QWidget:
     return widget
 
 
+def set_status(label: QLabel, text: str, state: str) -> None:
+    """Update an existing status label's semantic visual state."""
+    label.setText(text)
+    label.setProperty("state", state)
+    label.style().unpolish(label)
+    label.style().polish(label)
+
+
 class Worker(QThread):
     """Run disk and local-model work without freezing the window."""
 
@@ -60,7 +68,7 @@ class Worker(QThread):
 class Canvas(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.background_color = QColor("#171a20")
+        self.background_color = QColor()
 
     def set_background_color(self, color: str) -> None:
         self.background_color = QColor(color)
@@ -135,13 +143,13 @@ class MainWindow(QMainWindow):
             layout.addWidget(button)
             self.nav_buttons.append(button)
         layout.addStretch()
-        self.sidebar_status = named(QLabel("Ollama: проверка…"), "muted")
+        self.sidebar_status = named(QLabel("Ollama: проверка…"), "status")
         self.sidebar_status.setWordWrap(True)
         layout.addWidget(self.sidebar_status)
         return panel
 
     def _page(self, title: str, subtitle: str) -> tuple[QFrame, QVBoxLayout]:
-        page = named(QFrame(), "glass")
+        page = named(QFrame(), "content")
         layout = QVBoxLayout(page)
         layout.setContentsMargins(30, 26, 30, 24)
         layout.setSpacing(17)
@@ -157,7 +165,7 @@ class MainWindow(QMainWindow):
             QLabel(
                 "Добавьте папку с учебными материалами в разделе «Библиотека».",
             ),
-            "muted",
+            "status",
         )
         self.search_state.setWordWrap(True)
         layout.addWidget(self.search_state)
@@ -245,7 +253,7 @@ class MainWindow(QMainWindow):
         model_actions.addWidget(save)
         model_actions.addStretch()
         card_layout.addLayout(model_actions)
-        self.model_state = named(QLabel("Список получаем с локального сервера Ollama."), "muted")
+        self.model_state = named(QLabel("Список получаем с локального сервера Ollama."), "status")
         self.model_state.setWordWrap(True)
         card_layout.addWidget(self.model_state)
         settings_layout.addWidget(card)
@@ -398,7 +406,8 @@ class MainWindow(QMainWindow):
         self._show_sources()
 
     def refresh_models(self) -> None:
-        self.sidebar_status.setText("Ollama: проверка…")
+        set_status(self.sidebar_status, "Ollama: проверка…", "progress")
+        set_status(self.model_state, "Список получаем с локального сервера Ollama.", "progress")
         worker = Worker(list_models)
         worker.succeeded.connect(self._models_loaded)
         worker.failed.connect(self._models_failed)
@@ -410,42 +419,51 @@ class MainWindow(QMainWindow):
         self.model_combo.clear()
         self.model_combo.addItems(models)
         self.model_combo.setCurrentText(current)
-        self.model_state.setText(
-            f"Установлено моделей: {len(models)}. Текущий выбор: {current}."
-            if current in models
-            else (
-                f"Модель «{current}» не найдена в Ollama. Установите её через Ollama "
-                "или команду ollama pull."
+        if current in models:
+            set_status(
+                self.model_state,
+                f"Установлено моделей: {len(models)}. Текущий выбор: {current}.",
+                "success",
             )
-        )
-        self.sidebar_status.setText(
-            "Ollama: подключена" if models else "Ollama запущена, моделей нет"
+        else:
+            set_status(
+                self.model_state,
+                f"Модель «{current}» не найдена в Ollama. Установите её через Ollama "
+                "или команду ollama pull.",
+                "warning",
+            )
+        set_status(
+            self.sidebar_status,
+            "Ollama: подключена" if models else "Ollama запущена, моделей нет",
+            "success" if models else "warning",
         )
 
     def _models_failed(self, message: str) -> None:
-        self.sidebar_status.setText("Ollama: нет соединения")
-        self.model_state.setText(message)
+        set_status(self.sidebar_status, "Ollama: нет соединения", "error")
+        set_status(self.model_state, message, "error")
 
     def save_model(self) -> None:
         model = self.model_combo.currentText().strip()
         if not model:
-            self.model_state.setText("Укажите имя установленной локальной модели.")
+            set_status(self.model_state, "Укажите имя установленной локальной модели.", "warning")
             return
         SETTINGS.setValue("model", model)
-        self.model_state.setText(f"Сохранена модель: {model}.")
+        set_status(self.model_state, f"Сохранена модель: {model}.", "success")
 
     def ask(self) -> None:
         query = self.question.text().strip()
         if not query:
             return
         if not self.sources:
-            self.search_state.setText(
-                "Сначала добавьте папку с материалами в разделе «Библиотека»."
+            set_status(
+                self.search_state,
+                "Сначала добавьте папку с материалами в разделе «Библиотека».",
+                "warning",
             )
             return
         self.question.clear()
         self.ask_button.setEnabled(False)
-        self.search_state.setText("Ищу фрагменты в выбранных папках…")
+        set_status(self.search_state, "Ищу фрагменты в выбранных папках…", "progress")
         self._clear_results()
         worker = Worker(
             lambda: search_sources([LocalFolderSource(path) for path in self.sources], query)
@@ -456,13 +474,17 @@ class MainWindow(QMainWindow):
 
     def _retrieved(self, query: str, hits: list[SearchHit]) -> None:
         if not hits:
-            self.search_state.setText(
-                "В выбранных материалах не нашёл фрагментов по этому запросу."
+            set_status(
+                self.search_state,
+                "В выбранных материалах не нашёл фрагментов по этому запросу.",
+                "warning",
             )
             self.ask_button.setEnabled(True)
             return
-        self.search_state.setText(
-            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…"
+        set_status(
+            self.search_state,
+            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…",
+            "progress",
         )
         for number, hit in enumerate(hits, start=1):
             self._add_hit(number, hit)
@@ -480,10 +502,11 @@ class MainWindow(QMainWindow):
         card = named(QFrame(), "card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 12, 16, 12)
+        title_text = f"[{number}]  {hit.title}  ·  {hit.source_root.name}/{hit.document_id}"
         title = named(
-            QPushButton(f"[{number}]  {hit.title}  ·  {hit.source_root.name}/{hit.document_id}"),
-            "link",
+            QPushButton(title_text), "link"
         )
+        title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
         excerpt = QLabel(hit.excerpt)
@@ -502,11 +525,15 @@ class MainWindow(QMainWindow):
         answer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(answer_label)
         self.results_layout.addWidget(card)
-        self.search_state.setText(f"Ответ подготовлен локально по {min(len(hits), 5)} источникам.")
+        set_status(
+            self.search_state,
+            f"Ответ подготовлен локально по {min(len(hits), 5)} источникам.",
+            "success",
+        )
         self.ask_button.setEnabled(True)
 
     def _search_failed(self, message: str) -> None:
-        self.search_state.setText(message)
+        set_status(self.search_state, message, "error")
         self.ask_button.setEnabled(True)
 
     def _clear_results(self) -> None:
