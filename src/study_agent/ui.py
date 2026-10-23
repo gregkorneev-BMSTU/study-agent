@@ -5,7 +5,16 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSettings, Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter, QPixmap
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QColor,
+    QDesktopServices,
+    QGuiApplication,
+    QKeySequence,
+    QPainter,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -19,6 +28,9 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QStackedWidget,
@@ -115,6 +127,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._library_page())
         self.pages.addWidget(self._settings_page())
         root.addWidget(self.pages, 1)
+        self._build_menu_bar()
         self._page_opacity = QGraphicsOpacityEffect(self.pages)
         self.pages.setGraphicsEffect(self._page_opacity)
         self._page_animation = QPropertyAnimation(self._page_opacity, b"opacity", self)
@@ -125,6 +138,191 @@ class MainWindow(QMainWindow):
         self._apply_appearance()
         self._show_sources()
         self.refresh_models()
+
+    def _build_menu_bar(self) -> None:
+        menu_bar: QMenuBar = self.menuBar()
+        menu_bar.setNativeMenuBar(True)
+        self._menus: list[QMenu] = []
+
+        def add_menu(label: str) -> QMenu:
+            menu = menu_bar.addMenu(label)
+            self._menus.append(menu)
+            return menu
+
+        app_menu = add_menu("Study Agent")
+        about = QAction("Об Study Agent", self)
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+        about.triggered.connect(
+            lambda: QMessageBox.about(
+                self,
+                "Study Agent",
+                "Локальный поиск и анализ учебных материалов.\n\n"
+                "Файлы остаются на этом компьютере; ответы формируются через Ollama.",
+            )
+        )
+        app_menu.addAction(about)
+        preferences = QAction("Настройки…", self)
+        preferences.setMenuRole(QAction.MenuRole.PreferencesRole)
+        preferences.triggered.connect(lambda: self._navigate(2))
+        app_menu.addAction(preferences)
+        app_menu.addSeparator()
+        quit_action = QAction("Завершить Study Agent", self)
+        quit_action.setMenuRole(QAction.MenuRole.QuitRole)
+        quit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        quit_action.triggered.connect(QApplication.quit)
+        app_menu.addAction(quit_action)
+
+        file_menu = add_menu("Файл")
+        add_source = QAction("Добавить папку…", self)
+        add_source.setShortcut(QKeySequence.StandardKey.Open)
+        add_source.triggered.connect(self.add_source)
+        file_menu.addAction(add_source)
+        remove_source = QAction("Удалить выбранную папку", self)
+        remove_source.triggered.connect(self.remove_source)
+        file_menu.addAction(remove_source)
+        file_menu.addSeparator()
+        refresh_models = QAction("Обновить список моделей Ollama", self)
+        refresh_models.triggered.connect(self.refresh_models)
+        file_menu.addAction(refresh_models)
+
+        edit_menu = add_menu("Правка")
+        self.edit_actions: dict[str, QAction] = {}
+        edit_commands = (
+            ("undo", "Отменить", QKeySequence.StandardKey.Undo),
+            ("redo", "Повторить", QKeySequence.StandardKey.Redo),
+            ("cut", "Вырезать", QKeySequence.StandardKey.Cut),
+            ("copy", "Копировать", QKeySequence.StandardKey.Copy),
+            ("paste", "Вставить", QKeySequence.StandardKey.Paste),
+            ("select_all", "Выделить всё", QKeySequence.StandardKey.SelectAll),
+        )
+        for command, label, shortcut in edit_commands:
+            action = QAction(label, self)
+            action.setShortcut(shortcut)
+            action.triggered.connect(
+                lambda _checked=False, name=command: self._edit_command(name)
+            )
+            edit_menu.addAction(action)
+            self.edit_actions[command] = action
+        edit_menu.aboutToShow.connect(self._update_edit_actions)
+        QApplication.instance().focusChanged.connect(
+            lambda _old, _new: self._update_edit_actions()
+        )
+        for line_edit in self.findChildren(QLineEdit):
+            line_edit.selectionChanged.connect(self._update_edit_actions)
+            line_edit.textChanged.connect(self._update_edit_actions)
+        QApplication.clipboard().dataChanged.connect(self._update_edit_actions)
+
+        view_menu = add_menu("Вид")
+        self.view_actions: dict[int, QAction] = {}
+        for index, label in enumerate(("Поиск", "Библиотека", "Настройки")):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(index == 0)
+            action.triggered.connect(
+                lambda _checked=False, page=index: self._navigate(page)
+            )
+            view_menu.addAction(action)
+            self.view_actions[index] = action
+        view_menu.addSeparator()
+        theme_menu = view_menu.addMenu("Цветовая тема")
+        self._menus.append(theme_menu)
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+        self.theme_actions: dict[str, QAction] = {}
+        for label, value in (("Как в системе", "system"), ("Светлая", "light"), ("Тёмная", "dark")):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(self.theme_combo.currentData() == value)
+            action.triggered.connect(
+                lambda _checked=False, selected=value: self._set_theme(selected)
+            )
+            theme_group.addAction(action)
+            theme_menu.addAction(action)
+            self.theme_actions[value] = action
+        theme_menu.addSeparator()
+        for label, checkbox in (
+            ("Уменьшить прозрачность", self.reduce_transparency),
+            ("Повышенный контраст", self.high_contrast),
+            ("Уменьшить движение", self.reduce_motion),
+        ):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(checkbox.isChecked())
+            action.triggered.connect(checkbox.setChecked)
+            checkbox.toggled.connect(action.setChecked)
+            theme_menu.addAction(action)
+
+        window_menu = add_menu("Окно")
+        minimize = QAction("Свернуть", self)
+        minimize.setShortcut(
+            QKeySequence("Meta+M" if sys.platform == "darwin" else "Ctrl+M")
+        )
+        minimize.triggered.connect(self.showMinimized)
+        window_menu.addAction(minimize)
+        close = QAction("Закрыть окно", self)
+        close.setShortcut(QKeySequence.StandardKey.Close)
+        close.triggered.connect(self.close)
+        window_menu.addAction(close)
+
+        help_menu = add_menu("Справка")
+        help_about = QAction("О Study Agent…", self)
+        help_about.triggered.connect(about.trigger)
+        help_menu.addAction(help_about)
+        self._update_edit_actions()
+
+    def _set_theme(self, theme: str) -> None:
+        self.theme_combo.setCurrentIndex(self.theme_combo.findData(theme))
+
+    def _edit_target(self) -> QWidget | None:
+        target = QApplication.focusWidget()
+        if isinstance(target, QComboBox) and target.isEditable():
+            return target.lineEdit()
+        return target
+
+    def _update_edit_actions(self) -> None:
+        target = self._edit_target()
+        if target is None:
+            for action in self.edit_actions.values():
+                action.setEnabled(False)
+            return
+        is_line_edit = isinstance(target, QLineEdit)
+        has_selection = (
+            isinstance(target, (QLineEdit, QLabel)) and target.hasSelectedText()
+        )
+        self.edit_actions["undo"].setEnabled(
+            is_line_edit and target.isUndoAvailable()
+        )
+        self.edit_actions["redo"].setEnabled(
+            is_line_edit and target.isRedoAvailable()
+        )
+        self.edit_actions["cut"].setEnabled(is_line_edit and has_selection)
+        self.edit_actions["copy"].setEnabled(has_selection)
+        self.edit_actions["paste"].setEnabled(
+            is_line_edit and bool(QApplication.clipboard().text())
+        )
+        self.edit_actions["select_all"].setEnabled(
+            is_line_edit and bool(target.text())
+        )
+
+    def _edit_command(self, command: str) -> None:
+        target = self._edit_target()
+        if target is None:
+            return
+        if command == "copy" and isinstance(target, QLabel):
+            if target.hasSelectedText():
+                QApplication.clipboard().setText(target.selectedText())
+            return
+        if isinstance(target, QLineEdit):
+            methods = {
+                "undo": target.undo,
+                "redo": target.redo,
+                "cut": target.cut,
+                "copy": target.copy,
+                "paste": target.paste,
+                "select_all": target.selectAll,
+            }
+            methods[command]()
+            self._update_edit_actions()
 
     @staticmethod
     def _saved_sources() -> list[Path]:
@@ -352,6 +550,8 @@ class MainWindow(QMainWindow):
         if self.reduce_motion.isChecked() and hasattr(self, "_page_animation"):
             self._page_animation.stop()
             self._page_opacity.setOpacity(1.0)
+        for theme, action in getattr(self, "theme_actions", {}).items():
+            action.setChecked(self.theme_combo.currentData() == theme)
         self._apply_appearance()
 
     def _system_theme_changed(self, _scheme: object) -> None:
@@ -389,6 +589,8 @@ class MainWindow(QMainWindow):
         self.pages.setCurrentIndex(index)
         for i, button in enumerate(self.nav_buttons):
             button.setChecked(i == index)
+        for page, action in getattr(self, "view_actions", {}).items():
+            action.setChecked(page == index)
         if not self.reduce_motion.isChecked():
             self._page_animation.stop()
             self._page_opacity.setOpacity(0.94)
