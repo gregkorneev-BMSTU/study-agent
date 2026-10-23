@@ -6,15 +6,19 @@
 
 ## Предпросмотр
 
-Здесь показан PySide6-интерфейс, для которого были подготовлены скриншоты. Нативная SwiftUI-версия использует системные окна, controls, меню и настройки macOS, включая светлую и тёмную тему; её отдельные скриншоты будут добавлены после визуального QA.
+Актуальная версия для macOS — нативное приложение SwiftUI/Xcode с фирменной синей иконкой Study Agent. Скриншоты ниже сняты из свежей Release-сборки Xcode; они показывают текущую навигацию, библиотеку и настройки. Старые превью PySide6 больше не используются как скриншоты macOS.
 
-| Светлая тема | Тёмная тема |
-| --- | --- |
-| <img src="artifacts/color-system-qa/light-search-1240x820.png" width="480" alt="Study Agent — поиск, светлая тема"> | <img src="artifacts/color-system-qa/dark-search-1240x820.png" width="480" alt="Study Agent — поиск, тёмная тема"> |
+<p align="center">
+  <img src="assets/StudyAgent_Apple_Icon_Kit/Master/AppIcon_1024.png" width="112" alt="Иконка Study Agent">
+</p>
 
-| Библиотека | Настройки |
+| Поиск · тёмная тема | Библиотека · тёмная тема |
 | --- | --- |
-| <img src="artifacts/color-system-qa/light-library-1240x820.png" width="480" alt="Study Agent — библиотека, светлая тема"> | <img src="artifacts/color-system-qa/dark-settings-1240x820.png" width="480" alt="Study Agent — настройки, тёмная тема"> |
+| <img src="artifacts/readme/macos-dark-search.png" width="480" alt="Нативный Study Agent для macOS — поиск, фирменная иконка в боковой панели"> | <img src="artifacts/readme/macos-dark-library.png" width="480" alt="Нативный Study Agent для macOS — библиотека"> |
+
+| Настройки · тёмная тема |
+| --- |
+| <img src="artifacts/readme/macos-dark-settings.png" width="720" alt="Нативный Study Agent для macOS — настройки темы и доступности"> |
 
 Локальную сборку `.app` для macOS можно создать по инструкции ниже. Для поддержки OCR установите дополнительную группу `ocr`; веса модели загружаются отдельно при первом OCR. Скачать готовый установщик пока нельзя.
 
