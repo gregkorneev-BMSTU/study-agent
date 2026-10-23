@@ -11,6 +11,7 @@
 		A10000000000000000000003 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* ContentView.swift */; };
 		A10000000000000000000004 /* StudyAgent.icns in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* StudyAgent.icns */; };
 		A10000000000000000000005 /* StudyAgentLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* StudyAgentLogo.png */; };
+		A10000000000000000000006 /* StudyAgent.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* StudyAgent.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +21,7 @@
 		A20000000000000000000004 /* StudyAgent.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "macOS/StudyAgent.icns"; sourceTree = "<group>"; };
 		A20000000000000000000005 /* StudyAgentLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Master/AppIcon_1024.png"; sourceTree = "<group>"; };
 		A20000000000000000000006 /* Study Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Study Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000007 /* StudyAgent.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "macOS/StudyAgent.xcassets"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,7 +49,7 @@
 			);
 		};
 		A40000000000000000000003 /* Products */ = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A20000000000000000000006 /* Study Agent.app */,); };
-		A40000000000000000000004 /* Apple Icon Kit */ = {isa = PBXGroup; path = "../assets/StudyAgent_Apple_Icon_Kit"; sourceTree = "<group>"; children = (A20000000000000000000004 /* StudyAgent.icns */, A20000000000000000000005 /* StudyAgentLogo.png */,); };
+		A40000000000000000000004 /* Apple Icon Kit */ = {isa = PBXGroup; path = "../assets/StudyAgent_Apple_Icon_Kit"; sourceTree = "<group>"; children = (A20000000000000000000004 /* StudyAgent.icns */, A20000000000000000000005 /* StudyAgentLogo.png */, A20000000000000000000007 /* StudyAgent.xcassets */,); };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -90,14 +92,14 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000004 /* StudyAgent.icns in Resources */, A10000000000000000000005 /* StudyAgentLogo.png in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000004 /* StudyAgent.icns in Resources */, A10000000000000000000005 /* StudyAgentLogo.png in Resources */, A10000000000000000000006 /* StudyAgent.xcassets in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		A70000000000000000000001 /* Debug project settings */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
 		A70000000000000000000002 /* Release project settings */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Release; };
-		A70000000000000000000003 /* Debug target settings */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Manual; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_CFBundleIconFile = StudyAgent.icns; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; MACOSX_DEPLOYMENT_TARGET = 14.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
-		A70000000000000000000004 /* Release target settings */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Manual; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_CFBundleIconFile = StudyAgent.icns; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; MACOSX_DEPLOYMENT_TARGET = 14.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Release; };
+		A70000000000000000000003 /* Debug target settings */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 1; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSHumanReadableCopyright = "Developer: Gregory Korneev"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A70000000000000000000004 /* Release target settings */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 1; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSHumanReadableCopyright = "Developer: Gregory Korneev"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 0.1.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
