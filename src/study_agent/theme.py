@@ -130,7 +130,7 @@ QFrame#content {{ background-color: {t.content}; border: {edge_width}px solid {t
 QFrame#card {{ background-color: {t.card}; border: 1px solid {t.separator}; border-radius: 14px; }}
 QFrame#sidebar {{ background-color: {t.sidebar}; border: {edge_width}px solid {t.edge};
   border-radius: 22px; }}
-QLabel#brand {{ font-size: 19px; font-weight: 650; }}
+QLabel#brand {{ font-size: 17px; font-weight: 650; }}
 QLabel#title {{ font-size: 30px; font-weight: 650; }}
 QLabel#subtitle {{ color: {t.secondary}; font-size: 14px; }}
 QLabel#muted {{ color: {t.muted}; }}

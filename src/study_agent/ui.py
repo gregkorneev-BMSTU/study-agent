@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSettings, Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -33,6 +33,21 @@ from study_agent.theme import build_stylesheet, tokens_for
 
 DEFAULT_MODEL = "qwen3.5:4b"
 SETTINGS = QSettings("StudyAgent", "StudyAgent")
+
+
+def _brand_logo_path() -> Path:
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        bases = (Path(bundle_dir), Path(bundle_dir).parent / "Resources")
+        candidates = tuple(base / "study_agent" / "assets" / "AppIcon_1024.png" for base in bases)
+        return next((path for path in candidates if path.is_file()), candidates[0])
+    return (
+        Path(__file__).resolve().parents[2]
+        / "assets"
+        / "StudyAgent_Apple_Icon_Kit"
+        / "Master"
+        / "AppIcon_1024.png"
+    )
 
 
 def named(widget: QWidget, name: str) -> QWidget:
@@ -128,8 +143,27 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(18, 22, 18, 18)
         layout.setSpacing(10)
-        brand = named(QLabel("◉  Study Agent"), "brand")
-        layout.addWidget(brand)
+        brand_row = QHBoxLayout()
+        brand_row.setContentsMargins(0, 0, 0, 0)
+        brand_row.setSpacing(8)
+        logo = QLabel()
+        logo.setObjectName("brand-logo")
+        logo.setFixedSize(32, 32)
+        logo.setAccessibleName("Логотип Study Agent")
+        ratio = 2.0
+        icon_size = round(logo.width() * ratio)
+        pixmap = QPixmap(str(_brand_logo_path())).scaled(
+            icon_size,
+            icon_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        pixmap.setDevicePixelRatio(ratio)
+        logo.setPixmap(pixmap)
+        brand_row.addWidget(logo)
+        brand_row.addWidget(named(QLabel("Study Agent"), "brand"))
+        brand_row.addStretch()
+        layout.addLayout(brand_row)
         caption = named(QLabel("Локальная библиотека знаний"), "muted")
         caption.setWordWrap(True)
         layout.addWidget(caption)
