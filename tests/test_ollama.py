@@ -1,0 +1,46 @@
+import json
+
+from study_agent import ollama
+
+
+class FakeResponse:
+    def __init__(self, payload: dict[str, object]) -> None:
+        self.payload = json.dumps(payload).encode()
+
+    def __enter__(self) -> "FakeResponse":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self.payload
+
+
+def test_lists_installed_local_models(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ollama,
+        "urlopen",
+        lambda *_args, **_kwargs: FakeResponse({"models": [{"name": "qwen3.5:4b"}]}),
+    )
+
+    assert ollama.list_models() == ["qwen3.5:4b"]
+
+
+def test_answer_sends_question_and_material_only_to_local_endpoint(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_post(path: str, payload: dict[str, object]) -> dict[str, object]:
+        captured["path"] = path
+        captured["payload"] = payload
+        return {"message": {"content": "Ответ [1]"}}
+
+    monkeypatch.setattr(ollama, "_post", fake_post)
+
+    result = ollama.answer(
+        "qwen3.5:4b", "Что такое алгоритм?", "[1] notes.txt\nАлгоритм — набор шагов."
+    )
+
+    assert result == "Ответ [1]"
+    assert captured["path"] == "/api/chat"
+    assert "Алгоритм — набор шагов." in captured["payload"]["messages"][1]["content"]
