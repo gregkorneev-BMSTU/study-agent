@@ -1,0 +1,109 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* StudyAgentApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* StudyAgentApp.swift */; };
+		A10000000000000000000002 /* StudyAgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* StudyAgentModel.swift */; };
+		A10000000000000000000003 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* ContentView.swift */; };
+		A10000000000000000000004 /* StudyAgent.icns in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* StudyAgent.icns */; };
+		A10000000000000000000005 /* StudyAgentLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* StudyAgentLogo.png */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* StudyAgentApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAgentApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* StudyAgentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAgentModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A20000000000000000000004 /* StudyAgent.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = StudyAgent.icns; sourceTree = "<group>"; };
+		A20000000000000000000005 /* StudyAgentLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = StudyAgentLogo.png; sourceTree = "<group>"; };
+		A20000000000000000000006 /* Study Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Study Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* StudyAgent */,
+				A40000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* StudyAgent */ = {
+			isa = PBXGroup;
+			path = StudyAgent;
+			sourceTree = "<group>";
+			children = (
+				A20000000000000000000001 /* StudyAgentApp.swift */,
+				A20000000000000000000002 /* StudyAgentModel.swift */,
+				A20000000000000000000003 /* ContentView.swift */,
+				A40000000000000000000004 /* Resources */,
+			);
+		};
+		A40000000000000000000003 /* Products */ = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A20000000000000000000006 /* Study Agent.app */,); };
+		A40000000000000000000004 /* Resources */ = {isa = PBXGroup; path = Resources; sourceTree = "<group>"; children = (A20000000000000000000004 /* StudyAgent.icns */, A20000000000000000000005 /* StudyAgentLogo.png */,); };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* Study Agent */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A80000000000000000000002 /* Build configuration list for PBXNativeTarget "Study Agent" */;
+			buildPhases = (
+				A30000000000000000000002 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A30000000000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = "Study Agent";
+			productName = "Study Agent";
+			productReference = A20000000000000000000006 /* Study Agent.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A60000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; TargetAttributes = {A50000000000000000000001 = {CreatedOnToolsVersion = 27.1; }; }; };
+			buildConfigurationList = A80000000000000000000001 /* Build configuration list for PBXProject "Study Agent" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base,);
+			mainGroup = A40000000000000000000001;
+			productRefGroup = A40000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A50000000000000000000001 /* Study Agent */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000004 /* StudyAgent.icns in Resources */, A10000000000000000000005 /* StudyAgentLogo.png in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A70000000000000000000001 /* Debug project settings */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A70000000000000000000002 /* Release project settings */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Release; };
+		A70000000000000000000003 /* Debug target settings */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Manual; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_CFBundleIconFile = StudyAgent.icns; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; MACOSX_DEPLOYMENT_TARGET = 14.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A70000000000000000000004 /* Release target settings */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Manual; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_CFBundleIconFile = StudyAgent.icns; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; MACOSX_DEPLOYMENT_TARGET = 14.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A80000000000000000000001 /* Build configuration list for PBXProject "Study Agent" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000001 /* Debug project settings */, A70000000000000000000002 /* Release project settings */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A80000000000000000000002 /* Build configuration list for PBXNativeTarget "Study Agent" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000003 /* Debug target settings */, A70000000000000000000004 /* Release target settings */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A60000000000000000000001 /* Project object */;
+}
