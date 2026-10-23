@@ -1,0 +1,1 @@
+Icon Composer: background color #71B9FA or soft blue gradient; import 01..04 SVG as foreground layers in ascending order. Let Apple apply icon mask and Liquid Glass effects. The SVG layers are a clean vector adaptation of the raster icon, not pixel-identical. Export actual .icon file FROM Icon Composer on a Mac; do not rename a folder to .icon.

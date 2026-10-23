@@ -28,6 +28,7 @@ mkdir -p "$APP_OUTPUT_DIR"
   --windowed \
   --name "Study Agent" \
   --osx-bundle-identifier com.gregkorneev.studyagent \
+  --icon "$ROOT_DIR/assets/StudyAgent_Apple_Icon_Kit/macOS/StudyAgent.icns" \
   --paths "$ROOT_DIR/src" \
   --distpath "$APP_OUTPUT_DIR" \
   --workpath "$ROOT_DIR/build/pyinstaller" \
