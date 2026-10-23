@@ -93,7 +93,7 @@ def build_stylesheet(
     edge_width = 2 if high_contrast else 1
     glass_fill = t.content if reduce_transparency else t.glass
     return f"""
-* {{ color: {t.text}; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+* {{ color: {t.text}; }}
 QMainWindow {{ background: {t.window}; }}
 QWidget#canvas {{ background: {t.window}; }}
 QFrame#glass {{ background-color: {t.content}; border: {edge_width}px solid {t.edge};
@@ -124,6 +124,11 @@ QPushButton#link {{ background: transparent; border: 0; color: {t.accent};
 QLineEdit, QTextEdit, QComboBox {{ background: {t.field}; border: 1px solid {t.edge};
   border-radius: 11px; padding: 10px 12px; selection-background-color: {t.selection}; }}
 QLineEdit::placeholder {{ color: {t.muted}; }}
+QCheckBox {{ spacing: 9px; }}
+QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px;
+  background: {t.field}; border: 1px solid {t.edge}; }}
+QCheckBox::indicator:checked {{ background: {t.accent}; border: 1px solid {t.focus}; }}
+QCheckBox::indicator:disabled {{ background: {t.content}; border: 1px solid {t.separator}; }}
 QComboBox::drop-down {{ border: 0; width: 28px; }}
 QComboBox QAbstractItemView {{ background: {t.card}; border: 1px solid {t.edge};
   selection-background-color: {t.selection}; }}
@@ -135,6 +140,6 @@ QScrollArea {{ background: transparent; border: 0; }}
 QScrollBar:vertical {{ background: transparent; width: 9px; margin: 4px; }}
 QScrollBar::handle:vertical {{ background: {t.muted}; border-radius: 4px; min-height: 24px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-QPushButton:focus, QLineEdit:focus, QTextEdit:focus, QComboBox:focus,
+QPushButton:focus, QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QCheckBox:focus,
 QListWidget:focus {{ border: {edge_width}px solid {t.focus}; }}
 """

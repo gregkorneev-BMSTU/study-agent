@@ -17,6 +17,8 @@ def test_accessibility_options_make_surfaces_opaque_and_focus_clear() -> None:
     assert tokens.glass == tokens.content
     assert "border: 2px solid" in stylesheet
     assert "QListWidget:focus" in stylesheet
+    assert "QCheckBox::indicator:checked" in stylesheet
+    assert "QCheckBox:focus" in stylesheet
 
 
 def test_light_stylesheet_uses_light_surface_tokens() -> None:
