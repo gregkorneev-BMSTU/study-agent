@@ -4,13 +4,15 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QPainter, QRadialGradient
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSettings, Qt, QThread, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication, QPainter
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -27,70 +29,10 @@ from PySide6.QtWidgets import (
 from study_agent.ollama import answer, list_models
 from study_agent.search import SearchHit, search_sources
 from study_agent.sources import LocalFolderSource
+from study_agent.theme import build_stylesheet, tokens_for
 
 DEFAULT_MODEL = "qwen3.5:4b"
 SETTINGS = QSettings("StudyAgent", "StudyAgent")
-STYLESHEET = """
-* { color: #f4f5f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-QMainWindow { background: #10131a; }
-QWidget#canvas { background: transparent; }
-QFrame#glass, QFrame#card {
-  background-color: rgba(255, 255, 255, 13);
-  border: 1px solid rgba(255, 255, 255, 25);
-  border-radius: 20px;
-}
-QFrame#sidebar {
-  background-color: rgba(18, 23, 34, 218);
-  border: 1px solid rgba(255,255,255,20);
-  border-radius: 24px;
-}
-QLabel#brand { font-size: 19px; font-weight: 650; }
-QLabel#title { font-size: 30px; font-weight: 650; }
-QLabel#subtitle { color: rgba(236, 241, 250, 172); font-size: 14px; }
-QLabel#muted { color: rgba(236, 241, 250, 155); }
-QLabel#eyebrow { color: #9eabc4; font-size: 12px; font-weight: 650; }
-QPushButton {
-  background: rgba(255, 255, 255, 16); border: 1px solid rgba(255,255,255,26);
-  border-radius: 13px; padding: 11px 15px; font-size: 14px;
-}
-QPushButton:hover { background: rgba(255,255,255,28); border-color: rgba(255,255,255,46); }
-QPushButton:pressed { background: rgba(255,255,255,38); }
-QPushButton#primary { background: #b8d5ff; color: #13223a; border: 0; font-weight: 650; }
-QPushButton#primary:hover { background: #d0e2ff; }
-QPushButton#nav {
-  text-align: left; padding: 13px 16px; background: transparent;
-  border: 0; color: #d9dfeb;
-}
-QPushButton#nav:checked {
-  background: rgba(255,255,255,24); border: 1px solid rgba(255,255,255,25);
-}
-QPushButton#link {
-  background: transparent; border: 0; color: #bed7ff;
-  text-align: left; padding: 2px;
-}
-QLineEdit, QTextEdit, QComboBox {
-  background: rgba(8, 11, 18, 132); border: 1px solid rgba(255,255,255,30);
-  border-radius: 14px; padding: 12px 14px; selection-background-color: #607fae;
-}
-QTextEdit { padding: 14px; }
-QComboBox::drop-down { border: 0; width: 28px; }
-QComboBox QAbstractItemView {
-  background: #252b37; border: 1px solid #515a6b;
-  selection-background-color: #465b7c;
-}
-QListWidget { background: transparent; border: 0; outline: 0; }
-QListWidget::item {
-  background: rgba(255,255,255,10); border: 1px solid rgba(255,255,255,18);
-  border-radius: 14px; margin: 4px 0; padding: 12px;
-}
-QListWidget::item:selected { background: rgba(184,213,255,28); }
-QScrollArea { background: transparent; border: 0; }
-QScrollBar:vertical { background: transparent; width: 9px; margin: 4px; }
-QScrollBar::handle:vertical {
-  background: rgba(255,255,255,65); border-radius: 4px; min-height: 24px;
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-"""
 
 
 def named(widget: QWidget, name: str) -> QWidget:
@@ -116,19 +58,17 @@ class Worker(QThread):
 
 
 class Canvas(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.background_color = QColor("#171a20")
+
+    def set_background_color(self, color: str) -> None:
+        self.background_color = QColor(color)
+        self.update()
+
     def paintEvent(self, _event: object) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#10131a"))
-        for x, y, radius, color in (
-            (0.88, 0.06, 500, QColor(67, 102, 167, 72)),
-            (0.06, 0.86, 460, QColor(91, 70, 130, 58)),
-            (0.60, 1.04, 300, QColor(63, 125, 141, 34)),
-        ):
-            gradient = QRadialGradient(self.width() * x, self.height() * y, radius)
-            color.setAlpha(90)
-            gradient.setColorAt(0, color)
-            gradient.setColorAt(1, QColor(color.red(), color.green(), color.blue(), 0))
-            painter.fillRect(self.rect(), gradient)
+        painter.fillRect(self.rect(), self.background_color)
 
 
 class MainWindow(QMainWindow):
@@ -136,7 +76,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Study Agent")
         self.resize(1240, 820)
-        self.setMinimumSize(900, 640)
+        self.setMinimumSize(760, 560)
         self.sources: list[Path] = self._saved_sources()
         self.workers: list[Worker] = []
         self.installed_models: list[str] = []
@@ -152,7 +92,14 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._library_page())
         self.pages.addWidget(self._settings_page())
         root.addWidget(self.pages, 1)
-        self.setStyleSheet(STYLESHEET)
+        self._page_opacity = QGraphicsOpacityEffect(self.pages)
+        self.pages.setGraphicsEffect(self._page_opacity)
+        self._page_animation = QPropertyAnimation(self._page_opacity, b"opacity", self)
+        self._page_animation.setDuration(150)
+        self._page_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._system_hints = QGuiApplication.styleHints()
+        self._system_hints.colorSchemeChanged.connect(self._system_theme_changed)
+        self._apply_appearance()
         self._show_sources()
         self.refresh_models()
 
@@ -168,7 +115,8 @@ class MainWindow(QMainWindow):
 
     def _sidebar(self) -> QFrame:
         panel = named(QFrame(), "sidebar")
-        panel.setFixedWidth(232)
+        panel.setMinimumWidth(184)
+        panel.setMaximumWidth(232)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(18, 22, 18, 18)
         layout.setSpacing(10)
@@ -265,6 +213,14 @@ class MainWindow(QMainWindow):
         page, layout = self._page(
             "Настройки", "Модель запускается через Ollama на этом компьютере."
         )
+        settings_scroll = QScrollArea()
+        settings_scroll.setWidgetResizable(True)
+        settings_content = QWidget()
+        settings_layout = QVBoxLayout(settings_content)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+        settings_layout.setSpacing(12)
+        settings_scroll.setWidget(settings_content)
+        layout.addWidget(settings_scroll, 1)
         card = named(QFrame(), "card")
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(20, 18, 20, 18)
@@ -287,7 +243,7 @@ class MainWindow(QMainWindow):
         self.model_state = named(QLabel("Список получаем с локального сервера Ollama."), "muted")
         self.model_state.setWordWrap(True)
         card_layout.addWidget(self.model_state)
-        layout.addWidget(card)
+        settings_layout.addWidget(card)
         privacy = named(QFrame(), "card")
         privacy_layout = QVBoxLayout(privacy)
         privacy_layout.setContentsMargins(20, 18, 20, 18)
@@ -301,14 +257,94 @@ class MainWindow(QMainWindow):
         )
         privacy_text.setWordWrap(True)
         privacy_layout.addWidget(privacy_text)
-        layout.addWidget(privacy)
-        layout.addStretch()
+        settings_layout.addWidget(privacy)
+        appearance = named(QFrame(), "card")
+        appearance_layout = QVBoxLayout(appearance)
+        appearance_layout.setContentsMargins(20, 18, 20, 18)
+        appearance_layout.setSpacing(10)
+        appearance_layout.addWidget(named(QLabel("Внешний вид и доступность"), "eyebrow"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("Как в системе", "system")
+        self.theme_combo.addItem("Светлая", "light")
+        self.theme_combo.addItem("Тёмная", "dark")
+        self.theme_combo.setCurrentIndex(
+            max(0, self.theme_combo.findData(SETTINGS.value("appearance/theme", "system")))
+        )
+        self.theme_combo.setAccessibleName("Цветовая тема")
+        self.theme_combo.setToolTip("Выберите тему приложения или следуйте системной теме.")
+        self.theme_combo.currentIndexChanged.connect(self._appearance_changed)
+        appearance_layout.addWidget(self.theme_combo)
+        self.reduce_transparency = QCheckBox("Уменьшить прозрачность поверхностей")
+        self.reduce_transparency.setChecked(
+            SETTINGS.value("appearance/reduce_transparency", False, type=bool)
+        )
+        self.reduce_transparency.setToolTip(
+            "Использовать непрозрачные поверхности с более чёткими границами."
+        )
+        self.reduce_transparency.toggled.connect(self._appearance_changed)
+        appearance_layout.addWidget(self.reduce_transparency)
+        self.high_contrast = QCheckBox("Повышенный контраст")
+        self.high_contrast.setChecked(SETTINGS.value("appearance/high_contrast", False, type=bool))
+        self.high_contrast.setToolTip("Усилить контраст текста, границ и клавиатурного фокуса.")
+        self.high_contrast.toggled.connect(self._appearance_changed)
+        appearance_layout.addWidget(self.high_contrast)
+        self.reduce_motion = QCheckBox("Уменьшить движение")
+        self.reduce_motion.setChecked(SETTINGS.value("appearance/reduce_motion", False, type=bool))
+        self.reduce_motion.setToolTip("Отключить короткое затухание при переходе между разделами.")
+        self.reduce_motion.toggled.connect(self._appearance_changed)
+        appearance_layout.addWidget(self.reduce_motion)
+        settings_layout.addWidget(appearance)
+        settings_layout.addStretch()
         return page
+
+    def _appearance_changed(self, _value: object = None) -> None:
+        SETTINGS.setValue("appearance/theme", self.theme_combo.currentData())
+        SETTINGS.setValue("appearance/reduce_transparency", self.reduce_transparency.isChecked())
+        SETTINGS.setValue("appearance/high_contrast", self.high_contrast.isChecked())
+        SETTINGS.setValue("appearance/reduce_motion", self.reduce_motion.isChecked())
+        self._apply_appearance()
+
+    def _system_theme_changed(self, _scheme: object) -> None:
+        if self.theme_combo.currentData() == "system":
+            self._apply_appearance()
+
+    def _resolved_theme(self) -> str:
+        selected = self.theme_combo.currentData()
+        if selected in ("light", "dark"):
+            return str(selected)
+        scheme = self._system_hints.colorScheme()
+        if scheme == Qt.ColorScheme.Light:
+            return "light"
+        if scheme == Qt.ColorScheme.Dark:
+            return "dark"
+        return "dark"
+
+    def _apply_appearance(self) -> None:
+        self.canvas.set_background_color(
+            tokens_for(
+                self._resolved_theme(),
+                reduce_transparency=self.reduce_transparency.isChecked(),
+                high_contrast=self.high_contrast.isChecked(),
+            ).window
+        )
+        QApplication.instance().setStyleSheet(
+            build_stylesheet(
+                self._resolved_theme(),
+                reduce_transparency=self.reduce_transparency.isChecked(),
+                high_contrast=self.high_contrast.isChecked(),
+            )
+        )
 
     def _navigate(self, index: int) -> None:
         self.pages.setCurrentIndex(index)
         for i, button in enumerate(self.nav_buttons):
             button.setChecked(i == index)
+        if not self.reduce_motion.isChecked():
+            self._page_animation.stop()
+            self._page_opacity.setOpacity(0.94)
+            self._page_animation.setStartValue(0.94)
+            self._page_animation.setEndValue(1.0)
+            self._page_animation.start()
 
     def _show_sources(self) -> None:
         if not hasattr(self, "source_list"):
