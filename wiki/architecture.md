@@ -38,7 +38,7 @@ DocumentSource ── LocalFolderSource / IU5HubSource ── MaterialRetriever
 - **Python backend** остаётся источником доменной логики. Для macOS он упаковывается в локальный PyInstaller helper и общается со SwiftUI через JSON Lines stdin/stdout (`study_agent.mac_bridge`); helper использует `LocalFolderSource`, `search_sources` и локальный Ollama client. UI не дублирует поиск/генерацию.
 - **PySide6 UI** сохранён для разработки и будущей Windows-сборки: разделы «Поиск», «Библиотека» и «Настройки». Общие светлые/тёмные токены и QSS-генератор находятся в `study_agent.theme`; настройки темы, прозрачности, контраста и движения хранятся локально через `QSettings`. В Qt Widgets нет публичного аналога системного Liquid Glass; детали и fallback описаны в [дизайн-системе](design-system.md).
 
-Для нативной macOS-сборки используйте `scripts/build_macos_native_app.sh`; проект Swift доступен для открытия и запуска в Xcode. Она требует macOS 14+, Xcode и локального Python окружения с optional dependency `packaging`. `scripts/build_macos_app.sh` оставлен как PySide6 bundle, преимущественно для разработки и проверки Qt.
+Для нативной macOS-сборки используйте единственный поддерживаемый путь `scripts/build_macos_native_app.sh`; проект Swift доступен для открытия и запуска в Xcode. Она требует macOS 14+, Xcode и локального Python окружения с optional dependency `packaging`. PySide6 GUI остаётся для разработки и Windows, но отдельный Qt `.app` packaging script удалён.
 
 ## Переносимость и хранение данных
 

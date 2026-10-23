@@ -17,8 +17,8 @@
 		A20000000000000000000001 /* StudyAgentApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAgentApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* StudyAgentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyAgentModel.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A20000000000000000000004 /* StudyAgent.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = StudyAgent.icns; sourceTree = "<group>"; };
-		A20000000000000000000005 /* StudyAgentLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = StudyAgentLogo.png; sourceTree = "<group>"; };
+		A20000000000000000000004 /* StudyAgent.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "macOS/StudyAgent.icns"; sourceTree = "<group>"; };
+		A20000000000000000000005 /* StudyAgentLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Master/AppIcon_1024.png"; sourceTree = "<group>"; };
 		A20000000000000000000006 /* Study Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Study Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -31,6 +31,7 @@
 			isa = PBXGroup;
 			children = (
 				A40000000000000000000002 /* StudyAgent */,
+				A40000000000000000000004 /* Apple Icon Kit */,
 				A40000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -43,11 +44,10 @@
 				A20000000000000000000001 /* StudyAgentApp.swift */,
 				A20000000000000000000002 /* StudyAgentModel.swift */,
 				A20000000000000000000003 /* ContentView.swift */,
-				A40000000000000000000004 /* Resources */,
 			);
 		};
 		A40000000000000000000003 /* Products */ = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A20000000000000000000006 /* Study Agent.app */,); };
-		A40000000000000000000004 /* Resources */ = {isa = PBXGroup; path = Resources; sourceTree = "<group>"; children = (A20000000000000000000004 /* StudyAgent.icns */, A20000000000000000000005 /* StudyAgentLogo.png */,); };
+		A40000000000000000000004 /* Apple Icon Kit */ = {isa = PBXGroup; path = "../assets/StudyAgent_Apple_Icon_Kit"; sourceTree = "<group>"; children = (A20000000000000000000004 /* StudyAgent.icns */, A20000000000000000000005 /* StudyAgentLogo.png */,); };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */

@@ -53,9 +53,9 @@ SwiftUI отвечает за macOS UI и системные сценарии. P
 
 ## PySide6 и Windows
 
-PySide6 GUI сохранён как кроссплатформенный путь разработки и для будущей Windows-сборки. Запуск в активированном Python окружении: `python -m study_agent`. Существующая PyInstaller-сборка PySide6 доступна через `scripts/build_macos_app.sh`, но для macOS рекомендуется Xcode-сборка выше.
+PySide6 GUI сохранён как кроссплатформенный путь разработки и для будущей Windows-сборки. Запуск в активированном Python окружении: `python -m study_agent`. Для macOS используется только Xcode-сборка выше.
 
-Полный предоставленный графический комплект хранится в [`assets/StudyAgent_Apple_Icon_Kit`](assets/StudyAgent_Apple_Icon_Kit). Скрипт сборки использует `macOS/StudyAgent.icns` как иконку приложения; исходная графика, векторные слои и menu bar шаблоны также включены в репозиторий.
+Полный предоставленный графический комплект хранится в [`assets/StudyAgent_Apple_Icon_Kit`](assets/StudyAgent_Apple_Icon_Kit). Xcode-проект ссылается прямо на ICNS и PNG внутри комплекта, чтобы не хранить их дубликаты.
 
 ## Установка для разработки
 
