@@ -19,8 +19,10 @@ struct StudyAgentApp: App {
             SettingsPanel()
                 .environmentObject(model)
                 .preferredColorScheme(model.theme.colorScheme)
-                .frame(width: 520, height: 560)
+                .frame(minWidth: 520, minHeight: 560)
         }
+        .defaultSize(width: 600, height: 760)
+        .windowResizability(.contentSize)
 
         MenuBarExtra("Study Agent", systemImage: "text.book.closed") {
             MenuBarMenu()

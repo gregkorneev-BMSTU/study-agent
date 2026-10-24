@@ -6,7 +6,6 @@ import SwiftUI
 enum MainSection: String, CaseIterable, Identifiable {
     case search
     case library
-    case settings
 
     var id: Self { self }
 
@@ -14,7 +13,6 @@ enum MainSection: String, CaseIterable, Identifiable {
         switch self {
         case .search: L10n.text("Поиск", language: language)
         case .library: L10n.text("Библиотека", language: language)
-        case .settings: L10n.text("Настройки", language: language)
         }
     }
 
@@ -22,7 +20,6 @@ enum MainSection: String, CaseIterable, Identifiable {
         switch self {
         case .search: "magnifyingglass"
         case .library: "books.vertical"
-        case .settings: "gearshape"
         }
     }
 }

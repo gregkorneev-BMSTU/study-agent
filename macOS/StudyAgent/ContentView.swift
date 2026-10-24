@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var model: StudyAgentModel
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     private static let sidebarLogo: NSImage? = {
         guard let url = Bundle.main.url(forResource: "AppIcon_1024", withExtension: "png") else {
@@ -13,32 +16,27 @@ struct ContentView: View {
     }()
 
     var body: some View {
-        HSplitView {
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    if let logo = Self.sidebarLogo {
-                        Image(nsImage: logo)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 30, height: 30)
-                            .accessibilityHidden(true)
-                    }
-                    Text("Study Agent")
-                        .font(.headline)
-                    Spacer(minLength: 0)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List(selection: $model.selectedSection) {
+                ForEach(MainSection.allCases) { section in
+                    Label(model.text(section.title(language: model.language)), systemImage: section.symbol)
+                        .tag(section)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-
-                List(selection: $model.selectedSection) {
-                    ForEach(MainSection.allCases) { section in
-                        Label(model.text(section.title(language: model.language)), systemImage: section.symbol)
-                            .tag(section)
-                    }
+            }
+            .listStyle(.sidebar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let logo = Self.sidebarLogo {
+                    Image(nsImage: logo)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 30, height: 30)
+                        .accessibilityLabel("Study Agent")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                 }
-                .listStyle(.sidebar)
-                .modifier(HighContrast(enabled: model.highContrast))
-
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 Label(model.ollamaStatus, systemImage: "circle.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -47,21 +45,20 @@ struct ContentView: View {
                     .padding(.vertical, 10)
                     .accessibilityLabel(model.ollamaStatus)
             }
-            .frame(minWidth: 180, idealWidth: 220, maxWidth: 260)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
 
+        } detail: {
             Group {
                 switch model.selectedSection {
                 case .search:
                     SearchPanel()
                 case .library:
                     LibraryPanel()
-                case .settings:
-                    SettingsPanel()
                 }
             }
             .frame(minWidth: 520, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .modifier(HighContrast(enabled: model.highContrast))
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 760, minHeight: 560)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -101,20 +98,8 @@ struct ContentView: View {
                 .environmentObject(model)
                 .frame(minWidth: 680, minHeight: 530)
         }
-        .animation(model.reduceMotion ? nil : .easeOut(duration: 0.15), value: model.selectedSection)
-    }
-}
-
-private struct HighContrast: ViewModifier {
-    let enabled: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if enabled {
-            content.contrast(1.18)
-        } else {
-            content
-        }
+        .contrast(model.highContrast || colorSchemeContrast == .increased ? 1.18 : 1.0)
+        .animation(model.reduceMotion || systemReduceMotion ? nil : .easeOut(duration: 0.15), value: model.selectedSection)
     }
 }
 
@@ -233,14 +218,6 @@ private struct LibraryPanel: View {
         }
         .padding(28)
         .foregroundStyle(Color(nsColor: .labelColor))
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(model.text("Добавить папку"), systemImage: "folder.badge.plus") {
-                    model.isImportingFolders = true
-                }
-                .buttonStyle(.borderedProminent)
-            }
-        }
     }
 }
 
@@ -274,6 +251,7 @@ private struct SourceRow: View {
 
 struct SettingsPanel: View {
     @EnvironmentObject private var model: StudyAgentModel
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @State private var showingDiagnostics = false
 
     var body: some View {
@@ -343,7 +321,7 @@ struct SettingsPanel: View {
                 .environmentObject(model)
                 .frame(minWidth: 680, minHeight: 530)
         }
-        .contrast(model.highContrast ? 1.18 : 1.0)
+        .contrast(model.highContrast || colorSchemeContrast == .increased ? 1.18 : 1.0)
         .padding(20)
         .navigationTitle(model.text("Настройки"))
         .toolbar {
