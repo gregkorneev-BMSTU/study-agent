@@ -6,7 +6,6 @@ struct ContentView: View {
     @EnvironmentObject private var model: StudyAgentModel
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
-    @AppStorage(AppWindowTransparency.defaultsKey) private var windowTransparency = 1.0
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     private static let sidebarLogo: NSImage? = {
@@ -116,9 +115,7 @@ struct ContentView: View {
         }
         .onAppear {
             MenuBarLocalization.apply(model.language)
-            AppWindowTransparency.apply(windowTransparency)
         }
-        .onChange(of: windowTransparency) { _, value in AppWindowTransparency.apply(value) }
         .onChange(of: model.language) { _, language in MenuBarLocalization.apply(language) }
         .onChange(of: model.firstRunPresentation) { _, _ in MenuBarLocalization.apply(model.language) }
         .contrast(model.highContrast || colorSchemeContrast == .increased ? 1.18 : 1.0)
@@ -291,7 +288,7 @@ private struct SourceRow: View {
 struct SettingsPanel: View {
     @EnvironmentObject private var model: StudyAgentModel
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
-    @AppStorage(AppWindowTransparency.defaultsKey) private var windowTransparency = 1.0
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showingDiagnostics = false
 
     var body: some View {
@@ -336,31 +333,43 @@ struct SettingsPanel: View {
                     .toggleStyle(.switch)
             }
 
-            Section(model.text("Прозрачность приложения")) {
-                HStack(spacing: 12) {
-                    Image(systemName: "rectangle.on.rectangle")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Slider(value: $windowTransparency, in: AppWindowTransparency.minimum...1.0)
-                        .accessibilityLabel(model.text("Прозрачность окон Study Agent"))
-                        .accessibilityValue(Text(L10n.format(
-                            "Непрозрачность: %d процентов",
-                            language: model.language,
-                            Int((windowTransparency * 100).rounded())
-                        )))
-                    Image(systemName: "rectangle.fill")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text("\(Int((windowTransparency * 100).rounded()))%")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, alignment: .trailing)
-                }
-
-                Text(model.text("Настройка меняет общую непрозрачность окон Study Agent и хранится отдельно от параметров macOS."))
+            Section(model.text("Liquid Glass")) {
+                Text(model.text("Study Agent оставляет оформление боковой панели и панели инструментов macOS. На поддерживаемых версиях macOS система отображает их как Liquid Glass. Публичные API Apple не дают приложению отдельный числовой регулятор интенсивности этих системных материалов."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if reduceTransparency {
+                    Label(
+                        model.text("В macOS включено «Уменьшить прозрачность». Это системное ограничение имеет приоритет."),
+                        systemImage: "accessibility"
+                    )
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if #available(macOS 27, *) {
+                    Text(model.text("В macOS 27 выберите прозрачность Liquid Glass в разделе «Внешний вид» системных настроек."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if #available(macOS 26.1, *) {
+                    Text(model.text("В macOS 26.1 и новее оформление Liquid Glass выбирается в разделе «Внешний вид» системных настроек."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(model.text("Системное оформление Liquid Glass настраивается в macOS, когда эта возможность доступна."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button(model.text("Открыть настройки macOS…"), systemImage: "gearshape") {
+                    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             }
 
             Section(model.text("Конфиденциальность")) {
@@ -397,8 +406,6 @@ struct SettingsPanel: View {
         .contrast(model.highContrast || colorSchemeContrast == .increased ? 1.18 : 1.0)
         .padding(20)
         .navigationTitle(model.text("Настройки"))
-        .onAppear { AppWindowTransparency.apply(windowTransparency) }
-        .onChange(of: windowTransparency) { _, value in AppWindowTransparency.apply(value) }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button(model.text("Обновить модели"), systemImage: "arrow.clockwise") {

@@ -34,4 +34,4 @@
 
 См. [архитектуру](architecture.md), [дорожную карту](roadmap.md), [дизайн-систему](design-system.md) и [план проверок](testing.md).
 
-В ветке `feature/macos-glass-appearance` реализуется ползунок прозрачности окон Study Agent (35–100%), независимый от macOS. Он меняет `NSWindow.alphaValue`; системный Liquid Glass остаётся под контролем macOS.
+В PR #9 (`feature/macos-glass-appearance`) исправляется настройка Liquid Glass: ошибочный ползунок прозрачности всего окна удаляется. В настройках остаётся описание системного материала, приоритет Reduce Transparency и переход в System Settings. Публичные Apple API не предоставляют приложению числовой per-app уровень Liquid Glass; подробности — в [отчёте QA](../artifacts/macos-glass-appearance-qa/README.md).
