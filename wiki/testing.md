@@ -25,6 +25,16 @@
 - UI Automation/XCTest target в проекте отсутствует; переключение выполнено вручную в реальном приложении. VoiceOver-проход, системный Reduce Transparency, системный Reduce Motion, изменение Accent Color и испытания на macOS 14 физически не запускались. Доступность и системные цвета поддерживаются штатными SwiftUI компонентами; API `accessibilityReduceMotion` и `colorSchemeContrast` доступны на deployment target.
 - CPU/RAM/FPS до и после не измерялись; численные показатели не заявляются. В интерфейс не добавлялись собственный blur, GPU pipeline, timer или непрерывная анимация.
 
+## Welcome Experience и исправление CI — 2026-10-24
+
+- Xcode Debug и Release для SDK 27 собраны с deployment target macOS 14. QA копия Release запускалась с отдельным bundle ID, поэтому установки и настройки пользователя не затрагивались.
+- Реально проверены страницы знакомства 1→2→3, переход к шагу 1/5 старого SetupWizard и переход к диагностике 2/5 в той же панели. Русская локаль на светлой теме подтвердила двуязычный текст и подпись прогресса. Второй sheet не возник.
+- На первом запуске скриншот и accessibility tree показали, что код AppKit обновляет `NSMenuItem.title` для верхних меню согласно сохранённому языку. Snapshot CUA всё ещё сообщал английские accessibility-названия этих верхних пунктов после изменения `NSMenuItem.title`, поэтому доступность меню требует отдельной перепроверки на разблокированном рабочем столе.
+- Снимки CUA просмотрены во время реального запуска, но не добавлены в репозиторий: системный захват экрана сохранял lock screen macOS. Не использовать эти неверные файлы; ограничения записаны в [отчёте QA](../artifacts/macos-onboarding-qa/README.md).
+- В CI root cause повторных падений был `ModuleNotFoundError: tqdm` в `tests/test_ocr_model.py`, где тестируется progress wrapper Chandra, но workflow ставит `.[dev]`. `tqdm>=4.66,<5` добавлен к dev extra; OCR weights и полный OCR extra остаются вне обычного CI. Для GitHub matrix 3.12/3.13 требуется новый run после push.
+- `.venv/bin/pytest --ignore=tests/test_switch.py`: 31 passed; `.venv/bin/ruff check .`: All checks passed. Полный локальный pytest по-прежнему ограничен аварией Qt Cocoa plugin в `tests/test_switch.py`. Реальная диагностика в Xcode-only QA build показывает backend недоступным, поскольку такой сборкой helper не упаковывался; packaging builder отдельно не прогонялся в этой задаче.
+- macOS 14/15, VoiceOver, системный Reduce Motion, полный клавиатурный прогон, performance и реальные сценарии завершения/миграции не проверялись.
+
 ## Будущая стратегия
 
 - Быстрые unit-тесты для извлечения текста, нормализации метаданных, разбиения и маршрутизации без внешних моделей.

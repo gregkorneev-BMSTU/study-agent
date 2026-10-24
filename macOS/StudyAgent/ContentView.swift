@@ -93,17 +93,47 @@ struct ContentView: View {
             }
         }
         .task {
+            let presentingFirstRun = model.presentInitialExperienceIfNeeded()
+            guard !presentingFirstRun else { return }
             model.refreshSources()
             model.refreshModels()
-            model.presentSetupIfNeeded()
         }
-        .sheet(isPresented: $model.showingSetup) {
-            SetupWizard()
+        .sheet(
+            isPresented: Binding(
+                get: { model.firstRunPresentation != nil },
+                set: { if !$0 { model.dismissFirstRunPresentation() } }
+            ),
+            onDismiss: {
+                if !model.setupCompleted {
+                    model.refreshSources()
+                    model.refreshModels()
+                }
+            }
+        ) {
+            FirstRunFlowView()
                 .environmentObject(model)
-                .frame(minWidth: 680, minHeight: 530)
         }
+        .onAppear { MenuBarLocalization.apply(model.language) }
+        .onChange(of: model.language) { _, language in MenuBarLocalization.apply(language) }
+        .onChange(of: model.firstRunPresentation) { _, _ in MenuBarLocalization.apply(model.language) }
         .contrast(model.highContrast || colorSchemeContrast == .increased ? 1.18 : 1.0)
         .animation(model.reduceMotion || systemReduceMotion ? nil : .easeOut(duration: 0.15), value: model.selectedSection)
+    }
+}
+
+private struct FirstRunFlowView: View {
+    @EnvironmentObject private var model: StudyAgentModel
+
+    var body: some View {
+        Group {
+            if model.firstRunPresentation == .welcome {
+                WelcomeView(onContinue: model.continueFromWelcome)
+                    .frame(minWidth: 680, minHeight: 500)
+            } else {
+                SetupWizard()
+                    .frame(minWidth: 680, minHeight: 530)
+            }
+        }
     }
 }
 
@@ -317,6 +347,12 @@ struct SettingsPanel: View {
                 Text(model.text("Проверка не меняет установленные компоненты. Загрузки запускаются только после вашего выбора."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
+
+            Section(model.text("Знакомство")) {
+                Button(model.text("Пройти знакомство ещё раз"), systemImage: "sparkles") {
+                    model.replayWelcome()
+                }
             }
         }
         .formStyle(.grouped)
