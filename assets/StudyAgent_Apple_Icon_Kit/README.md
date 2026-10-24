@@ -11,6 +11,10 @@
 - `IconComposer_Layers/01...04*.svg` — optional vector reconstruction for importing as separate layers into Apple's Icon Composer; see BACKGROUND_CONFIGURATION.txt.
 - `PREVIEW.png` — rendering comparison at small sizes.
 
+## Rights and license
+
+This repository's MIT License applies to the Study Agent source code; it does not automatically license these graphics. The kit does not currently record the creator/source and license of every included artwork layer. Until provenance is confirmed and a specific asset license is added, do not assume these files may be redistributed or modified under MIT. See the repository's [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md).
+
 ## Sizes included (macOS)
 16/32/128/256/512 points, 1x and 2x (respectively 16,32,32,64,128,256,256,512,512,1024 pixels). The .icns also includes 16,32,64,128,256,512,1024 PNG-based entries.
 
