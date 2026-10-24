@@ -51,6 +51,8 @@ rm -rf "$APP_PATH"
 ditto "$BUILT_APP" "$APP_PATH"
 mkdir -p "$APP_PATH/Contents/Resources/Backend"
 ditto "$BACKEND_BUILD/dist/StudyAgentBackend" "$APP_PATH/Contents/Resources/Backend/StudyAgentBackend"
+"$PYTHON" "$ROOT_DIR/scripts/copy_distribution_licenses.py" \
+  "$ROOT_DIR" "$APP_PATH/Contents/Resources/Legal"
 xattr -cr "$APP_PATH"
 codesign --force --sign - "$APP_PATH"
 

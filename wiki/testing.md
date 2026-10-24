@@ -8,9 +8,40 @@
 
 Для v1 Beta 1 добавлены unit-тесты команды `diagnose_backend` в JSON Lines bridge: проверяется формат ответа и определение доступности библиотек без запуска или загрузки весов Chandra. Мастер SwiftUI, системные действия Ollama, загрузка модели и оформление Finder требуют отдельной проверки на реальном Mac. Стандартные Python-тесты не скачивают модели.
 
+## Открытый PR #7 — macOS навигация, onboarding и CI
+
+- В отдельной Xcode сборке проверены `NavigationSplitView`, переключение Search/Library и отсутствие пустой области. Debug/Release собраны на macOS 27 с deployment target macOS 14; проверка macOS 14/15 не проводилась.
+- В QA Release UI пройдены три welcome-страницы, английский/русский текст и переход в технический SetupWizard в том же sheet. Реальные скриншоты не сохранены, потому что системный захват экрана возвращал lock screen. VoiceOver, полный keyboard-only сценарий и Reduce Motion не прошли отдельный аудит.
+- AppKit `NSMenuItem.title` менялся согласно выбранному языку, но accessibility snapshot продолжал отдавать английские названия верхнего меню. Нужна визуальная и доступностная перепроверка.
+- CI run [40129362779](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40129362779) подтвердил `ModuleNotFoundError: tqdm` в `tests/test_ocr_model.py`: workflow устанавливал `.[dev]`, где пакета не было. `tqdm>=4.66,<5` добавлен в dev extra коммитом `eee1b3e` в `main`; последующий run [40129447523](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40129447523) прошёл pytest и Ruff на Python 3.12/3.13.
+- На Mac с Python 3.12.15 `pytest --ignore=tests/test_switch.py` — 31 passed; Ruff прошёл. Полный локальный pytest не удалось проверить из-за аварии Qt Cocoa plugin в тесте `tests/test_switch.py`.
+
 Проверка 2026-10-24 перед выпуском: Release arm64 `xcodebuild` прошёл; `ruff check .` прошёл; `pytest --ignore=tests/test_switch.py` — 27 passed. Полный локальный `pytest -q` остановился с `Fatal Python error: Aborted` в `tests/test_switch.py` при создании `QApplication` на текущей macOS/PySide6; это ограничение локальной Qt-проверки, а не результат тестов SwiftUI. GitHub CI ранее падал на Ubuntu при импорте PySide6 из-за отсутствия `libEGL.so.1`; после добавления Qt runtime библиотек [CI для коммита `ce7d36c`](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40080888078) успешно выполнил полный `pytest` и Ruff на Python 3.12 и 3.13.
 
 Финальный тестовый DMG `StudyAgent-v1.0.0-beta.1-macos-arm64.dmg`: `hdiutil verify` подтвердил checksum образа; при монтировании в корне только `Study Agent.app`, `Applications → /Applications` и скрытая `.DS_Store`; `Info.plist` показывает 1.0.0 (build 1); `codesign --verify --deep --strict` прошёл для ad-hoc подписи; упакованный helper ответил на `diagnose_backend` с доступными PDF/OCR runtime и `ocr_weights_state=unknown`. Приложение скопировано из DMG во временную папку с пробелом в пути и запущено отдельным процессом. Пробный образ в Finder сохранял окно 660 × 380 pt, позиции значков и размер 128 pt. Светлая тема, запуск на чистом Mac, Gatekeeper, нотариализация и фактическая загрузка больших моделей этим прогоном не подтверждены.
+
+## Проверка SwiftUI Liquid Glass refresh
+
+24.10.2026, Xcode 27.1 / macOS SDK 27.0 на macOS 27.0.1 (arm64):
+
+- Отдельная Debug-сборка с bundle ID `.liquidglassqa` открыла `NavigationSplitView`; в accessibility-дереве и реальном окне видны обе основные секции и Search detail. Library переключилась без пустой области, пустое состояние осталось центрировано, стандартная кнопка скрытия sidebar доступна. Проверена системная Settings scene из toolbar.
+- Debug и Release arm64 сборки `xcodebuild` завершились успешно с target `arm64-apple-macos14.0`; минимальная версия проекта осталась macOS 14. Отдельная Release копия приложения прошла `codesign --verify --deep --strict` и запускалась для реального UI QA.
+- `.venv/bin/ruff check .` прошёл; `.venv/bin/pytest --ignore=tests/test_switch.py` — **31 passed**. Полный `.venv/bin/pytest` аварийно завершил Python при создании Qt `QApplication` в `tests/test_switch.py`; macOS показала системный диалог «Приложение Python неожиданно завершило работу». Это локальный сбой Qt Cocoa/platform plugin; SwiftUI приложение запускается отдельно. Qt/Python реализация не менялась.
+- GitHub CI PR run [40126927774](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40126927774): jobs Python 3.12 и 3.13 упали в `tests/test_ocr_model.py`, потому что тест импортирует `tqdm.auto`, а workflow устанавливает только `.[dev]`, без optional OCR extra; Ruff после этого не запускался. Это обнаруженная, но не изменённая здесь проблема окружения/тестовой зависимости вне macOS UI.
+- `NavigationSplitView` компилируется с deployment target macOS 14; минимальная версия в проекте не повышалась. Фактический запуск проверялся только на macOS 27, не на macOS 14/15.
+- Сравнительные исходники Beta 2 лежат в `../artifacts/macos-liquid-glass-qa/before/`; они происходят из нативных macOS screenshot в `artifacts/readme/`. Реальные Release captures Search, Library и Settings в светлой и тёмной темах находятся в `../artifacts/macos-liquid-glass-qa/after/` и представлены в [отчёте](../artifacts/macos-liquid-glass-qa/README.md). Qt скриншоты `liquid-glass-qa` не использовались как доказательство поведения SwiftUI.
+- UI Automation/XCTest target в проекте отсутствует; переключение выполнено вручную в реальном приложении. VoiceOver-проход, системный Reduce Transparency, системный Reduce Motion, изменение Accent Color и испытания на macOS 14 физически не запускались. Доступность и системные цвета поддерживаются штатными SwiftUI компонентами; API `accessibilityReduceMotion` и `colorSchemeContrast` доступны на deployment target.
+- CPU/RAM/FPS до и после не измерялись; численные показатели не заявляются. В интерфейс не добавлялись собственный blur, GPU pipeline, timer или непрерывная анимация.
+
+## Welcome Experience и исправление CI — 2026-10-24
+
+- Xcode Debug и Release для SDK 27 собраны с deployment target macOS 14. QA копия Release запускалась с отдельным bundle ID, поэтому установки и настройки пользователя не затрагивались.
+- Реально проверены страницы знакомства 1→2→3, переход к шагу 1/5 старого SetupWizard и переход к диагностике 2/5 в той же панели. Русская локаль на светлой теме подтвердила двуязычный текст и подпись прогресса. Второй sheet не возник.
+- На первом запуске скриншот и accessibility tree показали, что код AppKit обновляет `NSMenuItem.title` для верхних меню согласно сохранённому языку. Snapshot CUA всё ещё сообщал английские accessibility-названия этих верхних пунктов после изменения `NSMenuItem.title`, поэтому доступность меню требует отдельной перепроверки на разблокированном рабочем столе.
+- Снимки CUA просмотрены во время реального запуска, но не добавлены в репозиторий: системный захват экрана сохранял lock screen macOS. Не использовать эти неверные файлы; ограничения записаны в [отчёте QA](../artifacts/macos-onboarding-qa/README.md).
+- В CI root cause повторных падений был `ModuleNotFoundError: tqdm` в `tests/test_ocr_model.py`, где тестируется progress wrapper Chandra, но workflow ставит `.[dev]`. `tqdm>=4.66,<5` добавлен к dev extra; OCR weights и полный OCR extra остаются вне обычного CI. GitHub Actions run `40128761613` прошёл полную матрицу Python 3.12/3.13, включая pytest и Ruff.
+- `.venv/bin/pytest --ignore=tests/test_switch.py`: 31 passed; `.venv/bin/ruff check .`: All checks passed. Полный локальный pytest по-прежнему ограничен аварией Qt Cocoa plugin в `tests/test_switch.py`. Реальная диагностика в Xcode-only QA build показывает backend недоступным, поскольку такой сборкой helper не упаковывался; packaging builder отдельно не прогонялся в этой задаче.
+- macOS 14/15, VoiceOver, системный Reduce Motion, полный клавиатурный прогон, performance и реальные сценарии завершения/миграции не проверялись.
 
 ## Будущая стратегия
 

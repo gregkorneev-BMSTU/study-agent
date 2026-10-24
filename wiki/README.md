@@ -8,6 +8,7 @@
 - [Разработка](development.md) — роли, процесс и Git.
 - [Тестирование](testing.md) — проверки и CI.
 - [macOS Beta: установка и выпуск](macos-release.md) — мастер первого запуска, DMG, подпись и публикация.
+- [Первый запуск macOS](onboarding.md) — Welcome Experience из PR #7 и переход к технической настройке.
 - [Окружение](environment.md) — аудит машины и технологическая совместимость.
 - [Установка моделей](model-setup.md) — установка Ollama и загрузка локальной Qwen на macOS/Windows.
 - [Chandra OCR](chandra-ocr.md) — локальное извлечение текста из PDF и изображений, зависимости и лицензии.

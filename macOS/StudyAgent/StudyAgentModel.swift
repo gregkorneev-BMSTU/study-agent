@@ -6,7 +6,6 @@ import SwiftUI
 enum MainSection: String, CaseIterable, Identifiable {
     case search
     case library
-    case settings
 
     var id: Self { self }
 
@@ -14,7 +13,6 @@ enum MainSection: String, CaseIterable, Identifiable {
         switch self {
         case .search: L10n.text("Поиск", language: language)
         case .library: L10n.text("Библиотека", language: language)
-        case .settings: L10n.text("Настройки", language: language)
         }
     }
 
@@ -22,9 +20,15 @@ enum MainSection: String, CaseIterable, Identifiable {
         switch self {
         case .search: "magnifyingglass"
         case .library: "books.vertical"
-        case .settings: "gearshape"
         }
     }
+}
+
+enum FirstRunPresentation: String, Identifiable, Equatable {
+    case welcome
+    case setup
+
+    var id: Self { self }
 }
 
 enum AppTheme: String, CaseIterable, Identifiable {
@@ -105,6 +109,7 @@ final class StudyAgentModel: ObservableObject {
             defaults.set(language.rawValue, forKey: Keys.language)
             refreshSources()
             refreshModels()
+            MenuBarLocalization.apply(language)
         }
     }
     @Published var theme: AppTheme {
@@ -117,10 +122,12 @@ final class StudyAgentModel: ObservableObject {
         didSet { defaults.set(reduceMotion, forKey: Keys.reduceMotion) }
     }
     @Published private(set) var folders: [SavedFolder] = []
-    @Published var showingSetup = false
+    @Published var firstRunPresentation: FirstRunPresentation?
 
     private let defaults = UserDefaults.standard
     private let bridge = MacBackendClient()
+    private var didPromptSetupThisLaunch = false
+    private var welcomeLeadsToSetup = false
 
     init() {
         Self.migrateLegacyPreferences(into: .standard)
@@ -142,10 +149,44 @@ final class StudyAgentModel: ObservableObject {
         defaults.bool(forKey: "setup.completed.v1")
     }
 
+    @discardableResult
+    func presentInitialExperienceIfNeeded() -> Bool {
+        guard !didPromptSetupThisLaunch else { return firstRunPresentation != nil }
+        didPromptSetupThisLaunch = true
+        if setupCompleted {
+            defaults.set(true, forKey: Keys.introductionSeen)
+            return false
+        }
+        if defaults.bool(forKey: Keys.introductionSeen) {
+            firstRunPresentation = .setup
+        } else {
+            welcomeLeadsToSetup = true
+            firstRunPresentation = .welcome
+        }
+        return true
+    }
+
     func finishSetup() {
         defaults.set(true, forKey: "setup.completed.v1")
-        showingSetup = false
+        firstRunPresentation = nil
+        refreshSources()
         refreshModels()
+    }
+
+    func continueFromWelcome() {
+        defaults.set(true, forKey: Keys.introductionSeen)
+        firstRunPresentation = welcomeLeadsToSetup && !setupCompleted ? .setup : nil
+        welcomeLeadsToSetup = false
+    }
+
+    func replayWelcome() {
+        welcomeLeadsToSetup = false
+        firstRunPresentation = .welcome
+    }
+
+    func dismissFirstRunPresentation() {
+        firstRunPresentation = nil
+        welcomeLeadsToSetup = false
     }
 
     func diagnoseBackend() async throws -> [String: Any] {
@@ -435,6 +476,7 @@ private enum Keys {
     static let highContrast = "appearance/high_contrast"
     static let reduceMotion = "appearance/reduce_motion"
     static let migrated = "migration.fromQt.v1"
+    static let introductionSeen = "onboarding.introduction.seen.v1"
 }
 
 private struct MacBackendClient {

@@ -254,6 +254,7 @@ private enum SetupError: LocalizedError {
 
 struct SetupWizard: View {
     @EnvironmentObject private var model: StudyAgentModel
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var controller = SetupController()
     @State private var step: SetupStep = .welcome
 
@@ -266,6 +267,10 @@ struct SetupWizard: View {
                 Text("\(step.rawValue + 1) / 5")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                Button(model.text("Закрыть"), systemImage: "xmark") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
             }
             HStack(spacing: 12) {
                 ForEach(SetupStep.allCases, id: \.rawValue) { item in
@@ -294,7 +299,10 @@ struct SetupWizard: View {
                     .disabled(step == .welcome || controller.pulling)
                 Spacer()
                 if step == .finish {
-                    Button(model.text("Открыть Study Agent")) { model.finishSetup() }
+                    Button(model.text("Открыть Study Agent")) {
+                        model.finishSetup()
+                        dismiss()
+                    }
                         .buttonStyle(.borderedProminent)
                 } else {
                     Button(model.text("Продолжить")) {
@@ -316,11 +324,7 @@ struct SetupWizard: View {
     @ViewBuilder private var content: some View {
         switch step {
         case .welcome:
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 88, height: 88)
-                .accessibilityHidden(true)
-            Text(model.text("Study Agent ищет по выбранным папкам и готовит ответы на вашем Mac. Мастер проверит необходимые компоненты. Загрузки начинаются только после вашего согласия."))
+            Text(model.text("Здесь можно проверить компоненты, выбрать локальную модель и при желании установить OCR. Ничего не загружается без вашего действия."))
             Label(model.text("Ваши документы остаются на этом компьютере."), systemImage: "lock.shield")
                 .foregroundStyle(.secondary)
             if Bundle.main.bundleURL.path.hasPrefix("/Volumes/") {
@@ -460,7 +464,7 @@ struct SetupWizard: View {
 
     private func title(for step: SetupStep) -> String {
         switch step {
-        case .welcome: "Добро пожаловать"
+        case .welcome: "Перед настройкой"
         case .diagnostics: "Проверка компьютера"
         case .components: "Компоненты"
         case .installation: "Локальная модель"
