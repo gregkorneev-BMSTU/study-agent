@@ -1,0 +1,41 @@
+
+<Page
+    x:Class="StudyAgent_Windows.Pages.LibraryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="32">
+        <StackPanel Spacing="20">
+
+            <TextBlock
+                Text="Библиотека"
+                Style="{StaticResource TitleTextBlockStyle}" />
+
+            <TextBlock
+                Text="Управление учебными материалами"
+                TextWrapping="Wrap"
+                Style="{StaticResource BodyTextBlockStyle}" />
+
+            <Button HorizontalAlignment="Left">
+                <StackPanel
+                    Orientation="Horizontal"
+                    Spacing="8">
+
+                    <SymbolIcon Symbol="Add" />
+
+                    <TextBlock
+                        Text="Добавить папку"
+                        VerticalAlignment="Center" />
+
+                </StackPanel>
+            </Button>
+
+            <InfoBar
+                IsOpen="True"
+                Severity="Informational"
+                Title="Библиотека пока пуста"
+                Message="Здесь будут отображаться подключённые папки и учебные материалы." />
+
+        </StackPanel>
+    </Grid>
+</Page>

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "StudyAgent.Windows (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "StudyAgent.Windows (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
