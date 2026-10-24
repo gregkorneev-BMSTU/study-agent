@@ -35,18 +35,51 @@ struct StudyAgentApp: App {
 }
 
 final class StudyAgentAppDelegate: NSObject, NSApplicationDelegate {
+    private var windowObserver: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        windowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            AppWindowTransparency.applySavedValue()
+        }
         localizeMenus()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        AppWindowTransparency.applySavedValue()
         localizeMenus()
+    }
+
+    deinit {
+        if let windowObserver {
+            NotificationCenter.default.removeObserver(windowObserver)
+        }
     }
 
     private func localizeMenus() {
         let language = UserDefaults.standard.string(forKey: "general/language")
             .flatMap(AppLanguage.init(rawValue:)) ?? .systemDefault
         MenuBarLocalization.apply(language)
+    }
+}
+
+enum AppWindowTransparency {
+    static let defaultsKey = "appearance.windowTransparency"
+    static let minimum = 0.35
+
+    static func apply(_ value: Double) {
+        let alpha = min(max(value, minimum), 1.0)
+        for window in NSApp.windows where window.alphaValue != alpha {
+            window.alphaValue = alpha
+        }
+    }
+
+    static func applySavedValue() {
+        let alpha = UserDefaults.standard.object(forKey: defaultsKey) as? Double ?? 1.0
+        apply(alpha)
     }
 }
 

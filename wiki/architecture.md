@@ -44,7 +44,7 @@ DocumentSource ── LocalFolderSource / IU5HubSource ── MaterialRetriever
 
 Исходный код Study Agent распространяется под MIT (см. [`LICENSE`](../LICENSE)). Это не заменяет лицензии библиотек, моделей и графических материалов; см. [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). При сборке macOS `.app` в `Contents/Resources/Legal` копируются лицензии проекта, Python и найденных в build-окружении пакетов вместе с CSV-инвентарём.
 
-Управление Liquid Glass остаётся системным: приложение использует нативные SwiftUI/AppKit материалы и не переопределяет toolbar/sidebar. В изученных публичных SwiftUI/AppKit API нет числового уровня системного Appearance-ползунка или непрерывной настройки интенсивности материала для одного приложения; раздел настроек Study Agent направляет пользователя в System Settings.
+Нативные материалы sidebar и toolbar остаются под управлением macOS. Отдельная настройка **Прозрачность приложения** регулирует `NSWindow.alphaValue` окон Study Agent (35–100%) через локальный `UserDefaults`; она действует на всё содержимое окна и не меняет системный Liquid Glass. Системный уровень материала не читается и не изменяется.
 
 ## Переносимость и хранение данных
 
