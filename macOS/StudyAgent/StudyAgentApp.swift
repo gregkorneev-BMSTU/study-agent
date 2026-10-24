@@ -55,10 +55,12 @@ private struct StudyAgentCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button(model.text("Об Study Agent")) {
+                let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+                let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
                 NSApp.orderFrontStandardAboutPanel(options: [
                     .applicationName: "Study Agent",
-                    .applicationVersion: "0.1.0",
-                    .version: "1",
+                    .applicationVersion: version,
+                    .version: build,
                 ])
             }
         }

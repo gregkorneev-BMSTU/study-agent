@@ -70,6 +70,30 @@ def test_dispatch_returns_structured_error_for_unknown_command() -> None:
     assert response["error"]["message"] == "Unknown backend command"
 
 
+def test_diagnostics_do_not_load_ocr_weights_or_contact_services(monkeypatch) -> None:
+    installed = {"pypdfium2", "PIL"}
+    checked: list[str] = []
+
+    def fake_find_spec(name: str) -> object | None:
+        checked.append(name)
+        return object() if name in installed else None
+
+    monkeypatch.setattr(mac_bridge, "find_spec", fake_find_spec)
+    response = mac_bridge.dispatch({"request_id": "diagnostics", "command": "diagnose_backend"})
+
+    assert response == {
+        "request_id": "diagnostics",
+        "ok": True,
+        "result": {
+            "backend_healthy": True,
+            "pdf_available": True,
+            "ocr_runtime_available": False,
+            "ocr_weights_state": "unknown",
+        },
+    }
+    assert checked == ["pypdfium2", "chandra"]
+
+
 def test_dispatch_surfaces_missing_local_ocr_as_error(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "materials"
     root.mkdir()

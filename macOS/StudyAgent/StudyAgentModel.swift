@@ -117,6 +117,7 @@ final class StudyAgentModel: ObservableObject {
         didSet { defaults.set(reduceMotion, forKey: Keys.reduceMotion) }
     }
     @Published private(set) var folders: [SavedFolder] = []
+    @Published var showingSetup = false
 
     private let defaults = UserDefaults.standard
     private let bridge = MacBackendClient()
@@ -135,6 +136,20 @@ final class StudyAgentModel: ObservableObject {
 
     func text(_ source: String) -> String {
         L10n.text(source, language: language)
+    }
+
+    var setupCompleted: Bool {
+        defaults.bool(forKey: "setup.completed.v1")
+    }
+
+    func finishSetup() {
+        defaults.set(true, forKey: "setup.completed.v1")
+        showingSetup = false
+        refreshModels()
+    }
+
+    func diagnoseBackend() async throws -> [String: Any] {
+        try await bridge.request(command: "diagnose_backend")
     }
 
     func addFolders(_ urls: [URL]) {

@@ -94,6 +94,12 @@ struct ContentView: View {
         .task {
             model.refreshSources()
             model.refreshModels()
+            if !model.setupCompleted { model.showingSetup = true }
+        }
+        .sheet(isPresented: $model.showingSetup) {
+            SetupWizard()
+                .environmentObject(model)
+                .frame(minWidth: 680, minHeight: 530)
         }
         .animation(model.reduceMotion ? nil : .easeOut(duration: 0.15), value: model.selectedSection)
     }
@@ -269,6 +275,7 @@ private struct SourceRow: View {
 
 struct SettingsPanel: View {
     @EnvironmentObject private var model: StudyAgentModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
@@ -320,6 +327,17 @@ struct SettingsPanel: View {
                 }
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section(model.text("Компоненты и диагностика")) {
+                Button(model.text("Открыть настройку и диагностику…"), systemImage: "stethoscope") {
+                    openWindow(id: "main")
+                    NSApp.activate(ignoringOtherApps: true)
+                    model.showingSetup = true
+                }
+                Text(model.text("Проверка не меняет установленные компоненты. Загрузки запускаются только после вашего выбора."))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

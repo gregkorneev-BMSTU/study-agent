@@ -6,6 +6,12 @@
 
 Текущие тесты покрывают `LocalFolderSource`, OCR-маршрутизацию страниц PDF и локальный кэш. Проверки используют подменённый PDF renderer и OCR, не загружают Chandra weights и не проверяют точность модели.
 
+Для v1 Beta 1 добавлены unit-тесты команды `diagnose_backend` в JSON Lines bridge: проверяется формат ответа и определение доступности библиотек без запуска или загрузки весов Chandra. Мастер SwiftUI, системные действия Ollama, загрузка модели и оформление Finder требуют отдельной проверки на реальном Mac. Стандартные Python-тесты не скачивают модели.
+
+Проверка 2026-10-24 перед выпуском: Release arm64 `xcodebuild` прошёл; `ruff check .` прошёл; `pytest --ignore=tests/test_switch.py` — 27 passed. Полный локальный `pytest -q` остановился с `Fatal Python error: Aborted` в `tests/test_switch.py` при создании `QApplication` на текущей macOS/PySide6; это ограничение локальной Qt-проверки, а не результат тестов SwiftUI. GitHub CI ранее падал на Ubuntu при импорте PySide6 из-за отсутствия `libEGL.so.1`; workflow дополнен установкой Qt runtime библиотек, итог нового запуска нужно проверить после push.
+
+Финальный тестовый DMG `StudyAgent-v1.0.0-beta.1-macos-arm64.dmg`: `hdiutil verify` подтвердил checksum образа; при монтировании в корне только `Study Agent.app`, `Applications → /Applications` и скрытая `.DS_Store`; `Info.plist` показывает 1.0.0 (build 1); `codesign --verify --deep --strict` прошёл для ad-hoc подписи; упакованный helper ответил на `diagnose_backend` с доступными PDF/OCR runtime и `ocr_weights_state=unknown`. Приложение скопировано из DMG во временную папку с пробелом в пути и запущено отдельным процессом. Пробный образ в Finder сохранял окно 660 × 380 pt, позиции значков и размер 128 pt. Светлая тема, запуск на чистом Mac, Gatekeeper, нотариализация и фактическая загрузка больших моделей этим прогоном не подтверждены.
+
 ## Будущая стратегия
 
 - Быстрые unit-тесты для извлечения текста, нормализации метаданных, разбиения и маршрутизации без внешних моделей.

@@ -19,7 +19,65 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 }
 
 enum L10n {
+    private static let russian: [String: String] = [
+        "OCR is unavailable in this app build. Reinstall Study Agent.": "OCR недоступен в этой сборке. Переустановите Study Agent.",
+        "OCR model is unavailable locally. Open Components & Diagnostics in Settings.": "Модель OCR недоступна на этом компьютере. Откройте «Компоненты и диагностика» в настройках.",
+    ]
     private static let english: [String: String] = [
+        "Подготовка Study Agent": "Set up Study Agent",
+        "Добро пожаловать": "Welcome",
+        "Проверка компьютера": "Check Your Mac",
+        "Компоненты": "Components",
+        "Локальная модель": "Local Model",
+        "Готово": "Done",
+        "Работает": "Working",
+        "Недоступен": "Unavailable",
+        "Доступен": "Available",
+        "Среда доступна; веса не проверены": "Runtime available; model weights not verified",
+        "Не установлен (необязательно)": "Not installed (optional)",
+        "Не удалось проверить": "Could not check",
+        "Установлена, но не отвечает": "Installed, but not responding",
+        "Не найдена": "Not found",
+        "Загрузка завершена": "Download complete",
+        "Загрузка отменена": "Download canceled",
+        "Модель уже установлена": "Model already installed",
+        "Выбранная модель уже установлена; повторная загрузка не нужна.": "Your selected model is installed; no download is needed.",
+        "Перетащите Study Agent в «Программы» перед настройкой.": "Drag Study Agent to Applications before setting it up.",
+        "Открыть «Программы»": "Open Applications",
+        "Встроенный backend недоступен. Переустановите Study Agent для поиска по материалам.": "The bundled backend is unavailable. Reinstall Study Agent to search your materials.",
+        "Назад": "Back",
+        "Продолжить": "Continue",
+        "Проверка компонентов…": "Checking components…",
+        "Проверить снова": "Check Again",
+        "Процессор": "Processor",
+        "Память": "Memory",
+        "Свободное место": "Available Disk Space",
+        "Встроенный backend": "Bundled Backend",
+        "Доступ к сайту Ollama": "Ollama Website Access",
+        "Требуется macOS 14 или новее.": "macOS 14 or later is required.",
+        "Для Qwen 3.5 4B может не хватить свободного места.": "There may not be enough disk space for Qwen 3.5 4B.",
+        "Локальные модели": "Local Models",
+        "Модель для ответов": "Model for Answers",
+        "Выберите установленную модель для ответов.": "Select an installed model for answers.",
+        "Не найдены": "None found",
+        "Запустить установленную Ollama": "Open Installed Ollama",
+        "Открыть официальный сайт Ollama": "Open Official Ollama Website",
+        "Установите Ollama обычным способом macOS, затем вернитесь и повторите проверку.": "Install Ollama using the normal macOS installer, then return and check again.",
+        "OCR необязателен. Наличие весов Chandra нельзя подтвердить без запуска модели; настройку можно отложить.": "OCR is optional. Chandra model weights cannot be confirmed without loading the model; you can set it up later.",
+        "Рекомендуемая локальная модель: Qwen 3.5 4B. Загрузка через работающую на этом компьютере Ollama потребует примерно 3,3–4 ГБ диска. Скорость зависит от памяти и процессора.": "Recommended local model: Qwen 3.5 4B. Downloading it through Ollama on this Mac needs about 3.3–4 GB of disk space. Speed depends on memory and processor.",
+        "Загрузить Qwen 3.5 4B": "Download Qwen 3.5 4B",
+        "Отменить загрузку": "Cancel Download",
+        "Можно продолжить без загрузки. Поиск по материалам работает, но ответы модели требуют установленной Ollama и модели.": "You can continue without downloading. Material search works, but model answers require Ollama and an installed model.",
+        "Настройка завершена": "Setup complete",
+        "Добавьте папку в библиотеку и задайте вопрос. Проверку компонентов можно открыть снова в настройках.": "Add a folder to Library and ask a question. You can reopen component diagnostics in Settings.",
+        "Ответы локальной модели пока недоступны. Завершите установку Ollama и модели позже в настройках.": "Local model answers are not available yet. Finish setting up Ollama and the model later in Settings.",
+        "Study Agent ищет по выбранным папкам и готовит ответы на вашем Mac. Мастер проверит необходимые компоненты. Загрузки начинаются только после вашего согласия.": "Study Agent searches selected folders and prepares answers on your Mac. This setup checks required components. Downloads start only with your consent.",
+        "Ваши документы остаются на этом компьютере.": "Your documents stay on this computer.",
+        "Компоненты и диагностика": "Components & Diagnostics",
+        "Открыть настройку и диагностику…": "Open Setup & Diagnostics…",
+        "Проверка не меняет установленные компоненты. Загрузки запускаются только после вашего выбора.": "A check does not change installed components. Downloads start only after you choose them.",
+        "OCR is unavailable in this app build. Reinstall Study Agent.": "OCR is unavailable in this app build. Reinstall Study Agent.",
+        "OCR model is unavailable locally. Open Components & Diagnostics in Settings.": "OCR model is unavailable locally. Open Components & Diagnostics in Settings.",
         "Поиск": "Search",
         "Библиотека": "Library",
         "Настройки": "Settings",
@@ -111,7 +169,7 @@ enum L10n {
     ]
 
     static func text(_ source: String, language: AppLanguage) -> String {
-        guard language == .english else { return source }
+        if language == .russian { return russian[source] ?? source }
         return english[source] ?? source
     }
 

@@ -75,12 +75,24 @@ def _has_sufficient_text(text: str) -> bool:
 
 def _ocr_image(image: Any) -> str:
     global _manager
+    # A packaged app must never fetch multi-gigabyte OCR weights as a side
+    # effect of searching a folder. Locally cached weights remain usable.
+    if getattr(sys, "frozen", False):
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
     try:
         from chandra.model import BatchInputItem, InferenceManager
     except ImportError as error:
-        raise RuntimeError("Install local OCR support with: pip install '.[ocr]'.") from error
+        raise RuntimeError(
+            "OCR is unavailable in this app build. Reinstall Study Agent."
+        ) from error
     if _manager is None:
-        _manager = InferenceManager(method="hf")
+        try:
+            _manager = InferenceManager(method="hf")
+        except (OSError, RuntimeError) as error:
+            raise RuntimeError(
+                "OCR model is unavailable locally. Open Components & Diagnostics in Settings."
+            ) from error
     result = _manager.generate([BatchInputItem(image=image, prompt_type="ocr_layout")])[0]
     if result.error:
         raise RuntimeError("Chandra could not extract text from this page.")

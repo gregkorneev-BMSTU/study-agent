@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,8 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
             }
         elif command == "list_models":
             result = {"models": list_models()}
+        elif command == "diagnose_backend":
+            result = _backend_diagnostics()
         else:
             raise ValueError("Unknown backend command")
         return {"request_id": request_id, "ok": True, "result": result}
@@ -68,6 +71,19 @@ def _roots(request: dict[str, Any]) -> list[Path]:
     if not isinstance(roots, list) or not all(isinstance(root, str) for root in roots):
         raise ValueError("roots must be a list of folder paths")
     return [Path(root) for root in roots]
+
+
+def _backend_diagnostics() -> dict[str, Any]:
+    """Report bundled dependency presence without importing models or contacting services."""
+    return {
+        "backend_healthy": True,
+        "pdf_available": find_spec("pypdfium2") is not None,
+        "ocr_runtime_available": (
+            find_spec("chandra") is not None and find_spec("PIL") is not None
+        ),
+        # Chandra manages its own model cache. Package presence cannot prove the weights exist.
+        "ocr_weights_state": "unknown",
+    }
 
 
 def _required_text(request: dict[str, Any], key: str) -> str:
