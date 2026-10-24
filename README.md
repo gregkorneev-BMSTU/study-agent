@@ -8,11 +8,11 @@ Study Agent помогает искать в выбранных учебных �
 
 [Скачать StudyAgent-v1.0.0-beta.2-macos-arm64.dmg](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0-beta.2/StudyAgent-v1.0.0-beta.2-macos-arm64.dmg) · [Release notes на русском и английском](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.2).
 
-Откройте DMG и перетащите **Study Agent.app** в **Applications**. Затем запустите приложение и пройдите графическую проверку компонентов. Подробные ограничения и SHA-256 указаны на странице релиза.
+Откройте DMG и перетащите **Study Agent.app** в **Applications**. При первом запуске мастер проверит компоненты и предложит установить Ollama и локальную модель; Chandra OCR можно установить отдельно из настроек. Для проверки файла DMG используйте SHA-256 из release notes.
 
 ## Предпросмотр
 
-Актуальная версия для macOS — нативное приложение SwiftUI/Xcode с фирменной иконкой Study Agent. Скриншоты ниже показывают основное окно, библиотеку и настройки; мастер первого запуска и оформление DMG входят в Beta 2, но на этих снимках не показаны.
+Актуальная версия для macOS — нативное приложение SwiftUI/Xcode с фирменной иконкой Study Agent. Скриншоты показывают поиск, библиотеку с пустым состоянием по центру рабочей области и настройки. Мастер первого запуска и оформление DMG входят в Beta 2, но на этих снимках не показаны.
 
 <p align="center">
   <img src="assets/StudyAgent_Apple_Icon_Kit/Master/AppIcon_1024.png" width="112" alt="Иконка Study Agent">
@@ -20,7 +20,7 @@ Study Agent помогает искать в выбранных учебных �
 
 | Поиск · тёмная тема | Библиотека · тёмная тема |
 | --- | --- |
-| <img src="artifacts/readme/macos-dark-search.png" width="480" alt="Нативный Study Agent для macOS — поиск, фирменная иконка в боковой панели"> | <img src="artifacts/readme/macos-dark-library.png" width="480" alt="Нативный Study Agent для macOS — библиотека"> |
+| <img src="artifacts/readme/macos-dark-search.png" width="480" alt="Нативный Study Agent для macOS — экран поиска, фирменная иконка в боковой панели"> | <img src="artifacts/readme/macos-dark-library.png" width="480" alt="Нативный Study Agent для macOS — библиотека с центрированным пустым состоянием и кнопкой добавления папки"> |
 
 | Настройки · тёмная тема |
 | --- |
