@@ -26,14 +26,18 @@ struct ContentView: View {
             .listStyle(.sidebar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 if let logo = Self.sidebarLogo {
-                    Image(nsImage: logo)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 30, height: 30)
-                        .accessibilityLabel("Study Agent")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
+                    HStack(spacing: 10) {
+                        Image(nsImage: logo)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 30, height: 30)
+                            .accessibilityHidden(true)
+                        Text("Study Agent")
+                            .font(.headline)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {

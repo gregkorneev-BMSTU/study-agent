@@ -5,7 +5,7 @@ QA run: 2026-10-24 · Xcode 27.1 · macOS SDK 27.0 · macOS 27.0.1 arm64.
 ## Findings and changes
 
 - The old `HSplitView` assembled a sidebar manually and did not expose native split-view behavior such as the system sidebar toggle. The documented earlier `NavigationSplitView` blank-detail issue was not reproducible with this current Xcode/macOS runtime: both Search and Library rendered in the real app, and the accessibility tree contained the detail content. The main window now uses `NavigationSplitView` and a standard sidebar `List`.
-- The sidebar keeps the app mark and Ollama status, while the product name is left to the title bar. Settings are opened through the system Settings scene and no longer appear as a third sidebar destination.
+- The sidebar keeps the Study Agent app mark and visible product name, plus Ollama status. Settings are opened through the system Settings scene and no longer appear as a third sidebar destination.
 - Add Folder previously appeared in both the root toolbar and the Library toolbar. The action now appears once in the toolbar when Library is selected; the contextual empty-state action remains available.
 - Search, Library, Settings, SF Symbols and standard SwiftUI controls keep their content surfaces. No custom blur, glass overlay, gradient, or continuous decorative animation was added. On macOS 26 and later, the system supplies the material for native navigation and toolbar surfaces; on macOS 14–25 the semantic controls use the system appearance available there.
 - App Reduce Motion now also observes the macOS Reduce Motion environment value. App contrast preference now combines with the system increased-contrast environment.
@@ -26,6 +26,8 @@ The “before” captures are the real native Beta 2 README screenshots. “Afte
 | Sidebar · light | — | ![After: light sidebar](after/sidebar-light.jpg) |
 
 The search/library captures show the empty-source state; they are real UI captures, not mockups. Sidebar close-ups are crops of those captures. A minimum-window screenshot could not be retained; the minimum supported window size remains 760 × 560 points in code and the app prevents resizing below it.
+
+The dark Search and sidebar captures were refreshed after the follow-up added the visible “Study Agent” name next to the app icon. Other screenshots document the base Liquid Glass refresh and predate that branding-only adjustment.
 
 ## Apple guidance and API choices
 
