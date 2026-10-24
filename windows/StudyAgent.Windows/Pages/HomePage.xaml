@@ -1,19 +1,65 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<Page
+﻿<Page
     x:Class="StudyAgent_Windows.Pages.HomePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:StudyAgent_Windows.Pages"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid Padding="24,16,24,16" RowSpacing="24">
+    <Grid Padding="32" RowSpacing="16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Home" />
-        <TextBlock Grid.Row="1" Text="This is the Home page" />
+
+        <StackPanel Grid.Row="0" Spacing="8">
+            <TextBlock
+                Text="Поиск по учебным материалам"
+                Style="{StaticResource TitleTextBlockStyle}"/>
+
+            <TextBlock
+                Text="Находите информацию в подключённых документах"
+                TextWrapping="Wrap"
+                Style="{StaticResource BodyTextBlockStyle}"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox
+                x:Name="QueryInput"
+                Grid.Column="0"
+                PlaceholderText="Введите поисковый запрос..."
+                KeyDown="QueryInput_KeyDown"/>
+
+            <Button
+                x:Name="SearchButton"
+                Grid.Column="1"
+                Content="Найти"
+                Click="SearchButton_Click"/>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Spacing="8">
+            <ProgressRing
+                x:Name="SearchProgress"
+                Width="26"
+                Height="26"
+                IsActive="False"
+                HorizontalAlignment="Left"/>
+
+            <TextBlock
+                x:Name="SearchStatus"
+                Text="Введите запрос, чтобы найти материалы."
+                TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="3"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel
+                x:Name="ResultsPanel"
+                Spacing="12"/>
+        </ScrollViewer>
     </Grid>
 </Page>

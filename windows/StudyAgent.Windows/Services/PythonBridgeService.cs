@@ -30,6 +30,17 @@ public sealed class PythonBridgeService
         });
     }
 
+    public Task<JsonDocument> SearchAsync(
+        string[] roots, string query)
+    {
+        return SendAsync(new
+        {
+            request_id = Guid.NewGuid().ToString(),
+            command = "search",
+            roots,
+            query
+        });
+    }
     private static async Task<JsonDocument> SendAsync(
         object request)
     {
@@ -173,4 +184,5 @@ info.Environment["PYTHONUTF8"] = "1";
             "Python-backend Study Agent не найден.");
     }
 }
+
 
