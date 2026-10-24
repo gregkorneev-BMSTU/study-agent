@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -13,6 +14,10 @@ public sealed partial class HomePage : Page
 {
     private readonly PythonBridgeService _bridge = new();
     private readonly LibraryStorageService _storage = new();
+
+    private JsonElement[] _lastHits = Array.Empty<JsonElement>();
+    private string _lastQuery = "";
+    private bool _busy;
 
     public HomePage()
     {
@@ -35,9 +40,9 @@ public sealed partial class HomePage : Page
         }
     }
 
-    private async System.Threading.Tasks.Task PerformSearchAsync()
+    private async Task PerformSearchAsync()
     {
-        if (!SearchButton.IsEnabled)
+        if (_busy)
             return;
 
         string query = QueryInput.Text.Trim();
@@ -48,11 +53,12 @@ public sealed partial class HomePage : Page
             return;
         }
 
-        SearchButton.IsEnabled = false;
-        QueryInput.IsEnabled = false;
-        SearchProgress.IsActive = true;
-        SearchStatus.Text = "Ищем документы...";
+        SetBusy(true);
+        _lastHits = Array.Empty<JsonElement>();
+        _lastQuery = "";
         ResultsPanel.Children.Clear();
+        AnswerText.Text = "Ожидание результатов поиска...";
+        SearchStatus.Text = "Ищем документы...";
 
         try
         {
@@ -65,6 +71,7 @@ public sealed partial class HomePage : Page
             {
                 SearchStatus.Text =
                     "Сначала добавьте папку в разделе «Библиотека».";
+                AnswerText.Text = "Нет подключённых документов.";
                 return;
             }
 
@@ -75,18 +82,24 @@ public sealed partial class HomePage : Page
                 .GetProperty("result")
                 .GetProperty("hits");
 
-            int count = hits.GetArrayLength();
+            _lastHits = hits.EnumerateArray()
+                .Select(hit => hit.Clone())
+                .ToArray();
 
-            if (count == 0)
+            _lastQuery = query;
+
+            if (_lastHits.Length == 0)
             {
-                SearchStatus.Text =
-                    "Ничего не найдено. Попробуйте другой запрос.";
+                SearchStatus.Text = "Ничего не найдено.";
+                AnswerText.Text =
+                    "Для генерации ответа нужны найденные материалы.";
                 return;
             }
 
-            SearchStatus.Text = $"Найдено результатов: {count}";
+            SearchStatus.Text =
+                $"Найдено результатов: {_lastHits.Length}";
 
-            foreach (JsonElement hit in hits.EnumerateArray())
+            foreach (JsonElement hit in _lastHits)
             {
                 string title = hit.GetProperty("title")
                     .GetString() ?? "Без названия";
@@ -100,37 +113,141 @@ public sealed partial class HomePage : Page
                 string sourceRoot = hit.GetProperty("source_root")
                     .GetString() ?? "";
 
-                double score = hit.GetProperty("score")
-                    .GetDouble();
+                double score = hit.GetProperty("score").GetDouble();
 
-                AddResult(
-                    title, excerpt, sourceRoot,
-                    documentId, score);
+                AddResult(title, excerpt, sourceRoot, documentId, score);
             }
+
+            AnswerText.Text =
+                "Документы найдены. Выберите модель Ollama " +
+                "и нажмите «Сгенерировать ответ».";
         }
         catch (Exception ex)
         {
             if (ex.Message.Contains("OCR is unavailable",
-        StringComparison.OrdinalIgnoreCase) ||
-    ex.Message.Contains("Chandra",
-        StringComparison.OrdinalIgnoreCase))
-{
-    SearchStatus.Text =
-        "Некоторые документы требуют распознавания текста (OCR). " +
-        "Компонент OCR пока не установлен. " +
-        "Попробуйте поиск по папке с текстовыми документами.";
-}
-else
-{
-    SearchStatus.Text = $"Ошибка поиска: {ex.Message}";
-}
+                    StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("Chandra",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                SearchStatus.Text =
+                    "Некоторым документам требуется OCR, " +
+                    "который пока не установлен.";
+            }
+            else
+            {
+                SearchStatus.Text =
+                    $"Ошибка поиска: {ex.Message}";
+            }
+
+            AnswerText.Text =
+                "Генерация недоступна, поскольку поиск не завершился.";
         }
         finally
         {
-            SearchButton.IsEnabled = true;
-            QueryInput.IsEnabled = true;
-            SearchProgress.IsActive = false;
+            SetBusy(false);
         }
+    }
+
+    private async void RefreshModelsButton_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy)
+            return;
+
+        SetBusy(true);
+        ModelsComboBox.Items.Clear();
+        OllamaStatus.Text = "Проверяем Ollama...";
+
+        try
+        {
+            using var response = await _bridge.ListModelsAsync();
+
+            JsonElement models = response.RootElement
+                .GetProperty("result")
+                .GetProperty("models");
+
+            foreach (JsonElement model in models.EnumerateArray())
+            {
+                string? name = model.GetString();
+
+                if (!string.IsNullOrWhiteSpace(name))
+                    ModelsComboBox.Items.Add(name);
+            }
+
+            if (ModelsComboBox.Items.Count == 0)
+            {
+                OllamaStatus.Text =
+                    "Ollama доступна, но модели не установлены.";
+            }
+            else
+            {
+                ModelsComboBox.SelectedIndex = 0;
+                OllamaStatus.Text =
+                    $"Доступно моделей: {ModelsComboBox.Items.Count}";
+            }
+        }
+        catch (Exception ex)
+        {
+            OllamaStatus.Text =
+                "Ollama не найдена или не запущена. " +
+                "Её можно установить позже. " +
+                $"Подробности: {ex.Message}";
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private async void GenerateButton_Click(
+        object sender, RoutedEventArgs e)
+    {
+        if (_busy || _lastHits.Length == 0 ||
+            ModelsComboBox.SelectedItem is not string model)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        AnswerText.Text =
+            "Генерируем ответ. Локальная модель может работать долго...";
+
+        try
+        {
+            using var response = await _bridge.AnswerAsync(
+                model,
+                _lastQuery,
+                _lastHits.Take(5).ToArray());
+
+            AnswerText.Text = response.RootElement
+                .GetProperty("result")
+                .GetProperty("answer")
+                .GetString() ?? "Модель вернула пустой ответ.";
+        }
+        catch (Exception ex)
+        {
+            AnswerText.Text =
+                $"Не удалось получить ответ: {ex.Message}";
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private void SetBusy(bool busy)
+    {
+        _busy = busy;
+
+        SearchButton.IsEnabled = !busy;
+        QueryInput.IsEnabled = !busy;
+        RefreshModelsButton.IsEnabled = !busy;
+        ModelsComboBox.IsEnabled = !busy;
+        GenerateButton.IsEnabled = !busy &&
+            _lastHits.Length > 0 &&
+            ModelsComboBox.SelectedItem is string;
+
+        SearchProgress.IsActive = busy;
     }
 
     private void AddResult(
@@ -191,4 +308,3 @@ else
         });
     }
 }
-

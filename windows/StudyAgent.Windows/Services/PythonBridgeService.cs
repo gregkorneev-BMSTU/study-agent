@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -41,8 +41,32 @@ public sealed class PythonBridgeService
             query
         });
     }
+    public Task<JsonDocument> ListModelsAsync()
+    {
+        return SendAsync(new
+        {
+            request_id = Guid.NewGuid().ToString(),
+            command = "list_models"
+        });
+    }
+
+    public Task<JsonDocument> AnswerAsync(
+        string model,
+        string query,
+        JsonElement[] hits)
+    {
+        return SendAsync(new
+        {
+            request_id = Guid.NewGuid().ToString(),
+            command = "answer",
+            model,
+            query,
+            hits,
+            language = "ru"
+        }, 240);
+    }
     private static async Task<JsonDocument> SendAsync(
-        object request)
+        object request, int timeoutSeconds = 30)
     {
         string root = FindRepositoryRoot();
 
@@ -73,7 +97,7 @@ info.Environment["PYTHONUTF8"] = "1";
         };
 
         using var timeout = new CancellationTokenSource(
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(timeoutSeconds));
 
         bool started = false;
 
@@ -82,7 +106,7 @@ info.Environment["PYTHONUTF8"] = "1";
             if (!process.Start())
             {
                 throw new InvalidOperationException(
-                    "Не удалось запустить Python.");
+                    "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РїСѓСЃС‚РёС‚СЊ Python.");
             }
 
             started = true;
@@ -110,13 +134,13 @@ info.Environment["PYTHONUTF8"] = "1";
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"Python завершился с ошибкой: {errors}");
+                    $"Python Р·Р°РІРµСЂС€РёР»СЃСЏ СЃ РѕС€РёР±РєРѕР№: {errors}");
             }
 
             if (string.IsNullOrWhiteSpace(response))
             {
                 throw new InvalidOperationException(
-                    $"Python не вернул ответ. {errors}");
+                    $"Python РЅРµ РІРµСЂРЅСѓР» РѕС‚РІРµС‚. {errors}");
             }
 
             JsonDocument document =
@@ -126,7 +150,7 @@ info.Environment["PYTHONUTF8"] = "1";
                 .TryGetProperty("ok", out var ok) ||
                 ok.ValueKind != JsonValueKind.True)
             {
-                string message = "Ошибка Python-backend";
+                string message = "РћС€РёР±РєР° Python-backend";
 
                 if (document.RootElement
                     .TryGetProperty("error", out var error) &&
@@ -146,7 +170,7 @@ info.Environment["PYTHONUTF8"] = "1";
         catch (OperationCanceledException)
         {
             throw new TimeoutException(
-                "Python-backend не ответил за 30 секунд.");
+                "Python-backend РЅРµ РѕС‚РІРµС‚РёР» Р·Р° 30 СЃРµРєСѓРЅРґ.");
         }
         finally
         {
@@ -181,6 +205,7 @@ info.Environment["PYTHONUTF8"] = "1";
         }
 
         throw new DirectoryNotFoundException(
-            "Python-backend Study Agent не найден.");
+            "Python-backend Study Agent РЅРµ РЅР°Р№РґРµРЅ.");
     }
 }
+
