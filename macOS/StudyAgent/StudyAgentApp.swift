@@ -1,7 +1,9 @@
+import AppKit
 import SwiftUI
 
 @main
 struct StudyAgentApp: App {
+    @NSApplicationDelegateAdaptor(StudyAgentAppDelegate.self) private var appDelegate
     @StateObject private var model = StudyAgentModel()
 
     var body: some Scene {
@@ -19,14 +21,32 @@ struct StudyAgentApp: App {
             SettingsPanel()
                 .environmentObject(model)
                 .preferredColorScheme(model.theme.colorScheme)
-                .frame(width: 520, height: 560)
+                .frame(minWidth: 520, minHeight: 560)
         }
+        .defaultSize(width: 600, height: 760)
+        .windowResizability(.contentSize)
 
         MenuBarExtra("Study Agent", systemImage: "text.book.closed") {
             MenuBarMenu()
                 .environmentObject(model)
         }
         .menuBarExtraStyle(.menu)
+    }
+}
+
+final class StudyAgentAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        localizeMenus()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        localizeMenus()
+    }
+
+    private func localizeMenus() {
+        let language = UserDefaults.standard.string(forKey: "general/language")
+            .flatMap(AppLanguage.init(rawValue:)) ?? .systemDefault
+        MenuBarLocalization.apply(language)
     }
 }
 
@@ -86,6 +106,35 @@ private struct StudyAgentCommands: Commands {
                 NSApp.activate(ignoringOtherApps: true)
             }
             .keyboardShortcut("f", modifiers: .command)
+        }
+        CommandGroup(after: .help) {
+            Button(model.text("Пройти знакомство ещё раз"), systemImage: "sparkles") {
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: "main")
+                model.replayWelcome()
+            }
+        }
+    }
+
+    @Environment(\.openWindow) private var openWindow
+}
+
+enum MenuBarLocalization {
+    private static let menuTitles = [
+        "Файл", "Правка", "Вид", "Окно", "Справка",
+    ]
+
+    static func apply(_ language: AppLanguage) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            let items = NSApp.mainMenu?.items ?? []
+            for item in items {
+                guard let source = menuTitles.first(where: {
+                    $0 == item.title || L10n.text($0, language: .english) == item.title
+                }) else {
+                    continue
+                }
+                item.title = L10n.text(source, language: language)
+            }
         }
     }
 }
