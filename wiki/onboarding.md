@@ -23,4 +23,4 @@
 
 ## Ограничения QA
 
-Реальный UI проверяется на macOS 27; deployment target остаётся macOS 14. Accessibility tree подтверждает доступные подписи страниц, кнопки и индикатора `Шаг N из 3`/`Step N of 3`. Физический аудит VoiceOver, клавиатурной навигации на всех шагах и Reduce Motion должен выполняться отдельно от визуального smoke test. Скриншоты реального Release UI и ограничения текущей проверки лежат в [отчёте QA onboarding](../artifacts/macos-onboarding-qa/README.md).
+Реальный UI проверяется на macOS 27; deployment target остаётся macOS 14. Accessibility tree подтверждает доступные подписи страниц, кнопки и индикатора `Шаг N из 3`/`Step N of 3`. Во время QA AppKit `NSMenuItem.title` менялся по выбранному языку, но accessibility snapshot продолжал сообщать английские названия меню; визуальную локализацию верхнего меню следует проверить отдельно. Физический аудит VoiceOver, клавиатурной навигации на всех шагах и Reduce Motion также должен выполняться отдельно от визуального smoke test. Скриншоты реального Release UI и ограничения текущей проверки лежат в [отчёте QA onboarding](../artifacts/macos-onboarding-qa/README.md).
