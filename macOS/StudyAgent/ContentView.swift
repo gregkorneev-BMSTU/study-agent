@@ -286,6 +286,7 @@ private struct SourceRow: View {
 struct SettingsPanel: View {
     @EnvironmentObject private var model: StudyAgentModel
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showingDiagnostics = false
 
     var body: some View {
@@ -328,6 +329,40 @@ struct SettingsPanel: View {
                     .toggleStyle(.switch)
                 Toggle(model.text("Уменьшить движение"), isOn: $model.reduceMotion)
                     .toggleStyle(.switch)
+            }
+
+            Section(model.text("Liquid Glass")) {
+                Text(model.text("Study Agent использует системные материалы macOS. Публичные API Apple не позволяют отдельно менять интенсивность Liquid Glass для приложения."))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if reduceTransparency {
+                    Label(
+                        model.text("В macOS включено «Уменьшить прозрачность». Системная настройка доступности имеет приоритет."),
+                        systemImage: "accessibility"
+                    )
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if #available(macOS 27, *) {
+                    Text(model.text("Чтобы выбрать диапазон от Ultra Clear до Fully Tinted, откройте раздел «Внешний вид» в настройках macOS."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(model.text("В macOS 27 системный ползунок Liquid Glass появится в разделе «Внешний вид»."))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button(model.text("Открыть настройки macOS…"), systemImage: "gearshape") {
+                    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
             }
 
             Section(model.text("Конфиденциальность")) {
