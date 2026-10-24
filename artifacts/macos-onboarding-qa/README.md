@@ -14,7 +14,7 @@
 
 ## CI failure
 
-Повторяющаяся GitHub Actions ошибка воспроизведена в `tests/test_ocr_model.py`: тестирует обёртку прогресса OCR, которая импортирует `tqdm.auto`, но CI устанавливал только `.[dev]`. В `dev` добавлен лёгкий `tqdm>=4.66,<5`; тяжёлый OCR extra и веса модели в CI не добавляются. После push нужен новый матричный run Python 3.12/3.13 для подтверждения на GitHub.
+Повторяющаяся GitHub Actions ошибка воспроизведена в `tests/test_ocr_model.py`: тестирует обёртку прогресса OCR, которая импортирует `tqdm.auto`, но CI устанавливал только `.[dev]`. В `dev` добавлен лёгкий `tqdm>=4.66,<5`; тяжёлый OCR extra и веса модели в CI не добавляются. GitHub Actions run [40128761613](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40128761613) прошёл для Python 3.12 и 3.13: установка dev dependencies, pytest и Ruff успешны в обеих ветках матрицы.
 
 ## Проверки и непроверенное
 
