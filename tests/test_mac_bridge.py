@@ -24,10 +24,15 @@ def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path) -> None:
 
 
 def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
-    captured: dict[str, str] = {}
+    captured: dict[str, str | None] = {}
 
-    def fake_answer(model: str, question: str, context: str) -> str:
-        captured.update(model=model, question=question, context=context)
+    def fake_answer(
+        model: str,
+        question: str,
+        context: str,
+        language: str | None = None,
+    ) -> str:
+        captured.update(model=model, question=question, context=context, language=language)
         return "Ответ [1]"
 
     monkeypatch.setattr(mac_bridge, "answer", fake_answer)
@@ -36,6 +41,7 @@ def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
             "command": "answer",
             "model": "qwen3.5:4b",
             "query": "Что изучается?",
+            "language": "en",
             "hits": [
                 {
                     "source_root": "/tmp/Study Notes",
@@ -52,6 +58,7 @@ def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
         "model": "qwen3.5:4b",
         "question": "Что изучается?",
         "context": "[1] Study Notes/lecture.md\nМатериалы лекции",
+        "language": "en",
     }
 
 

@@ -32,7 +32,7 @@ struct ContentView: View {
 
                 List(selection: $model.selectedSection) {
                     ForEach(MainSection.allCases) { section in
-                        Label(section.title, systemImage: section.symbol)
+                        Label(model.text(section.title(language: model.language)), systemImage: section.symbol)
                             .tag(section)
                     }
                 }
@@ -66,17 +66,17 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if model.selectedSection == .library {
-                    Button("Добавить папку", systemImage: "folder.badge.plus") {
+                    Button(model.text("Добавить папку"), systemImage: "folder.badge.plus") {
                         model.isImportingFolders = true
                     }
-                    .help("Добавить папку с учебными материалами")
+                    .help(model.text("Добавить папку с учебными материалами"))
                 }
             }
             ToolbarItem(placement: .automatic) {
                 SettingsLink {
-                    Label("Настройки", systemImage: "gearshape")
+                    Label(model.text("Настройки"), systemImage: "gearshape")
                 }
-                .help("Настройки Study Agent")
+                .help(model.text("Настройки Study Agent"))
             }
         }
         .fileImporter(
@@ -88,7 +88,7 @@ struct ContentView: View {
             case .success(let urls):
                 model.addFolders(urls)
             case .failure(let error):
-                model.searchStatus = error.localizedDescription
+                model.searchStatus = model.text(error.localizedDescription)
             }
         }
         .task {
@@ -118,22 +118,22 @@ private struct SearchPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             PageHeading(
-                title: "Поиск по материалам",
-                subtitle: "Ответы строятся локальной моделью по выбранным источникам."
+                title: model.text("Поиск по материалам"),
+                subtitle: model.text("Ответы строятся локальной моделью по выбранным источникам.")
             )
 
             HStack(spacing: 12) {
-                TextField("Спросите о лекциях, конспектах или учебниках…", text: $model.query)
+                TextField(model.text("Спросите о лекциях, конспектах или учебниках…"), text: $model.query)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(model.search)
-                    .accessibilityLabel("Вопрос по учебным материалам")
+                    .accessibilityLabel(model.text("Вопрос по учебным материалам"))
                 Button {
                     model.search()
                 } label: {
                     if model.isSearching {
                         ProgressView().controlSize(.small)
                     } else {
-                        Label("Спросить", systemImage: "arrow.up.circle.fill")
+                        Label(model.text("Спросить"), systemImage: "arrow.up.circle.fill")
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -149,7 +149,7 @@ private struct SearchPanel: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if let answer = model.answerText {
-                        GroupBox("Ответ") {
+                        GroupBox(model.text("Ответ")) {
                             Text(answer)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .textSelection(.enabled)
@@ -183,7 +183,7 @@ private struct SearchPanel: View {
                             .background(.background, in: RoundedRectangle(cornerRadius: 12))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Открыть исходный документ")
+                        .accessibilityHint(model.text("Открыть исходный документ"))
                     }
                 }
             }
@@ -198,17 +198,17 @@ private struct LibraryPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeading(
-                title: "Библиотека",
-                subtitle: "Подключайте только те папки, которые хотите искать. Файлы не покидают этот компьютер."
+                title: model.text("Библиотека"),
+                subtitle: model.text("Подключайте только те папки, которые хотите искать. Файлы не покидают этот компьютер.")
             )
 
             if model.sourceSummaries.isEmpty {
                 ContentUnavailableView {
-                    Label("Папки пока не добавлены", systemImage: "folder.badge.plus")
+                    Label(model.text("Папки пока не добавлены"), systemImage: "folder.badge.plus")
                 } description: {
-                    Text("Добавьте папку с PDF, изображениями, Markdown или TXT.")
+                    Text(model.text("Добавьте папку с PDF, изображениями, Markdown или TXT."))
                 } actions: {
-                    Button("Добавить папку…", systemImage: "folder.badge.plus") {
+                    Button(model.text("Добавить папку…"), systemImage: "folder.badge.plus") {
                         model.isImportingFolders = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -230,7 +230,7 @@ private struct LibraryPanel: View {
         .foregroundStyle(Color(nsColor: .labelColor))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Добавить папку", systemImage: "folder.badge.plus") {
+                Button(model.text("Добавить папку"), systemImage: "folder.badge.plus") {
                     model.isImportingFolders = true
                 }
                 .buttonStyle(.borderedProminent)
@@ -240,6 +240,7 @@ private struct LibraryPanel: View {
 }
 
 private struct SourceRow: View {
+    @EnvironmentObject private var model: StudyAgentModel
     let source: SourceSummary
     let remove: () -> Void
 
@@ -250,17 +251,17 @@ private struct SourceRow: View {
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 4) {
                 Text(source.name).font(.headline)
-                Text("\(source.documentCount) файлов поддерживаемых форматов")
+                Text(L10n.format("%d файлов поддерживаемых форматов", language: model.language, source.documentCount))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Удалить", systemImage: "minus.circle") {
+            Button(model.text("Удалить"), systemImage: "minus.circle") {
                 remove()
             }
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
-            .help("Отключить папку от библиотеки")
+            .help(model.text("Отключить папку от библиотеки"))
         }
         .padding(.vertical, 8)
     }
@@ -271,19 +272,19 @@ struct SettingsPanel: View {
 
     var body: some View {
         Form {
-            Section("Локальная языковая модель") {
+            Section(model.text("Локальная языковая модель")) {
                 if !model.modelNames.isEmpty {
-                    Picker("Установленная модель", selection: $model.modelName) {
+                    Picker(model.text("Установленная модель"), selection: $model.modelName) {
                         ForEach(model.modelNames, id: \.self) { name in
                             Text(name).tag(name)
                         }
                     }
                 }
                 HStack {
-                    Button("Обновить список моделей", systemImage: "arrow.clockwise") {
+                    Button(model.text("Обновить список моделей"), systemImage: "arrow.clockwise") {
                         model.refreshModels()
                     }
-                    Button("Сохранить модель", systemImage: "checkmark") {
+                    Button(model.text("Сохранить модель"), systemImage: "checkmark") {
                         model.saveModel()
                     }
                     .buttonStyle(.borderedProminent)
@@ -294,21 +295,26 @@ struct SettingsPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Section("Внешний вид и доступность") {
-                Picker("Цветовая тема", selection: $model.theme) {
+            Section(model.text("Внешний вид и доступность")) {
+                Picker(model.text("Цветовая тема"), selection: $model.theme) {
                     ForEach(AppTheme.allCases) { theme in
-                        Text(theme.title).tag(theme)
+                        Text(theme.title(language: model.language)).tag(theme)
                     }
                 }
-                Toggle("Повышенный контраст", isOn: $model.highContrast)
+                Picker(model.text("Язык интерфейса"), selection: $model.language) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                Toggle(model.text("Повышенный контраст"), isOn: $model.highContrast)
                     .toggleStyle(.switch)
-                Toggle("Уменьшить движение", isOn: $model.reduceMotion)
+                Toggle(model.text("Уменьшить движение"), isOn: $model.reduceMotion)
                     .toggleStyle(.switch)
             }
 
-            Section("Конфиденциальность") {
+            Section(model.text("Конфиденциальность")) {
                 Label {
-                    Text("Поиск выполняется локально. Вопрос и найденные выдержки передаются только в Ollama на этом компьютере.")
+                    Text(model.text("Поиск выполняется локально. Вопрос и найденные выдержки передаются только в Ollama на этом компьютере."))
                 } icon: {
                     Image(systemName: "lock.shield")
                 }
@@ -319,10 +325,10 @@ struct SettingsPanel: View {
         .formStyle(.grouped)
         .contrast(model.highContrast ? 1.18 : 1.0)
         .padding(20)
-        .navigationTitle("Настройки")
+        .navigationTitle(model.text("Настройки"))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Обновить модели", systemImage: "arrow.clockwise") {
+                Button(model.text("Обновить модели"), systemImage: "arrow.clockwise") {
                     model.refreshModels()
                 }
             }

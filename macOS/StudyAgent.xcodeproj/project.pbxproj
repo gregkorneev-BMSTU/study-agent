@@ -12,6 +12,7 @@
 		A10000000000000000000004 /* StudyAgent.icns in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* StudyAgent.icns */; };
 		A10000000000000000000005 /* StudyAgentLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* StudyAgentLogo.png */; };
 		A10000000000000000000006 /* StudyAgent.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* StudyAgent.xcassets */; };
+		A10000000000000000000008 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Localization.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +23,7 @@
 		A20000000000000000000005 /* StudyAgentLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Master/AppIcon_1024.png"; sourceTree = "<group>"; };
 		A20000000000000000000006 /* Study Agent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Study Agent.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000007 /* StudyAgent.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "macOS/StudyAgent.xcassets"; sourceTree = "<group>"; };
+		A20000000000000000000008 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,6 +48,7 @@
 				A20000000000000000000001 /* StudyAgentApp.swift */,
 				A20000000000000000000002 /* StudyAgentModel.swift */,
 				A20000000000000000000003 /* ContentView.swift */,
+				A20000000000000000000008 /* Localization.swift */,
 			);
 		};
 		A40000000000000000000003 /* Products */ = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A20000000000000000000006 /* Study Agent.app */,); };
@@ -88,7 +91,7 @@
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */, A10000000000000000000008 /* Localization.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */

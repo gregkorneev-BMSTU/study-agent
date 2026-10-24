@@ -41,11 +41,13 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
                 f"{hit['excerpt']}"
                 for index, hit in enumerate(_hit_context(request), start=1)
             )
+            language = request.get("language")
             result = {
                 "answer": answer(
                     _required_text(request, "model"),
                     _required_text(request, "query"),
                     context,
+                    language=language if language in ("en", "ru") else None,
                 )
             }
         elif command == "list_models":

@@ -10,11 +10,11 @@ enum MainSection: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .search: "Поиск"
-        case .library: "Библиотека"
-        case .settings: "Настройки"
+        case .search: L10n.text("Поиск", language: language)
+        case .library: L10n.text("Библиотека", language: language)
+        case .settings: L10n.text("Настройки", language: language)
         }
     }
 
@@ -34,11 +34,11 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .system: "Как в системе"
-        case .light: "Светлая"
-        case .dark: "Тёмная"
+        case .system: L10n.text("Как в системе", language: language)
+        case .light: L10n.text("Светлая", language: language)
+        case .dark: L10n.text("Тёмная", language: language)
         }
     }
 
@@ -100,6 +100,13 @@ final class StudyAgentModel: ObservableObject {
     }
     @Published var modelStatus = "Список моделей загружается с локального Ollama."
     @Published var ollamaStatus = "Проверка Ollama…"
+    @Published var language: AppLanguage {
+        didSet {
+            defaults.set(language.rawValue, forKey: Keys.language)
+            refreshSources()
+            refreshModels()
+        }
+    }
     @Published var theme: AppTheme {
         didSet { defaults.set(theme.rawValue, forKey: Keys.theme) }
     }
@@ -116,12 +123,18 @@ final class StudyAgentModel: ObservableObject {
 
     init() {
         Self.migrateLegacyPreferences(into: .standard)
+        language = defaults.string(forKey: Keys.language)
+            .flatMap(AppLanguage.init(rawValue:)) ?? .systemDefault
         let savedTheme = defaults.string(forKey: Keys.theme).flatMap(AppTheme.init(rawValue:))
         theme = savedTheme ?? .system
         modelName = defaults.string(forKey: Keys.model) ?? "qwen3.5:4b"
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
+    }
+
+    func text(_ source: String) -> String {
+        L10n.text(source, language: language)
     }
 
     func addFolders(_ urls: [URL]) {
@@ -143,7 +156,12 @@ final class StudyAgentModel: ObservableObject {
                 folders.append(SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark))
                 added += 1
             } catch {
-                searchStatus = "Не удалось сохранить доступ к папке «\(url.lastPathComponent)»: \(error.localizedDescription)"
+                searchStatus = L10n.format(
+                    "Не удалось сохранить доступ к папке «%@»: %@",
+                    language: language,
+                    url.lastPathComponent,
+                    localizedError(error)
+                )
             }
         }
         saveFolders()
@@ -175,29 +193,29 @@ final class StudyAgentModel: ObservableObject {
                 ])
                 sourceSummaries = try response.decode("sources", as: [SourceSummary].self)
                 searchStatus = sourceSummaries.isEmpty
-                    ? "Добавьте папку с учебными материалами в библиотеку."
-                    : "Подключено источников: \(sourceSummaries.count)."
+                    ? text("Добавьте папку с учебными материалами в библиотеку.")
+                    : L10n.format("Подключено источников: %d.", language: language, sourceSummaries.count)
             } catch {
                 sourceSummaries = []
-                searchStatus = error.localizedDescription
+                searchStatus = localizedError(error)
             }
         }
     }
 
     func refreshModels() {
-        modelStatus = "Подключение к локальному Ollama…"
+        modelStatus = text("Подключение к локальному Ollama…")
         Task {
             do {
                 let response = try await bridge.request(command: "list_models")
                 modelNames = try response.decode("models", as: [String].self)
                 modelStatus = modelNames.isEmpty
-                    ? "В Ollama пока нет установленных моделей."
-                    : "Найдено моделей: \(modelNames.count)."
-                ollamaStatus = "Ollama подключена"
+                    ? text("В Ollama пока нет установленных моделей.")
+                    : L10n.format("Найдено моделей: %d.", language: language, modelNames.count)
+                ollamaStatus = text("Ollama подключена")
             } catch {
                 modelNames = []
-                modelStatus = error.localizedDescription
-                ollamaStatus = "Ollama не отвечает"
+                modelStatus = localizedError(error)
+                ollamaStatus = text("Ollama не отвечает")
             }
         }
     }
@@ -205,30 +223,30 @@ final class StudyAgentModel: ObservableObject {
     func saveModel() {
         let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            modelStatus = "Укажите тег модели Ollama."
+            modelStatus = text("Укажите тег модели Ollama.")
             return
         }
         modelName = trimmed
-        modelStatus = "Модель «\(trimmed)» сохранена на этом компьютере."
+        modelStatus = L10n.format("Модель «%@» сохранена на этом компьютере.", language: language, trimmed)
     }
 
     func search() {
         let searchText = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !searchText.isEmpty else {
-            searchStatus = "Введите тему или вопрос для поиска."
+            searchStatus = text("Введите тему или вопрос для поиска.")
             hits = []
             answerText = nil
             return
         }
         guard !folders.isEmpty else {
-            searchStatus = "Сначала подключите папку в разделе «Библиотека»."
+            searchStatus = text("Сначала подключите папку в разделе «Библиотека».")
             return
         }
 
         isSearching = true
         hits = []
         answerText = nil
-        searchStatus = "Ищу в подключённых материалах…"
+        searchStatus = text("Ищу в подключённых материалах…")
         Task {
             do {
                 let (urls, opened) = try openFolderURLs()
@@ -240,11 +258,11 @@ final class StudyAgentModel: ObservableObject {
                 let found = try searchResponse.decode("hits", as: [SearchHit].self)
                 hits = found
                 guard !found.isEmpty else {
-                    searchStatus = "В выбранных материалах не нашёл фрагментов по этому запросу."
+                    searchStatus = text("В выбранных материалах не нашёл фрагментов по этому запросу.")
                     isSearching = false
                     return
                 }
-                searchStatus = "Нашёл \(found.count) фрагментов. Формирую ответ локально…"
+                searchStatus = L10n.format("Нашёл %d фрагментов. Формирую ответ локально…", language: language, found.count)
                 let hitValues: [[String: Any]] = found.map { hit in
                     [
                         "title": hit.title,
@@ -257,12 +275,17 @@ final class StudyAgentModel: ObservableObject {
                 let answerResponse = try await bridge.request(command: "answer", fields: [
                     "model": modelName,
                     "query": searchText,
-                    "hits": hitValues
+                    "hits": hitValues,
+                    "language": language.rawValue
                 ])
                 answerText = try answerResponse.decode("answer", as: String.self)
-                searchStatus = "Ответ подготовлен локально по \(min(found.count, 5)) источникам."
+                searchStatus = L10n.format(
+                    "Ответ подготовлен локально по %d источникам.",
+                    language: language,
+                    min(found.count, 5)
+                )
             } catch {
-                searchStatus = error.localizedDescription
+                searchStatus = localizedError(error)
             }
             isSearching = false
         }
@@ -270,7 +293,7 @@ final class StudyAgentModel: ObservableObject {
 
     func open(_ hit: SearchHit) {
         guard let folder = folders.first(where: { Self.path(of: $0) == hit.sourceRoot }) else {
-            searchStatus = "Источник больше не подключён."
+            searchStatus = text("Источник больше не подключён.")
             return
         }
         do {
@@ -279,13 +302,17 @@ final class StudyAgentModel: ObservableObject {
             guard let root = urls.first else { return }
             let fileURL = root.appending(path: hit.documentID).standardizedFileURL
             guard fileURL.path.hasPrefix(root.path + "/"), FileManager.default.fileExists(atPath: fileURL.path) else {
-                searchStatus = "Не удалось открыть исходный файл."
+                searchStatus = text("Не удалось открыть исходный файл.")
                 return
             }
             NSWorkspace.shared.open(fileURL)
         } catch {
-            searchStatus = error.localizedDescription
+            searchStatus = localizedError(error)
         }
+    }
+
+    private func localizedError(_ error: Error) -> String {
+        L10n.text(error.localizedDescription, language: language)
     }
 
     private func saveFolders() {
@@ -384,6 +411,7 @@ final class StudyAgentModel: ObservableObject {
 private enum Keys {
     static let folders = "library.bookmarks.v1"
     static let model = "model"
+    static let language = "general/language"
     static let theme = "appearance/theme"
     static let highContrast = "appearance/high_contrast"
     static let reduceMotion = "appearance/reduce_motion"
