@@ -121,6 +121,7 @@ final class StudyAgentModel: ObservableObject {
 
     private let defaults = UserDefaults.standard
     private let bridge = MacBackendClient()
+    private var didPromptSetupThisLaunch = false
 
     init() {
         Self.migrateLegacyPreferences(into: .standard)
@@ -140,6 +141,12 @@ final class StudyAgentModel: ObservableObject {
 
     var setupCompleted: Bool {
         defaults.bool(forKey: "setup.completed.v1")
+    }
+
+    func presentSetupIfNeeded() {
+        guard !setupCompleted, !didPromptSetupThisLaunch else { return }
+        didPromptSetupThisLaunch = true
+        showingSetup = true
     }
 
     func finishSetup() {

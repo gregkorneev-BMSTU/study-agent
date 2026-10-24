@@ -254,6 +254,7 @@ private enum SetupError: LocalizedError {
 
 struct SetupWizard: View {
     @EnvironmentObject private var model: StudyAgentModel
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var controller = SetupController()
     @State private var step: SetupStep = .welcome
 
@@ -266,6 +267,10 @@ struct SetupWizard: View {
                 Text("\(step.rawValue + 1) / 5")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                Button(model.text("Закрыть"), systemImage: "xmark") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
             }
             HStack(spacing: 12) {
                 ForEach(SetupStep.allCases, id: \.rawValue) { item in

@@ -94,7 +94,7 @@ struct ContentView: View {
         .task {
             model.refreshSources()
             model.refreshModels()
-            if !model.setupCompleted { model.showingSetup = true }
+            model.presentSetupIfNeeded()
         }
         .sheet(isPresented: $model.showingSetup) {
             SetupWizard()
@@ -274,7 +274,7 @@ private struct SourceRow: View {
 
 struct SettingsPanel: View {
     @EnvironmentObject private var model: StudyAgentModel
-    @Environment(\.openWindow) private var openWindow
+    @State private var showingDiagnostics = false
 
     var body: some View {
         Form {
@@ -330,9 +330,7 @@ struct SettingsPanel: View {
 
             Section(model.text("Компоненты и диагностика")) {
                 Button(model.text("Открыть настройку и диагностику…"), systemImage: "stethoscope") {
-                    openWindow(id: "main")
-                    NSApp.activate(ignoringOtherApps: true)
-                    model.showingSetup = true
+                    showingDiagnostics = true
                 }
                 Text(model.text("Проверка не меняет установленные компоненты. Загрузки запускаются только после вашего выбора."))
                     .font(.callout)
@@ -340,6 +338,11 @@ struct SettingsPanel: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showingDiagnostics) {
+            SetupWizard()
+                .environmentObject(model)
+                .frame(minWidth: 680, minHeight: 530)
+        }
         .contrast(model.highContrast ? 1.18 : 1.0)
         .padding(20)
         .navigationTitle(model.text("Настройки"))

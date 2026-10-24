@@ -58,6 +58,7 @@ enum L10n {
         "Открыть «Программы»": "Open Applications",
         "Встроенный backend недоступен. Переустановите Study Agent для поиска по материалам.": "The bundled backend is unavailable. Reinstall Study Agent to search your materials.",
         "Назад": "Back",
+        "Закрыть": "Close",
         "Продолжить": "Continue",
         "Проверка компонентов…": "Checking components…",
         "Проверить снова": "Check Again",
