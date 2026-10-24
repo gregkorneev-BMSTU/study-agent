@@ -113,7 +113,9 @@ struct ContentView: View {
             FirstRunFlowView()
                 .environmentObject(model)
         }
-        .onAppear { MenuBarLocalization.apply(model.language) }
+        .onAppear {
+            MenuBarLocalization.apply(model.language)
+        }
         .onChange(of: model.language) { _, language in MenuBarLocalization.apply(language) }
         .onChange(of: model.firstRunPresentation) { _, _ in MenuBarLocalization.apply(model.language) }
         .contrast(model.highContrast || colorSchemeContrast == .increased ? 1.18 : 1.0)
