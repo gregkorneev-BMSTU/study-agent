@@ -42,6 +42,8 @@ DocumentSource ── LocalFolderSource / IU5HubSource ── MaterialRetriever
 
 Для нативной macOS-сборки используйте единственный поддерживаемый путь `scripts/build_macos_native_app.sh`; проект Swift доступен для открытия и запуска в Xcode. Она требует macOS 14+, Xcode и локального Python окружения с optional dependency `packaging`. PySide6 GUI остаётся для разработки и Windows, но отдельный Qt `.app` packaging script удалён.
 
+Исходный код Study Agent лицензирован под MIT (см. [`LICENSE`](../LICENSE)). Лицензия проекта не распространяется на третьи стороны, модели и активы без подтверждённых прав; состав зависимостей и правила дистрибуции описаны в [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). При сборке macOS `.app` копируются проектные и найденные в build-окружении тексты лицензий выбранных runtime/build-пакетов в `Contents/Resources/Legal`.
+
 ## Переносимость и хранение данных
 
 - Корневые пути передаются источнику во время работы, а не вшиваются в код.
