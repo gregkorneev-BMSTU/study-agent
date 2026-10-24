@@ -110,7 +110,20 @@ public sealed partial class HomePage : Page
         }
         catch (Exception ex)
         {
-            SearchStatus.Text = $"Ошибка поиска: {ex.Message}";
+            if (ex.Message.Contains("OCR is unavailable",
+        StringComparison.OrdinalIgnoreCase) ||
+    ex.Message.Contains("Chandra",
+        StringComparison.OrdinalIgnoreCase))
+{
+    SearchStatus.Text =
+        "Некоторые документы требуют распознавания текста (OCR). " +
+        "Компонент OCR пока не установлен. " +
+        "Попробуйте поиск по папке с текстовыми документами.";
+}
+else
+{
+    SearchStatus.Text = $"Ошибка поиска: {ex.Message}";
+}
         }
         finally
         {
@@ -178,3 +191,4 @@ public sealed partial class HomePage : Page
         });
     }
 }
+

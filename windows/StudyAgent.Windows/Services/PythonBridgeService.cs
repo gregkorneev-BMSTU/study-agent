@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -184,5 +184,3 @@ info.Environment["PYTHONUTF8"] = "1";
             "Python-backend Study Agent не найден.");
     }
 }
-
-
