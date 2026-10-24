@@ -1,6 +1,6 @@
 # Текущее состояние
 
-Снимок на 2026-10-24. Последний опубликованный выпуск — **Study Agent v1 Beta 2** (`v1.0.0-beta.2`, macOS arm64). Основные функции Beta 2 уже выходят за рамки начального каркаса. Изменения навигации, Welcome Experience и исправление CI находятся в открытом [PR #7](https://github.com/gregkorneev-BMSTU/study-agent/pull/7); до включения PR их не следует считать функциями опубликованного DMG или ветки `main`.
+Снимок на 2026-10-24. Последний опубликованный выпуск — **Study Agent v1 Beta 2** (`v1.0.0-beta.2`, macOS arm64). Основные функции Beta 2 уже выходят за рамки начального каркаса. Изменения навигации и Welcome Experience находятся в открытом [PR #7](https://github.com/gregkorneev-BMSTU/study-agent/pull/7); до включения PR их не следует считать функциями опубликованного DMG или ветки `main`.
 
 ## В Beta 2
 
@@ -15,7 +15,7 @@
 - Замена `HSplitView` на `NavigationSplitView`, проверенная в изолированной сборке на macOS 27; deployment target остаётся macOS 14.
 - Три страницы Welcome Experience перед существующим SetupWizard; оба этапа показываются в одном sheet. Beta 1/2 с сохранённым `setup.completed.v1` не получают новое приветствие.
 - Заголовки меню macOS обновляются по выбранному языку. Объектные `NSMenuItem.title` менялись в QA, но визуальное подтверждение и доступность меню ещё не получены: UI Automation продолжал сообщать английские подписи, а системный screenshot захватывал lock screen.
-- В dev extra добавлен `tqdm`, отсутствовавший в зависимостях CI при импорте OCR-теста. GitHub Actions для PR прошёл на Python 3.12 и 3.13: [run 40128761613](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40128761613).
+- Исправление CI для отсутствовавшей OCR-тесту зависимости `tqdm` уже включено в `main`. GitHub Actions на Python 3.12/3.13 прошёл: [run 40129447523](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40129447523).
 
 ## Выпуск и проверка
 
