@@ -12,7 +12,7 @@ macOS 27 provides a system-level slider from ultra-clear to fully tinted in Syst
 
 - The incorrect 35–100% `NSWindow.alphaValue` control has been removed. It changed the opacity of the entire window, including text and controls, and was not Liquid Glass.
 - Study Agent's sidebar and toolbar use native SwiftUI/AppKit system surfaces. They continue to follow macOS's appearance and accessibility settings.
-- Settings explains the limitation, reflects the system Reduce Transparency preference, and opens System Settings. It does not display an invented percentage or claim to set a per-app Glass intensity.
+- Settings has no Liquid Glass banner, slider, or appearance shortcut. The app leaves the system surfaces alone and does not display a fabricated local intensity value.
 - No custom `Glass` surfaces currently exist in Study Agent. Adding a local Regular/Clear selector without an app-owned glass surface would be decorative and misleading, while replacing native sidebar/toolbar to force a custom material would undermine the system behavior. If the app later introduces an appropriate custom navigation/control surface, its fixed `regular`/`clear` variant could be evaluated separately.
 - The minimum deployment target remains macOS 14. The new controls use no newer Glass APIs; the app only opens System Settings and describes the macOS 27 slider when available.
 

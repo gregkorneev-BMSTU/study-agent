@@ -34,4 +34,4 @@
 
 См. [архитектуру](architecture.md), [дорожную карту](roadmap.md), [дизайн-систему](design-system.md) и [план проверок](testing.md).
 
-В PR #9 (`feature/macos-glass-appearance`) исправляется настройка Liquid Glass: ошибочный ползунок прозрачности всего окна удаляется. В настройках остаётся описание системного материала, приоритет Reduce Transparency и переход в System Settings. Публичные Apple API не предоставляют приложению числовой per-app уровень Liquid Glass; подробности — в [отчёте QA](../artifacts/macos-glass-appearance-qa/README.md).
+В PR #9 (`feature/macos-glass-appearance`) удаляется плашка Liquid Glass из настроек. Приложение использует системные sidebar и toolbar без собственной настройки прозрачности; macOS применяет системный внешний вид и доступность.

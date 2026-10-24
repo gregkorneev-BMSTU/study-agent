@@ -288,7 +288,6 @@ private struct SourceRow: View {
 struct SettingsPanel: View {
     @EnvironmentObject private var model: StudyAgentModel
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showingDiagnostics = false
 
     var body: some View {
@@ -331,45 +330,6 @@ struct SettingsPanel: View {
                     .toggleStyle(.switch)
                 Toggle(model.text("Уменьшить движение"), isOn: $model.reduceMotion)
                     .toggleStyle(.switch)
-            }
-
-            Section(model.text("Liquid Glass")) {
-                Text(model.text("Study Agent оставляет оформление боковой панели и панели инструментов macOS. На поддерживаемых версиях macOS система отображает их как Liquid Glass. Публичные API Apple не дают приложению отдельный числовой регулятор интенсивности этих системных материалов."))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if reduceTransparency {
-                    Label(
-                        model.text("В macOS включено «Уменьшить прозрачность». Это системное ограничение имеет приоритет."),
-                        systemImage: "accessibility"
-                    )
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if #available(macOS 27, *) {
-                    Text(model.text("В macOS 27 выберите прозрачность Liquid Glass в разделе «Внешний вид» системных настроек."))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if #available(macOS 26.1, *) {
-                    Text(model.text("В macOS 26.1 и новее оформление Liquid Glass выбирается в разделе «Внешний вид» системных настроек."))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text(model.text("Системное оформление Liquid Glass настраивается в macOS, когда эта возможность доступна."))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Button(model.text("Открыть настройки macOS…"), systemImage: "gearshape") {
-                    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.systempreferences") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
             }
 
             Section(model.text("Конфиденциальность")) {
