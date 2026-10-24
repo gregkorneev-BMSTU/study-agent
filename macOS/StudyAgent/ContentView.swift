@@ -219,6 +219,7 @@ private struct LibraryPanel: View {
                     }
                     .buttonStyle(.borderedProminent)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     ForEach(model.sourceSummaries) { source in
@@ -229,8 +230,6 @@ private struct LibraryPanel: View {
                 }
                 .listStyle(.inset)
             }
-
-            Spacer(minLength: 0)
         }
         .padding(28)
         .foregroundStyle(Color(nsColor: .labelColor))
