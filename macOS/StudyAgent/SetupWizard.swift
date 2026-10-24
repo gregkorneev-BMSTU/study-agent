@@ -26,6 +26,8 @@ private struct SetupSnapshot {
     var backend: String = "—"
     var pdf: String = "—"
     var ocr: String = "—"
+    var ocrRuntimeAvailable = false
+    var ocrWeightsInstalled = false
     var internet: String = "—"
     var ollama: String = "—"
     var ollamaAppURL: URL?
@@ -40,9 +42,13 @@ private final class SetupController: ObservableObject {
     @Published var pulling = false
     @Published var pullStatus = ""
     @Published var pullFraction: Double?
+    @Published var installingOCR = false
+    @Published var ocrFraction: Double?
+    @Published var ocrDownloadStatus = ""
     @Published var error: String?
 
     private var pullTask: Task<Void, Never>?
+    private var ocrTask: Task<Void, Never>?
     private let ollamaBase = URL(string: "http://127.0.0.1:11434")!
 
     func diagnose(using model: StudyAgentModel) {
@@ -75,8 +81,13 @@ private final class SetupController: ObservableObject {
                 result.pdf = health["pdf_available"] as? Bool == true
                     ? model.text("Доступен") : model.text("Недоступен")
                 result.ocr = health["ocr_runtime_available"] as? Bool == true
-                    ? model.text("Среда доступна; веса не проверены")
+                    ? model.text("Среда доступна; веса не установлены")
                     : model.text("Не установлен (необязательно)")
+                result.ocrRuntimeAvailable = health["ocr_runtime_available"] as? Bool == true
+                result.ocrWeightsInstalled = health["ocr_weights_state"] as? String == "installed"
+                if result.ocrWeightsInstalled {
+                    result.ocr = model.text("Готов к работе")
+                }
             } catch {
                 result.backend = model.text("Недоступен")
                 result.pdf = "—"
@@ -190,6 +201,40 @@ private final class SetupController: ObservableObject {
         pullTask?.cancel()
     }
 
+    func installOCR(using model: StudyAgentModel) {
+        guard !installingOCR, snapshot.ocrRuntimeAvailable else { return }
+        installingOCR = true
+        ocrFraction = nil
+        ocrDownloadStatus = model.text("Подготовка загрузки Chandra…")
+        error = nil
+        ocrTask = Task {
+            do {
+                _ = try await model.installOCRModel { event in
+                    Task { @MainActor in
+                        guard let current = event["current"] as? Double,
+                              let total = event["total"] as? Double, total > 0 else { return }
+                        self.ocrFraction = min(1, max(0, current / total))
+                        self.ocrDownloadStatus = event["description"] as? String
+                            ?? model.text("Загружается Chandra OCR…")
+                    }
+                }
+                snapshot.ocrWeightsInstalled = true
+                snapshot.ocr = model.text("Готов к работе")
+                ocrDownloadStatus = model.text("Загрузка завершена")
+            } catch is CancellationError {
+                ocrDownloadStatus = model.text("Загрузка отменена")
+            } catch {
+                self.error = model.text("Не удалось загрузить Chandra OCR. Проверьте интернет и свободное место, затем повторите попытку.")
+            }
+            installingOCR = false
+            ocrTask = nil
+        }
+    }
+
+    func cancelOCRDownload() {
+        ocrTask?.cancel()
+    }
+
     private func findOllamaApp() -> URL? {
         let candidates = [
             URL(fileURLWithPath: "/Applications/Ollama.app"),
@@ -262,7 +307,10 @@ struct SetupWizard: View {
             }
         }
         .padding(26)
-        .onDisappear { controller.cancelPull() }
+        .onDisappear {
+            controller.cancelPull()
+            controller.cancelOCRDownload()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -318,8 +366,35 @@ struct SetupWizard: View {
                 }
             }
             diagnosticRow("Chandra OCR", controller.snapshot.ocr)
-            Text(model.text("OCR необязателен. Наличие весов Chandra нельзя подтвердить без запуска модели; настройку можно отложить."))
-                .foregroundStyle(.secondary)
+            if controller.snapshot.ocrRuntimeAvailable {
+                if controller.snapshot.ocrWeightsInstalled {
+                    Label(model.text("Chandra OCR готов к работе офлайн."), systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else if controller.installingOCR {
+                    if let fraction = controller.ocrFraction { ProgressView(value: fraction) }
+                    else { ProgressView() }
+                    Text(controller.ocrDownloadStatus).font(.callout).foregroundStyle(.secondary)
+                    Button(model.text("Отменить загрузку"), role: .cancel) {
+                        controller.cancelOCRDownload()
+                    }
+                } else {
+                    Button(model.text("Установить Chandra OCR · 10,6 ГБ"), systemImage: "arrow.down.circle") {
+                        controller.installOCR(using: model)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(controller.checking || (controller.snapshot.diskBytes.map { $0 < 12_000_000_000 } ?? false))
+                    if let bytes = controller.snapshot.diskBytes, bytes < 12_000_000_000 {
+                        Text(model.text("Для установки Chandra требуется не менее 12 ГБ свободного места."))
+                            .foregroundStyle(.orange)
+                    }
+                    Text(model.text("Веса загружаются с Hugging Face по вашему нажатию и сохраняются на этом Mac. Документы никуда не отправляются. Для запуска OCR требуется много оперативной памяти."))
+                        .foregroundStyle(.secondary)
+                    Link(model.text("Лицензия весов Chandra"), destination: URL(string: "https://huggingface.co/datalab-to/chandra-ocr-2/blob/af93b47dba1b47b6640c86ccf487ed2260ab9a09/LICENSE")!)
+                }
+            } else {
+                Text(model.text("OCR runtime недоступен в этой сборке. Переустановите Study Agent."))
+                    .foregroundStyle(.secondary)
+            }
             if controller.snapshot.ollamaAppURL != nil && !controller.snapshot.ollamaRunning {
                 Button(model.text("Запустить установленную Ollama"), systemImage: "play.fill") {
                     controller.openInstalledOllama(using: model)

@@ -9,6 +9,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from study_agent.ocr_model import model_directory, model_is_installed
+
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
 OCR_SUFFIXES = {".pdf", *IMAGE_SUFFIXES}
 _manager: Any | None = None
@@ -80,6 +82,8 @@ def _ocr_image(image: Any) -> str:
     if getattr(sys, "frozen", False):
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    if model_is_installed():
+        os.environ["MODEL_CHECKPOINT"] = str(model_directory())
     try:
         from chandra.model import BatchInputItem, InferenceManager
     except ImportError as error:

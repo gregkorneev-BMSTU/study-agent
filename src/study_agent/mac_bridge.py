@@ -8,12 +8,16 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
+from study_agent.ocr_model import download_model, model_is_installed
 from study_agent.ollama import OllamaError, answer, list_models
 from study_agent.search import search_sources
 from study_agent.sources import LocalFolderSource
 
 
-def dispatch(request: dict[str, Any]) -> dict[str, Any]:
+def dispatch(
+    request: dict[str, Any],
+    progress_callback: Any | None = None,
+) -> dict[str, Any]:
     """Run one native-app request and return a JSON-serializable response envelope."""
     request_id = request.get("request_id")
     try:
@@ -55,6 +59,11 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
             result = {"models": list_models()}
         elif command == "diagnose_backend":
             result = _backend_diagnostics()
+        elif command == "install_ocr_model":
+            result = {
+                "ocr_weights_state": "installed",
+                "model_path": str(download_model(progress_callback)),
+            }
         else:
             raise ValueError("Unknown backend command")
         return {"request_id": request_id, "ok": True, "result": result}
@@ -79,10 +88,11 @@ def _backend_diagnostics() -> dict[str, Any]:
         "backend_healthy": True,
         "pdf_available": find_spec("pypdfium2") is not None,
         "ocr_runtime_available": (
-            find_spec("chandra") is not None and find_spec("PIL") is not None
+            find_spec("chandra") is not None
+            and find_spec("PIL") is not None
+            and find_spec("huggingface_hub") is not None
         ),
-        # Chandra manages its own model cache. Package presence cannot prove the weights exist.
-        "ocr_weights_state": "unknown",
+        "ocr_weights_state": "installed" if model_is_installed() else "missing",
     }
 
 
@@ -128,7 +138,11 @@ def main() -> int:
             request = json.loads(line)
             if not isinstance(request, dict):
                 raise ValueError("request must be a JSON object")
-            response = dispatch(request)
+            def report_progress(event: dict[str, Any]) -> None:
+                sys.stdout.write(json.dumps({"event": "progress", "result": event}) + "\n")
+                sys.stdout.flush()
+
+            response = dispatch(request, progress_callback=report_progress)
         except (json.JSONDecodeError, ValueError) as error:
             response = {"ok": False, "error": {"message": str(error)}}
         sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")

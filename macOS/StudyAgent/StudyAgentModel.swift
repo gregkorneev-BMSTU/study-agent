@@ -152,6 +152,10 @@ final class StudyAgentModel: ObservableObject {
         try await bridge.request(command: "diagnose_backend")
     }
 
+    func installOCRModel(progress: @escaping ([String: Any]) -> Void) async throws -> [String: Any] {
+        try await bridge.requestStreaming(command: "install_ocr_model", progress: progress)
+    }
+
     func addFolders(_ urls: [URL]) {
         var added = 0
         for url in urls {
@@ -472,6 +476,78 @@ private struct MacBackendClient {
         }
     }
 
+    func requestStreaming(
+        command: String,
+        fields: [String: Any] = [:],
+        progress: @escaping ([String: Any]) -> Void
+    ) async throws -> [String: Any] {
+        var request = fields
+        request["command"] = command
+        request["request_id"] = UUID().uuidString
+        let requestData = try JSONSerialization.data(withJSONObject: request, options: [.fragmentsAllowed])
+        let control = BackendProcessControl()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let process = Process()
+                        let input = Pipe()
+                        let output = Pipe()
+                        process.executableURL = try Self.executableURL()
+                        process.standardInput = input
+                        process.standardOutput = output
+                        process.standardError = FileHandle.nullDevice
+                        control.attach(process)
+                        if control.isCancelled { throw CancellationError() }
+                        try process.run()
+                        input.fileHandleForWriting.write(requestData + Data([0x0A]))
+                        try input.fileHandleForWriting.close()
+
+                        var pending = Data()
+                        var finalEnvelope: [String: Any]?
+                        while true {
+                            let chunk = try output.fileHandleForReading.read(upToCount: 16_384) ?? Data()
+                            if chunk.isEmpty { break }
+                            pending.append(chunk)
+                            while let newline = pending.firstRange(of: Data([0x0A])) {
+                                let line = Data(pending[..<newline.lowerBound])
+                                pending.removeSubrange(..<newline.upperBound)
+                                guard let message = try JSONSerialization.jsonObject(with: line) as? [String: Any] else {
+                                    continue
+                                }
+                                if message["event"] as? String == "progress",
+                                   let value = message["result"] as? [String: Any] {
+                                    DispatchQueue.main.async { progress(value) }
+                                } else {
+                                    finalEnvelope = message
+                                }
+                            }
+                        }
+                        process.waitUntilExit()
+                        if control.isCancelled { throw CancellationError() }
+                        guard process.terminationStatus == 0, let envelope = finalEnvelope else {
+                            throw BackendClientError.invalidResponse
+                        }
+                        guard envelope["ok"] as? Bool == true,
+                              let result = envelope["result"] as? [String: Any] else {
+                            let error = envelope["error"] as? [String: Any]
+                            throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
+                        }
+                        continuation.resume(returning: result)
+                    } catch {
+                        if control.isCancelled {
+                            continuation.resume(throwing: CancellationError())
+                        } else {
+                            continuation.resume(throwing: error)
+                        }
+                    }
+                }
+            }
+        } onCancel: {
+            control.cancel()
+        }
+    }
+
     private static func executableURL() throws -> URL {
         let url = Bundle.main.bundleURL
             .appending(path: "Contents/Resources/Backend/StudyAgentBackend/StudyAgentBackend")
@@ -479,6 +555,34 @@ private struct MacBackendClient {
             throw BackendClientError.missingBackend
         }
         return url
+    }
+}
+
+private final class BackendProcessControl {
+    private let lock = NSLock()
+    private var process: Process?
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func attach(_ process: Process) {
+        lock.lock()
+        self.process = process
+        let shouldCancel = cancelled
+        lock.unlock()
+        if shouldCancel { process.terminate() }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let runningProcess = process
+        lock.unlock()
+        if runningProcess?.isRunning == true { runningProcess?.terminate() }
     }
 }
 

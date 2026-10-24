@@ -70,8 +70,28 @@ def test_dispatch_returns_structured_error_for_unknown_command() -> None:
     assert response["error"]["message"] == "Unknown backend command"
 
 
+def test_dispatch_installs_ocr_model_only_when_requested(tmp_path: Path, monkeypatch) -> None:
+    reported: list[dict[str, object]] = []
+
+    def fake_download(progress_callback=None) -> Path:
+        assert progress_callback is not None
+        progress_callback({"current": 10, "total": 20})
+        return tmp_path / "Chandra"
+
+    monkeypatch.setattr(mac_bridge, "download_model", fake_download)
+    response = mac_bridge.dispatch(
+        {"request_id": "install", "command": "install_ocr_model"},
+        progress_callback=reported.append,
+    )
+
+    assert response["ok"] is True
+    assert response["result"]["ocr_weights_state"] == "installed"
+    assert response["result"]["model_path"] == str(tmp_path / "Chandra")
+    assert reported == [{"current": 10, "total": 20}]
+
+
 def test_diagnostics_do_not_load_ocr_weights_or_contact_services(monkeypatch) -> None:
-    installed = {"pypdfium2", "PIL"}
+    installed = {"pypdfium2", "PIL", "chandra"}
     checked: list[str] = []
 
     def fake_find_spec(name: str) -> object | None:
@@ -88,10 +108,10 @@ def test_diagnostics_do_not_load_ocr_weights_or_contact_services(monkeypatch) ->
             "backend_healthy": True,
             "pdf_available": True,
             "ocr_runtime_available": False,
-            "ocr_weights_state": "unknown",
+            "ocr_weights_state": "missing",
         },
     }
-    assert checked == ["pypdfium2", "chandra"]
+    assert checked == ["pypdfium2", "chandra", "PIL", "huggingface_hub"]
 
 
 def test_dispatch_surfaces_missing_local_ocr_as_error(tmp_path: Path, monkeypatch) -> None:
