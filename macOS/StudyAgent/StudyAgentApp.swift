@@ -57,10 +57,15 @@ private struct StudyAgentCommands: Commands {
             Button(model.text("Об Study Agent")) {
                 let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
                 let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+                let github = NSAttributedString(
+                    string: "github.com/gregkorneev",
+                    attributes: [.link: URL(string: "https://github.com/gregkorneev")!]
+                )
                 NSApp.orderFrontStandardAboutPanel(options: [
                     .applicationName: "Study Agent",
                     .applicationVersion: version,
                     .version: build,
+                    .credits: github,
                 ])
             }
         }
