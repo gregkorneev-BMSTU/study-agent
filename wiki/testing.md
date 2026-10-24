@@ -37,3 +37,11 @@
 Настройки прозрачности macOS 2026-10-24: переключатель удалён, а toolbar использует автоматический системный фон. `xcodebuild` Debug arm64 — успешно; `ruff check .` — успешно; `pytest --ignore=tests/test_switch.py` — 25 passed.
 
 Dock-иконка macOS 2026-10-24: удалено ручное назначение 1024×1024 PNG через `NSApplication.applicationIconImage`; размер берётся из Xcode `AppIcon` asset catalog. Release arm64 `xcodebuild` — успешно.
+
+
+## Проверка v1 Beta 2 — 2026-10-24
+
+- `.venv`-сборка полного `pytest` один раз завершилась с Qt Cocoa abort в `tests/test_switch.py` во время параллельной упаковки. Повторный полный запуск в изолированном Python 3.12 окружении с проектными зависимостями: **34 passed**; `ruff check .`: **All checks passed**.
+- `scripts/build_macos_dmg.sh --mode development --suffix beta.2` собрал Xcode Release, arm64 Python helper с OCR runtime и DMG. В `Info.plist`: версия `1.0.0`, build `2`. Размер DMG — 227,682,996 bytes. `hdiutil verify` подтвердил целостность; корень образа содержит приложение, `Applications → /Applications` и `.DS_Store`.
+- `codesign --verify --deep --strict` подтвердил подпись смонтированного `.app`; SwiftUI-приложение из образа запускалось в локальной проверке. Визуально проверено центрирование пустого состояния библиотеки. Helper `diagnose_backend` вернул `backend_healthy=true`, `pdf_available=true`, `ocr_runtime_available=true`, `ocr_weights_state=missing`. Веса Chandra не скачивались, OCR inference не запускался.
+- SHA-256 `StudyAgent-v1.0.0-beta.2-macos-arm64.dmg`: `8a6d47363f04d43f326a4501b92996ecde3fc19db1e168a940f8aff7c0feb2f2`. Это ad-hoc сборка без Developer ID и нотариализации; Gatekeeper и чистая установка на другом Mac не проверялись.
