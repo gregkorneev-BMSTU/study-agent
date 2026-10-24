@@ -1,4 +1,4 @@
-
+﻿
 using System;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -9,9 +9,11 @@ namespace StudyAgent_Windows;
 
 public sealed partial class MainWindow : Window
 {
+    public static MainWindow? ActiveWindow { get; private set; }
     public MainWindow()
     {
         InitializeComponent();
+        ActiveWindow = this;
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -69,3 +71,5 @@ public sealed partial class MainWindow : Window
         }
     }
 }
+
+
