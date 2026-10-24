@@ -70,13 +70,21 @@ public sealed class PythonBridgeService
     {
         string root = FindRepositoryRoot();
 
-        string pythonPath = Path.Combine(
-            root, ".venv", "Scripts", "python.exe");
+        string packagedPath = Path.Combine(
+            root,
+            "build", "windows-backend", "dist",
+            "StudyAgentBackend", "StudyAgentBackend.exe");
+
+        bool usePackagedBackend = File.Exists(packagedPath);
+
+        string backendPath = usePackagedBackend
+            ? packagedPath
+            : Path.Combine(root, ".venv", "Scripts", "python.exe");
 
         var info = new ProcessStartInfo
         {
-            FileName = pythonPath,
-            Arguments = "-X utf8 -m study_agent.mac_bridge",
+            FileName = backendPath,
+            Arguments = usePackagedBackend ? "" : "-X utf8 -m study_agent.mac_bridge",
             WorkingDirectory = root,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -208,4 +216,6 @@ info.Environment["PYTHONUTF8"] = "1";
             "Python-backend Study Agent РЅРµ РЅР°Р№РґРµРЅ.");
     }
 }
+
+
 

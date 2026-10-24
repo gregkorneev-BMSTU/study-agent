@@ -260,7 +260,8 @@ public sealed partial class LibraryPage : Page
         object sender, RoutedEventArgs e)
     {
         DiagnoseButton.IsEnabled = false;
-        BackendStatus.Text = "Проверяем backend...";
+        DiagnoseButton.Content = "Проверка выполняется...";
+        BackendStatus.Text = "Запрос отправлен. Ожидаем ответ backend...";
 
         try
         {
@@ -288,6 +289,21 @@ public sealed partial class LibraryPage : Page
         finally
         {
             DiagnoseButton.IsEnabled = true;
+            DiagnoseButton.Content = "Проверить Python-backend";
+
+            var dialog = new ContentDialog
+            {
+                Title = "Результат диагностики",
+                Content = BackendStatus.Text,
+                CloseButtonText = "Закрыть",
+                XamlRoot = this.XamlRoot
+            };
+
+            await dialog.ShowAsync();
         }
     }
 }
+
+
+
+
