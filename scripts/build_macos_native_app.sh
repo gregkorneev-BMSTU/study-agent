@@ -35,6 +35,22 @@ cd "$ROOT_DIR"
   --specpath "$BACKEND_BUILD" \
   "$ROOT_DIR/src/study_agent/mac_bridge.py"
 
+# PyInstaller's hook can include torchvision's Python files without its
+# native operators and adjacent dynamic libraries.
+TORCHVISION_DIR=$("$PYTHON" -c 'import importlib.util; spec = importlib.util.find_spec("torchvision"); print(next(iter(spec.submodule_search_locations), "") if spec else "")')
+if [ -n "$TORCHVISION_DIR" ]; then
+  for binary in "$TORCHVISION_DIR"/*.so; do
+    if [ -f "$binary" ]; then
+      mkdir -p "$BACKEND_BUILD/dist/StudyAgentBackend/_internal/torchvision"
+      cp "$binary" "$BACKEND_BUILD/dist/StudyAgentBackend/_internal/torchvision/"
+    fi
+  done
+  if [ -d "$TORCHVISION_DIR/.dylibs" ]; then
+    ditto "$TORCHVISION_DIR/.dylibs" \
+      "$BACKEND_BUILD/dist/StudyAgentBackend/_internal/torchvision/.dylibs"
+  fi
+fi
+
 xcodebuild \
   -project "$ROOT_DIR/macOS/StudyAgent.xcodeproj" \
   -scheme "Study Agent" \

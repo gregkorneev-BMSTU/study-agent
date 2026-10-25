@@ -14,6 +14,8 @@ DMG содержит `Study Agent.app` и ссылку `Applications` на `/App
 
 Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend` вернула `ocr_runtime_available=true`. Веса отдельно скачиваются пользователем с явного действия в мастере настройки. Поиск сам не начинает сетевую загрузку весов. Без весов OCR недоступен; inference и качество OCR не проверялись. Текстовые файлы и цифровой слой PDF доступны без OCR. Условия исходного кода Chandra и весов модели различаются; подробности приведены в [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
 
+После Beta 3 обнаружена ошибка упаковки OCR: PyInstaller не включал нативные файлы `torchvision/*.so` и `torchvision/.dylibs`. На сканированных PDF это приводило к аварийному завершению helper и сообщению «Локальный backend вернул некорректный ответ». Скрипт `scripts/build_macos_native_app.sh` теперь добавляет эти файлы, если `torchvision` установлен в окружении сборки. Проверять выпуск следует на упакованном `.app`, а не только в Python-окружении; наличие `ocr_runtime_available=true` само по себе не подтверждает работу inference.
+
 ## Сборка разработчика
 
 На Mac с Xcode, Python 3.12 и установленными `.[packaging,ocr]`:

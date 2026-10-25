@@ -96,6 +96,11 @@ def _extract_pdf(path: Path) -> list[ExtractedBlock]:
                     extraction_type = "ocr"
                 except Exception as ocr_error:
                     # Сбой Chandra на этой странице не блокирует обработку других страниц.
+                    if os.environ.get("STUDY_AGENT_DEBUG_OCR") == "1":
+                        print(
+                            f"OCR failure: {type(ocr_error).__name__}: {ocr_error}",
+                            file=sys.stderr,
+                        )
                     extraction_type = "ocr"
                     warnings.append(f"OCR failed on page {page_number}: {ocr_error}")
 
