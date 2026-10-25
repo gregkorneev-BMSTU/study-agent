@@ -8,9 +8,9 @@
 
 Для macOS-клиента добавлена отдельная Swift-проверка: сохранённый путь работает при повреждённой bookmark, ошибка одной старой bookmark не прерывает выбор других путей, а старый формат настроек читается. GitHub CI запускает её на macOS. Очередь повторов также требует ручной проверки с временно недоступным источником и с ошибкой удаления backend.
 
-Локальная проверка последнего исправления PR #11: Swift-проверка прошла, Release `xcodebuild` прошёл, `pytest -q --ignore=tests/test_switch.py` — 65 passed, `ruff check .` — успешно. Полный локальный pytest остаётся ограничен описанной ниже аварией Qt в `tests/test_switch.py`.
+Локальная проверка последнего исправления PR #11: Swift-проверка прошла, Release `xcodebuild` прошёл, `pytest -q --ignore=tests/test_switch.py` — 65 passed, `ruff check .` — успешно. Последующее расследование Qt-сбоя позволило запустить весь набор: **68 passed** с отдельным каталогом платформенных плагинов.
 
-Проверка исправления PR #11 (2026-10-25): `pytest -q --ignore=tests/test_switch.py` — 65 passed; `ruff check .` — успешно; Release `xcodebuild` — успешно. Полный локальный `pytest -q` с `QT_QPA_PLATFORM=offscreen` завершается `Fatal Python error: Aborted` в `tests/test_switch.py` при создании `QApplication`, как и в предыдущих проверках на этом Mac.
+Причина прежнего `Fatal Python error: Aborted` в `tests/test_switch.py` установлена: у `libqminimal.dylib`, `libqoffscreen.dylib` и `libqcocoa.dylib` внутри локальной `.venv` выставлен macOS-флаг `hidden`. Qt перечисляет каталог `PySide6/Qt/plugins/platforms` без скрытых файлов и сообщает, что не нашёл плагин `minimal`; аварийное завершение происходит до выполнения кода теста. Копии `libqminimal.dylib` и `libqoffscreen.dylib` во временном каталоге без флага `hidden` и переменная `QT_QPA_PLATFORM_PLUGIN_PATH`, указывающая на него, дали полный результат `pytest -q`: **68 passed**. Эта особенность локальной установки PySide6 не воспроизводилась в GitHub CI. Физическое отключение диска в нативном приложении отдельно не проверялось; для него нужен установленный backend и выбранный съёмный источник.
 
 ## Автоматические проверки
 
