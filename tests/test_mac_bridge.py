@@ -57,6 +57,20 @@ def test_dispatch_searches_saved_index_when_source_is_offline(
     assert response["result"]["hits"][0]["source_root"] == str(root)
 
 
+def test_dispatch_index_status_exposes_last_completed_sync(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "materials"
+    root.mkdir()
+    (root / "lecture.txt").write_text("Синхронный индекс", encoding="utf-8")
+    _index(root)
+
+    response = mac_bridge.dispatch({"command": "index_status", "root": str(root)})
+
+    assert response["ok"] is True
+    assert response["result"]["documents"] == 1
+    assert response["result"]["last_indexed_at"]
+
+
 def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
     captured: dict[str, str | None] = {}
 

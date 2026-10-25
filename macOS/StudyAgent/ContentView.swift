@@ -90,7 +90,7 @@ struct ContentView: View {
             case .success(let urls):
                 model.addFolders(urls)
             case .failure(let error):
-                model.searchStatus = model.text(error.localizedDescription)
+                model.sourceLoadError = model.text(error.localizedDescription)
             }
         }
         .task {
@@ -199,40 +199,62 @@ private struct SearchPanel: View {
                     }
                     if let answer = model.answerText {
                         GroupBox(model.text("Ответ")) {
-                            Text(answer)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .textSelection(.enabled)
-                                .padding(.top, 4)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(answer)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                                if !model.answerSources.isEmpty {
+                                    Divider()
+                                    Text(model.text("Использованные источники"))
+                                        .font(.headline)
+                                    ForEach(Array(model.answerSources.enumerated()), id: \.element.id) { index, hit in
+                                        Button {
+                                            model.open(hit)
+                                        } label: {
+                                            Label("[\(index + 1)]  \(hit.title) · \(hit.locationDescription(language: model.language) ?? model.text("Открыть документ"))", systemImage: "doc.text.magnifyingglass")
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        .buttonStyle(.link)
+                                        .help(model.text("Открыть исходный документ"))
+                                    }
+                                }
+                            }
+                            .padding(.top, 4)
                         }
                     }
-                    ForEach(model.hits.indices, id: \.self) { index in
-                        let hit = model.hits[index]
-                        Button {
-                            model.open(hit)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(alignment: .firstTextBaseline) {
-                                    Text("[\(index + 1)]  \(hit.title)")
-                                        .font(.headline)
-                                    Spacer()
-                                    Image(systemName: "arrow.up.forward.square")
-                                        .font(.caption)
-                                }
-                                Text("\(URL(filePath: hit.sourceRoot).lastPathComponent)/\(hit.documentID)")
+                    ForEach(Array(model.hits.enumerated()), id: \.element.id) { index, hit in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(hit.title)
+                                    .font(.headline)
+                                Spacer()
+                                Text("[\(index + 1)]")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text(hit.excerpt)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.background, in: RoundedRectangle(cornerRadius: 12))
+                            Text("\(URL(filePath: hit.sourceRoot).lastPathComponent)/\(hit.documentID)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                            if let location = hit.locationDescription(language: model.language) {
+                                Text(location)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(hit.excerpt)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button(model.text("Открыть источник"), systemImage: "arrow.up.forward.square") {
+                                model.open(hit)
+                            }
+                            .buttonStyle(.link)
+                            .accessibilityHint(model.text("Открыть исходный документ"))
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityHint(model.text("Открыть исходный документ"))
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 12))
                     }
                 }
             }
@@ -259,6 +281,12 @@ private struct LibraryPanel: View {
                         model.retryFailedLibraryOperations()
                     }
                 }
+            }
+
+            if let error = model.sourceLoadError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if model.sourceSummaries.isEmpty {
@@ -295,25 +323,91 @@ private struct SourceRow: View {
     let remove: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(alignment: .top, spacing: 14) {
             Image(systemName: "folder.fill")
                 .font(.title2)
                 .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 4) {
                 Text(source.name).font(.headline)
-                Text(L10n.format("%d файлов поддерживаемых форматов", language: model.language, source.documentCount))
+                Text(model.sourceSummary(for: source))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                Label(model.stateLabel(for: source), systemImage: stateSymbol)
+                    .font(.caption)
+                    .foregroundStyle(stateColor)
+                if let progress = model.progressLabel(for: source) {
+                    if let status = model.indexingProgress[SavedFolder.canonicalPath(source.path)], status.total > 0 {
+                        ProgressView(value: Double(min(status.current, status.total)), total: Double(status.total))
+                    } else {
+                        ProgressView()
+                    }
+                    Text(progress).font(.caption).foregroundStyle(.secondary)
+                }
+                if let status = model.sourceIndexStatuses[SavedFolder.canonicalPath(source.path)], let last = status.lastIndexedAt {
+                    Text(L10n.format("Последняя синхронизация: %@", language: model.language, last))
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                if let errors = model.indexingIssues[SavedFolder.canonicalPath(source.path)], !errors.isEmpty {
+                    DisclosureGroup(L10n.format("Проблемы обработки: %d", language: model.language, errors.count)) {
+                        ForEach(errors) { issue in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(issue.documentID).font(.caption).textSelection(.enabled)
+                                Text(model.issueMessage(issue.code)).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .font(.caption)
+                }
             }
             Spacer()
-            Button(model.text("Удалить"), systemImage: "minus.circle") {
-                remove()
+            Menu {
+                Button(model.text("Проверить изменения"), systemImage: "arrow.clockwise") {
+                    model.syncFolder(at: source.path)
+                }
+                if model.canCancelIndexing(at: source.path) {
+                    Button(model.text("Остановить обработку"), systemImage: "stop.circle") {
+                        if let folder = model.folders.first(where: { SavedFolder.path(of: $0) == source.path }) {
+                            model.cancelIndexing(for: folder)
+                        }
+                    }
+                }
+                if source.available == false {
+                    Button(model.text("Подключить папку снова…"), systemImage: "folder.badge.plus") {
+                        model.isImportingFolders = true
+                    }
+                }
+                Divider()
+                Button(model.text("Удалить"), systemImage: "minus.circle", role: .destructive) {
+                    remove()
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 28, height: 28)
             }
-            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
-            .help(model.text("Отключить папку от библиотеки"))
+            .help(model.text("Действия с папкой"))
         }
         .padding(.vertical, 8)
+    }
+
+    private var stateSymbol: String {
+        switch model.stateLabel(for: source) {
+        case model.text("Индекс актуален"): "checkmark.circle.fill"
+        case model.text("Готово с предупреждениями"), model.text("Ошибка индексации"): "exclamationmark.triangle.fill"
+        case model.text("Источник недоступен"): "externaldrive.badge.minus"
+        case model.text("В очереди"): "clock"
+        case model.text("Индексация…"), model.text("Поиск документов…"), model.text("Останавливаем обработку…"): "arrow.triangle.2.circlepath"
+        default: "circle"
+        }
+    }
+
+    private var stateColor: Color {
+        switch model.stateLabel(for: source) {
+        case model.text("Индекс актуален"): .green
+        case model.text("Готово с предупреждениями"), model.text("Ошибка индексации"), model.text("Источник недоступен"): .orange
+        default: .secondary
+        }
     }
 }
 

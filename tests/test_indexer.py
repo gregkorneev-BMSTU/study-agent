@@ -36,7 +36,9 @@ def test_initial_incremental_change_add_delete_and_restart(
     first = indexer.sync_source(source)
     assert first.indexed == 2
     assert len(calls) == 2
-    assert indexer.get_index_status(source_id(root))["chunks"] == 2
+    status = indexer.get_index_status(source_id(root))
+    assert status["chunks"] == 2
+    assert status["last_indexed_at"]
 
     second = indexer.sync_source(source)
     assert second.skipped == 2
