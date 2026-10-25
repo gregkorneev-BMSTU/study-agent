@@ -55,13 +55,6 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
-struct SavedFolder: Codable, Identifiable, Hashable {
-    var id: UUID
-    var name: String
-    var bookmark: Data
-    var path: String? = nil
-}
-
 struct SourceSummary: Identifiable, Decodable {
     var id: String { path }
     let name: String
@@ -138,6 +131,7 @@ final class StudyAgentModel: ObservableObject {
         didSet { defaults.set(reduceMotion, forKey: Keys.reduceMotion) }
     }
     @Published private(set) var folders: [SavedFolder] = []
+    @Published private(set) var hasFailedLibraryOperations = false
     @Published var firstRunPresentation: FirstRunPresentation?
 
     private let defaults = UserDefaults.standard
@@ -147,6 +141,8 @@ final class StudyAgentModel: ObservableObject {
     private var didScheduleInitialIndex = false
     private var pendingIndexFolders: [SavedFolder] = []
     private var pendingRemovalRoots: [String] = []
+    private var failedIndexFolders: [SavedFolder] = []
+    private var failedRemovalRoots: [String] = []
     private var activeIndexFolderID: UUID?
     private var isIndexingFolders = false
 
@@ -160,8 +156,10 @@ final class StudyAgentModel: ObservableObject {
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
+        failedRemovalRoots = defaults.stringArray(forKey: Keys.pendingRemovals) ?? []
+        updateFailedLibraryOperations()
         for index in folders.indices where folders[index].path == nil {
-            folders[index].path = Self.path(of: folders[index])
+            folders[index].path = SavedFolder.path(of: folders[index])
         }
         saveFolders()
     }
@@ -264,17 +262,21 @@ final class StudyAgentModel: ObservableObject {
     }
 
     func removeFolder(_ folder: SavedFolder) {
-        let root = Self.path(of: folder)
+        let root = SavedFolder.path(of: folder)
         folders.removeAll { $0.id == folder.id }
         pendingIndexFolders.removeAll { $0.id == folder.id }
+        failedIndexFolders.removeAll { $0.id == folder.id }
+        updateFailedLibraryOperations()
         saveFolders()
         if let root { removeIndexedSource(root) }
         refreshSources()
     }
 
     func removeFolder(at path: String) {
-        folders.removeAll { Self.path(of: $0) == path }
-        pendingIndexFolders.removeAll { Self.path(of: $0) == path }
+        folders.removeAll { SavedFolder.path(of: $0) == path }
+        pendingIndexFolders.removeAll { SavedFolder.path(of: $0) == path }
+        failedIndexFolders.removeAll { SavedFolder.path(of: $0) == path }
+        updateFailedLibraryOperations()
         saveFolders()
         removeIndexedSource(path)
         refreshSources()
@@ -284,11 +286,12 @@ final class StudyAgentModel: ObservableObject {
         if !didScheduleInitialIndex {
             didScheduleInitialIndex = true
             indexFolders(folders)
+            retryFailedLibraryOperations()
         }
         Task {
             do {
                 let response = try await bridge.request(command: "list_sources", fields: [
-                    "roots": folders.compactMap(Self.path)
+                    "roots": SavedFolder.searchRoots(folders)
                 ])
                 sourceSummaries = try response.decode("sources", as: [SourceSummary].self)
                 searchStatus = sourceSummaries.isEmpty
@@ -311,8 +314,35 @@ final class StudyAgentModel: ObservableObject {
     }
 
     private func removeIndexedSource(_ root: String) {
+        failedRemovalRoots.removeAll { $0 == root }
         if !pendingRemovalRoots.contains(root) { pendingRemovalRoots.append(root) }
+        savePendingRemovals()
+        updateFailedLibraryOperations()
         drainIndexQueue()
+    }
+
+    func retryFailedLibraryOperations() {
+        guard hasFailedLibraryOperations else { return }
+        for root in failedRemovalRoots where !pendingRemovalRoots.contains(root) {
+            pendingRemovalRoots.append(root)
+        }
+        for folder in failedIndexFolders where folders.contains(where: { $0.id == folder.id }) {
+            if activeIndexFolderID != folder.id && !pendingIndexFolders.contains(where: { $0.id == folder.id }) {
+                pendingIndexFolders.append(folder)
+            }
+        }
+        failedRemovalRoots.removeAll()
+        failedIndexFolders.removeAll()
+        updateFailedLibraryOperations()
+        drainIndexQueue()
+    }
+
+    private func savePendingRemovals() {
+        defaults.set(pendingRemovalRoots + failedRemovalRoots, forKey: Keys.pendingRemovals)
+    }
+
+    private func updateFailedLibraryOperations() {
+        hasFailedLibraryOperations = !failedIndexFolders.isEmpty || !failedRemovalRoots.isEmpty
     }
 
     private func drainIndexQueue() {
@@ -322,13 +352,20 @@ final class StudyAgentModel: ObservableObject {
             while !pendingRemovalRoots.isEmpty || !pendingIndexFolders.isEmpty {
                 if !pendingRemovalRoots.isEmpty {
                     let root = pendingRemovalRoots.removeFirst()
-                    if folders.contains(where: { Self.path(of: $0) == root }) { continue }
+                    if folders.contains(where: { SavedFolder.path(of: $0) == root }) {
+                        savePendingRemovals()
+                        continue
+                    }
                     do {
                         _ = try await bridge.request(command: "remove_index_source", fields: ["root": root])
+                        savePendingRemovals()
                     } catch BackendClientError.indexBusy {
                         if !pendingRemovalRoots.contains(root) { pendingRemovalRoots.append(root) }
                         try? await Task.sleep(for: .seconds(2))
                     } catch {
+                        if !failedRemovalRoots.contains(root) { failedRemovalRoots.append(root) }
+                        savePendingRemovals()
+                        updateFailedLibraryOperations()
                         searchStatus = localizedError(error)
                     }
                     continue
@@ -360,6 +397,11 @@ final class StudyAgentModel: ObservableObject {
                     }
                     try? await Task.sleep(for: .seconds(2))
                 } catch {
+                    if folders.contains(where: { $0.id == folder.id }) &&
+                        !failedIndexFolders.contains(where: { $0.id == folder.id }) {
+                        failedIndexFolders.append(folder)
+                    }
+                    updateFailedLibraryOperations()
                     searchStatus = localizedError(error)
                 }
                 activeIndexFolderID = nil
@@ -419,7 +461,7 @@ final class StudyAgentModel: ObservableObject {
         Task {
             do {
                 let searchResponse = try await bridge.request(command: "search", fields: [
-                    "roots": folders.compactMap(Self.path),
+                    "roots": SavedFolder.searchRoots(folders),
                     "query": searchText
                 ])
                 let found = try searchResponse.decode("hits", as: [SearchHit].self)
@@ -463,7 +505,7 @@ final class StudyAgentModel: ObservableObject {
     }
 
     func open(_ hit: SearchHit) {
-        guard let folder = folders.first(where: { Self.path(of: $0) == hit.sourceRoot }) else {
+        guard let folder = folders.first(where: { SavedFolder.path(of: $0) == hit.sourceRoot }) else {
             searchStatus = text("Источник больше не подключён.")
             return
         }
@@ -544,17 +586,6 @@ final class StudyAgentModel: ObservableObject {
         return existing.standardizedFileURL == url.standardizedFileURL
     }
 
-    private static func path(of folder: SavedFolder) -> String? {
-        if let path = folder.path { return path }
-        var stale = false
-        return try? URL(
-            resolvingBookmarkData: folder.bookmark,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &stale
-        ).path
-    }
-
     private static func decodeFolders(from data: Data?) -> [SavedFolder] {
         guard let data else { return [] }
         return (try? JSONDecoder().decode([SavedFolder].self, from: data)) ?? []
@@ -594,6 +625,7 @@ final class StudyAgentModel: ObservableObject {
 
 private enum Keys {
     static let folders = "library.bookmarks.v1"
+    static let pendingRemovals = "library.pending_removals.v1"
     static let model = "model"
     static let language = "general/language"
     static let theme = "appearance/theme"

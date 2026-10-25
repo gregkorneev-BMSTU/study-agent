@@ -22,3 +22,12 @@ jobs:
       - run: python -m pip install '.[dev]'
       - run: pytest
       - run: ruff check .
+
+  macos-client:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check saved search roots with an invalid bookmark
+        run: |
+          swiftc -o /tmp/study-agent-saved-folders macOS/StudyAgent/SavedFolder.swift tests/macos_client/main.swift
+          /tmp/study-agent-saved-folders
