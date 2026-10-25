@@ -88,6 +88,20 @@ struct SearchHit: Identifiable, Decodable {
     }
 }
 
+struct SearchWarning: Identifiable, Decodable {
+    var id: String { "\(documentID):\(pageNumber.map(String.init) ?? "document"): \(code)" }
+    let documentID: String
+    let title: String
+    let code: String
+    let pageNumber: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case title, code
+        case documentID = "document_id"
+        case pageNumber = "page_number"
+    }
+}
+
 @MainActor
 final class StudyAgentModel: ObservableObject {
     @Published var selectedSection: MainSection = .search
@@ -96,6 +110,7 @@ final class StudyAgentModel: ObservableObject {
     @Published var isSearching = false
     @Published var searchStatus = "Выберите папку в разделе «Библиотека», чтобы начать поиск."
     @Published var hits: [SearchHit] = []
+    @Published var searchWarnings: [SearchWarning] = []
     @Published var answerText: String?
     @Published var sourceSummaries: [SourceSummary] = []
     @Published var modelNames: [String] = []
@@ -295,6 +310,7 @@ final class StudyAgentModel: ObservableObject {
         guard !searchText.isEmpty else {
             searchStatus = text("Введите тему или вопрос для поиска.")
             hits = []
+            searchWarnings = []
             answerText = nil
             return
         }
@@ -305,6 +321,7 @@ final class StudyAgentModel: ObservableObject {
 
         isSearching = true
         hits = []
+        searchWarnings = []
         answerText = nil
         searchStatus = text("Ищу в подключённых материалах…")
         Task {
@@ -316,6 +333,7 @@ final class StudyAgentModel: ObservableObject {
                     "query": searchText
                 ])
                 let found = try searchResponse.decode("hits", as: [SearchHit].self)
+                searchWarnings = (try? searchResponse.decode("warnings", as: [SearchWarning].self)) ?? []
                 hits = found
                 guard !found.isEmpty else {
                     searchStatus = text("В выбранных материалах не нашёл фрагментов по этому запросу.")

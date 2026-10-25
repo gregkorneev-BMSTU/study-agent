@@ -27,8 +27,20 @@ def dispatch(
         elif command == "search":
             roots = _roots(request)
             query = _required_text(request, "query")
-            hits = search_sources([LocalFolderSource(root) for root in roots], query)
+            warnings = []
+            hits = search_sources(
+                [LocalFolderSource(root) for root in roots], query, warnings=warnings
+            )
             result = {
+                "warnings": [
+                    {
+                        "document_id": warning.document_id,
+                        "title": warning.title,
+                        "code": warning.code,
+                        "page_number": warning.page_number,
+                    }
+                    for warning in warnings
+                ],
                 "hits": [
                     {
                         "title": hit.title,
@@ -38,7 +50,7 @@ def dispatch(
                         "source_root": str(hit.source_root),
                     }
                     for hit in hits
-                ]
+                ],
             }
         elif command == "answer":
             context = "\n\n".join(
@@ -116,9 +128,7 @@ def _hit_context(request: dict[str, Any]) -> list[dict[str, str]]:
         excerpt = hit.get("excerpt")
         if not all(isinstance(value, str) for value in (source_root, document_id, excerpt)):
             raise ValueError("each hit needs source_root, document_id and excerpt strings")
-        context.append(
-            {"source_root": source_root, "document_id": document_id, "excerpt": excerpt}
-        )
+        context.append({"source_root": source_root, "document_id": document_id, "excerpt": excerpt})
     return context
 
 
@@ -138,6 +148,7 @@ def main() -> int:
             request = json.loads(line)
             if not isinstance(request, dict):
                 raise ValueError("request must be a JSON object")
+
             def report_progress(event: dict[str, Any]) -> None:
                 sys.stdout.write(json.dumps({"event": "progress", "result": event}) + "\n")
                 sys.stdout.flush()

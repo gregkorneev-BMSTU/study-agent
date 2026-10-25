@@ -175,6 +175,24 @@ private struct SearchPanel: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
+                    if !model.searchWarnings.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(model.searchWarnings) { warning in
+                                    Text(warning.documentID + (warning.pageNumber.map { " · \(model.text("Страница")) \($0)" } ?? ""))
+                                        .lineLimit(nil)
+                                        .textSelection(.enabled)
+                                    Text(model.text(warning.code == "ocr_failed" ? "Не удалось распознать страницу" : "Не удалось прочитать документ"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } label: {
+                            Label(model.text("Предупреждения обработки") + ": \(model.searchWarnings.count)", systemImage: "exclamationmark.triangle")
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                     if let answer = model.answerText {
                         GroupBox(model.text("Ответ")) {
                             Text(answer)

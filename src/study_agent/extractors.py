@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import sys
 import uuid
 from pathlib import Path
 from typing import Any
 
+from study_agent.models import ExtractedBlock
 from study_agent.ocr_model import model_directory, model_is_installed
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
@@ -16,33 +19,64 @@ OCR_SUFFIXES = {".pdf", *IMAGE_SUFFIXES}
 _manager: Any | None = None
 
 
-def extract_document(path: Path) -> str:
-    """Extract document text; use local Chandra only when a page needs OCR."""
-    if path.suffix.lower() not in OCR_SUFFIXES:
-        return path.read_text(encoding="utf-8")
+def extract_document(path: Path) -> list[ExtractedBlock]:
+    """Extract document blocks; use local Chandra only when a page needs OCR."""
+    suffix = path.suffix.lower()
+
+    if suffix in {".txt", ".md"}:
+        return [
+            ExtractedBlock(
+                text=path.read_text(encoding="utf-8"), source_type="text", extraction_type="digital"
+            )
+        ]
+    if suffix == ".docx":
+        return _extract_docx(path)
 
     cache_path = _cache_path(path)
     if cache_path.is_file():
-        return cache_path.read_text(encoding="utf-8")
+        try:
+            cached_data = json.loads(cache_path.read_text(encoding="utf-8"))
+            return [ExtractedBlock(**block) for block in cached_data]
+        except Exception:
+            pass
 
-    if path.suffix.lower() == ".pdf":
-        text = _extract_pdf(path)
-    else:
-        text = _extract_image(path)
-    cache_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    temporary = cache_path.with_name(f"{cache_path.stem}.{uuid.uuid4().hex}.tmp")
-    temporary.write_text(text, encoding="utf-8")
-    temporary.replace(cache_path)
-    return text
+    blocks: list[ExtractedBlock] = []
+
+    if suffix == ".pdf":
+        blocks = _extract_pdf(path)
+    elif suffix in IMAGE_SUFFIXES:
+        blocks = _extract_image(path)
+    if any(block.warnings for block in blocks):
+        return blocks
+    temporary: Path | None = None
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = cache_path.with_name(f"{cache_path.stem}.{uuid.uuid4().hex}.tmp")
+
+        serialized_blocks = [block.to_dict() for block in blocks]
+
+        json_data = json.dumps(serialized_blocks, ensure_ascii=False, indent=2)
+        temporary.write_text(json_data, encoding="utf-8")
+        temporary.replace(cache_path)
+    except OSError:
+        pass
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    return blocks
 
 
-def _extract_pdf(path: Path) -> str:
+def _extract_pdf(path: Path) -> list[ExtractedBlock]:
     try:
         import pypdfium2 as pdfium
     except ImportError as error:
         raise RuntimeError("PDF extraction requires the pypdfium2 dependency.") from error
 
-    pages: list[str] = []
+    blocks: list[ExtractedBlock] = []
     document = pdfium.PdfDocument(path)
     try:
         for page_number, page in enumerate(document, start=1):
@@ -51,24 +85,123 @@ def _extract_pdf(path: Path) -> str:
                 text = text_page.get_text_range().strip()
             finally:
                 text_page.close()
+
+            extraction_type = "digital"
+            warnings: list[str] = []
+
             if not _has_sufficient_text(text):
-                image = page.render(scale=2).to_pil()
-                text = _ocr_image(image)
-            if text:
-                pages.append(f"## Page {page_number}\n\n{text}")
+                try:
+                    image = page.render(scale=2).to_pil()
+                    text = _ocr_image(image)
+                    extraction_type = "ocr"
+                except Exception as ocr_error:
+                    # Сбой Chandra на этой странице не блокирует обработку других страниц.
+                    extraction_type = "ocr"
+                    warnings.append(f"OCR failed on page {page_number}: {ocr_error}")
+
+            if text or warnings:
+                blocks.append(
+                    ExtractedBlock(
+                        text=text,
+                        source_type="pdf",
+                        extraction_type=extraction_type,
+                        page_number=page_number,
+                        heading=None,  # У PDF плоская структура, заголовки сделает SA-03/SA-01
+                        marker=None,
+                        warnings=warnings,
+                    )
+                )
             page.close()
     finally:
         document.close()
-    return "\n\n".join(pages)
+
+    return blocks
 
 
-def _extract_image(path: Path) -> str:
+def _extract_docx(path: Path) -> list[ExtractedBlock]:
+    """Extract paragraphs and tables from DOCX locally with structural awareness."""
+    try:
+        import docx
+    except ImportError as error:
+        raise RuntimeError("DOCX extraction requires the python-docx dependency.") from error
+
+    blocks: list[ExtractedBlock] = []
+
+    try:
+        document = docx.Document(path)
+    except Exception as e:
+        # Если файл поврежден, отдаем блок с варнингом, не ломая весь процесс
+        return [
+            ExtractedBlock(
+                text="",
+                source_type="docx",
+                extraction_type="digital",
+                warnings=[f"Failed to open DOCX file: {e}"],
+            )
+        ]
+
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    headings: dict[int, str] = {}
+    paragraph_index = 0
+    table_index = 0
+    for item in document.iter_inner_content():
+        if isinstance(item, Paragraph):
+            index = paragraph_index
+            paragraph_index += 1
+            text = item.text.strip()
+            if not text:
+                continue
+            style_name = item.style.name if item.style else ""
+            match = re.fullmatch(r"Heading ([1-9][0-9]*)", style_name)
+            if match:
+                level = int(match.group(1))
+                headings = {key: value for key, value in headings.items() if key < level}
+                headings[level] = text
+            marker = f"heading_{index}" if match else f"paragraph_{index}"
+        elif isinstance(item, Table):
+            index = table_index
+            table_index += 1
+            rows = []
+            for row in item.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    rows.append(" | ".join(cells))
+            text = "\n".join(rows)
+            if not text:
+                continue
+            marker = f"table_{index}"
+        else:
+            continue
+        heading = " › ".join(headings[level] for level in sorted(headings)) or None
+        blocks.append(
+            ExtractedBlock(
+                text=text,
+                source_type="docx",
+                extraction_type="digital",
+                heading=heading,
+                marker=marker,
+            )
+        )
+
+    return blocks
+
+
+def _extract_image(path: Path) -> list[ExtractedBlock]:
     try:
         from PIL import Image
     except ImportError as error:
         raise RuntimeError("Image OCR requires the optional 'ocr' dependencies.") from error
-    with Image.open(path) as image:
-        return _ocr_image(image.convert("RGB"))
+
+    try:
+        with Image.open(path) as image:
+            text = _ocr_image(image.convert("RGB"))
+            return [ExtractedBlock(text=text, source_type="image", extraction_type="ocr")]
+    except Exception as e:
+        return [
+            ExtractedBlock(text="", source_type="image", extraction_type="ocr", warnings=[str(e)])
+        ]
 
 
 def _has_sufficient_text(text: str) -> bool:
@@ -112,4 +245,6 @@ def _cache_path(path: Path) -> Path:
         base = Path.home() / "Library/Application Support/Study Agent/OCR"
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "study-agent/ocr"
-    return base / f"{digest}.md"
+
+    # Безопасное изолированное расширение для новой структуры данных
+    return base / f"{digest}.json"

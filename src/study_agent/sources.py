@@ -5,8 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from study_agent.extractors import OCR_SUFFIXES, extract_document
+from study_agent.models import ExtractedBlock
 
-SUPPORTED_SUFFIXES = {".md", ".txt", *OCR_SUFFIXES}
+SUPPORTED_SUFFIXES = {".md", ".txt", ".docx", *OCR_SUFFIXES}
 
 
 @dataclass(frozen=True)
@@ -48,8 +49,8 @@ class LocalFolderSource:
             )
         return sorted(documents, key=lambda document: document.path.casefold())
 
-    def read(self, document_id: str) -> str:
-        """Read a listed document as UTF-8, rejecting traversal and symlink paths."""
+    def read(self, document_id: str) -> list[ExtractedBlock]:
+        """Read a listed document as structured blocks, rejecting traversal and symlink paths."""
         relative_path = Path(document_id)
         if relative_path.is_absolute() or ".." in relative_path.parts:
             raise ValueError("document_id must be a relative path inside the selected folder")
@@ -60,4 +61,6 @@ class LocalFolderSource:
         resolved_path = path.resolve(strict=True)
         if not resolved_path.is_relative_to(self.root) or not resolved_path.is_file():
             raise ValueError("document_id does not identify a file inside the selected folder")
+        
+        # Теперь возвращает список структурированных блоков вместо сырой строки
         return extract_document(resolved_path)
