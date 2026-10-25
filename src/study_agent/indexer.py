@@ -257,6 +257,7 @@ class DocumentIndexer:
 
     def get_index_status(self, key: str) -> dict:
         with self.storage.connect() as db:
+            source = db.execute("SELECT indexed_at FROM sources WHERE id=?", (key,)).fetchone()
             row = db.execute(
                 """
                 SELECT count(*) AS documents,
@@ -281,4 +282,6 @@ class DocumentIndexer:
             "partial": row["partial"] or 0,
             "failed": row["failed"] or 0,
             "chunks": chunks,
+            "last_indexed_at": source["indexed_at"] if source is not None else None,
+            "issues": self.storage.list_warnings([key]),
         }

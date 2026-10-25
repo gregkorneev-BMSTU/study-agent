@@ -36,7 +36,9 @@ def test_initial_incremental_change_add_delete_and_restart(
     first = indexer.sync_source(source)
     assert first.indexed == 2
     assert len(calls) == 2
-    assert indexer.get_index_status(source_id(root))["chunks"] == 2
+    status = indexer.get_index_status(source_id(root))
+    assert status["chunks"] == 2
+    assert status["last_indexed_at"]
 
     second = indexer.sync_source(source)
     assert second.skipped == 2
@@ -99,6 +101,14 @@ def test_failed_document_does_not_stop_others_or_erase_old_text(
     assert storage.search([source_id(root)], "durable")
     assert storage.search([source_id(root)], "success")
     assert storage.list_warnings([source_id(root)])
+    reopened = IndexStorage(tmp_path / "index.sqlite3")
+    issues = DocumentIndexer(reopened).get_index_status(source_id(root))["issues"]
+    assert issues == [{
+        "document_id": "bad.txt",
+        "title": "bad",
+        "code": "document_extraction_failed",
+        "page_number": None,
+    }]
 
 
 def test_cancel_preserves_index_and_resume(tmp_path: Path) -> None:

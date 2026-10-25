@@ -121,3 +121,20 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 Регрессии проверяют: `search.result.indexing` до и во время первой индексации, успешный поиск после завершения; занятую файловую блокировку (`index_busy`) и повтор команды после её освобождения; ошибки `stat()` и исчезновение отдельного файла при сохранении старого текста и обработке остальных; отключение FTS5, запись в основной `chunks`, последующее восстановление FTS5 с перестройкой индекса и триггеров. macOS-очередь проверена компиляцией Release и просмотром последовательного worker; отдельного UI automation теста очереди нет.
 
 Локально `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **64 passed**, `.venv/bin/ruff check .` — успешно, Xcode Release с `CODE_SIGNING_ALLOWED=NO` — успешно. Полный `pytest -q` по-прежнему аварийно завершает Python в Qt Cocoa fixture `tests/test_switch.py`, поэтому успех полного локального набора не заявляется. GitHub Actions проверяется отдельно для обновлённого коммита PR.
+
+## SA-04 — native indexing UI
+
+- Xcode Debug и Release сборки с `CODE_SIGNING_ALLOWED=NO` прошли для текущих изменений на macOS 27 SDK и deployment target macOS 14.
+- `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py`: **70 passed**. Полный локальный pytest аварийно завершился в `tests/test_switch.py` при создании Cocoa `QApplication`; это известное ограничение Qt platform plugin, полный локальный набор не считается прошедшим.
+- `.venv/bin/ruff check .`: успешно.
+- `swiftc` harness `tests/macos_client/model_queue.swift` прошёл: проверены декодирование page/heading/chunk metadata, разные IDs нескольких фрагментов одного PDF и повтор неудачной операции библиотеки. Swift compiler повторяет существующее предупреждение о `BackendProcessControl` без `Sendable`.
+- Ручная CUA-проверка отдельной копии `.app` с изолированным bundle ID и синтетическим bridge подтвердила пустую библиотеку, строку источника (2 документа/3 фрагмента), локальный ответ, два использованных фрагмента и отображение PDF-страниц 17/18. Progress-команды проверены Swift harness; длительный экранный прогресс и отмена в живом окне не подтверждались. VoiceOver, macOS 14, отключение диска во время синхронизации и реальный переход PDF viewer на страницу не проверялись.
+- CUA показал настоящие окна, однако screenshot tool не предоставляет способ сохранить полученные изображения в рабочий каталог; вместо скриншотов зафиксированы сценарии и это ограничение в [QA README](../artifacts/sa-04-swiftui-qa/README.md). Не добавлялись сгенерированные или подменённые скриншоты.
+
+### Финальное ревью SA-04
+
+- Production `mac_bridge.dispatch` с настоящими `DocumentIndexer`, extractors и отдельной временной SQLite обработал синтетическую временную папку TXT/PDF/DOCX: первично 3 документа; после изменения TXT и PDF и удаления DOCX — 2 повторно обработанных, 1 удалённый. Поиск подтвердил новые/удалённые совпадения и вернул страницу PDF 1 и заголовок раздела DOCX. PDF имел текстовый слой выше порога OCR, веса не загружались и OCR inference не выполнялся.
+- Python tests проверяют восстановление сохранённой ошибки при новом `index_status`; Swift harness проверяет issue DTO, технический code отдельно от отображаемого описания и запрет смены состояния после `.cancelling`/`.cancelled`.
+- В изолированной копии приложения визуально осмотрены Settings в светлой и тёмной теме; обе отображаются. В Library показана строка источника с восстановленным предупреждением из `index_status.issues`. Пользовательские настройки основного приложения не менялись.
+- Проверку малого окна и запуск живой backend error/cancel из меню не удалось закончить: CUA перестал доставлять клики в окно (`noWindowsAvailable`/ScreenCaptureKit `-3811`). VoiceOver и macOS 14 не проверялись.
+- `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `ruff check .` — успешно; полный `pytest -q` аварийно завершился при создании Cocoa `QApplication` в `tests/test_switch.py`. Xcode Debug/Release и Swift queue harness прошли; сборки сохраняют предупреждение о `BackendProcessControl` без `Sendable`.
