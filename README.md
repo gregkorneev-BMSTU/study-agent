@@ -145,6 +145,7 @@ python -m pip install --force-reinstall --no-cache-dir 'PySide6-Essentials>=6.10
 - [Локальный Chandra OCR](wiki/chandra-ocr.md)
 - [Решения и открытые вопросы](wiki/decisions/README.md)
 - [Тестирование и CI](wiki/testing.md)
+- [Windows: установка и результаты проверки](wiki/windows.md)
 - [macOS Beta: установка и выпуск](wiki/macos-release.md)
 
 ## Лицензия

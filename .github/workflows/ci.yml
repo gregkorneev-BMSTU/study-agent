@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+  workflow_dispatch:
   pull_request:
     branches: [main]
 
@@ -22,3 +23,65 @@ jobs:
       - run: python -m pip install '.[dev]'
       - run: pytest
       - run: ruff check .
+
+  windows-checks:
+    name: Windows checks (Python 3.12 / WinUI)
+    runs-on: windows-2022
+
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+
+      - name: Run Python tests
+        run: python -m pytest -q
+
+      - name: Run Ruff
+        run: python -m ruff check .
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build WinUI application
+        run: |
+          dotnet build "./windows/StudyAgent.Windows/StudyAgent.Windows.csproj" `
+            -c Debug -r win-x64 -p:Platform=x64
+
+      - name: Prepare backend packaging environment
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          .\.venv\Scripts\python.exe -m pip install ".[dev]" pyinstaller
+
+      - name: Build Windows backend
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          .\scripts\build_windows_backend.ps1
+
+      - name: Upload unsigned backend artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: study-agent-windows-backend-unsigned
+          path: build/windows-backend/dist/StudyAgentBackend/
+          if-no-files-found: error
