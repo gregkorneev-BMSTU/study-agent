@@ -1,10 +1,20 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from study_agent import extractors, mac_bridge
+from study_agent import extractors, mac_bridge, storage
 
 
-def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path) -> None:
+def _temporary_index(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(storage, "default_database_path", lambda: tmp_path / "index.sqlite3")
+
+
+def _index(root: Path) -> None:
+    response = mac_bridge.dispatch({"command": "index_source", "root": str(root)})
+    assert response["ok"] is True
+
+
+def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
     root = tmp_path / "Study Notes"
     root.mkdir()
     (root / "lecture.md").write_text("Графы и алгоритмы поиска", encoding="utf-8")
@@ -16,6 +26,7 @@ def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path) -> None:
     listing = mac_bridge.dispatch(
         {"request_id": "list", "command": "list_sources", "roots": [str(root)]}
     )
+    _index(root)
     search = mac_bridge.dispatch(
         {"request_id": "search", "command": "search", "roots": [str(root)], "query": "алгоритмы"}
     )
@@ -120,6 +131,7 @@ def test_diagnostics_do_not_load_ocr_weights_or_contact_services(monkeypatch) ->
 
 
 def test_dispatch_surfaces_missing_local_ocr_as_warning(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
     root = tmp_path / "materials"
     root.mkdir()
     (root / "scan.png").write_bytes(b"synthetic image")
@@ -130,6 +142,7 @@ def test_dispatch_surfaces_missing_local_ocr_as_warning(tmp_path: Path, monkeypa
         raise RuntimeError("Install local OCR support with: pip install '.[ocr]'.")
 
     monkeypatch.setattr(extractors, "_extract_image", missing_ocr)
+    _index(root)
     response = mac_bridge.dispatch({"command": "search", "roots": [str(root)], "query": "lecture"})
 
     assert response["ok"] is True
@@ -144,9 +157,11 @@ def test_dispatch_surfaces_missing_local_ocr_as_warning(tmp_path: Path, monkeypa
     ]
 
 
-def test_search_returns_hits_and_safe_docx_warning(tmp_path: Path) -> None:
+def test_search_returns_hits_and_safe_docx_warning(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
     (tmp_path / "notes.txt").write_text("алгоритм поиска", encoding="utf-8")
     (tmp_path / "broken.docx").write_bytes(b"not a docx")
+    _index(tmp_path)
     result = mac_bridge.dispatch(
         {"command": "search", "roots": [str(tmp_path)], "query": "алгоритм"}
     )["result"]
@@ -162,8 +177,10 @@ def test_search_returns_hits_and_safe_docx_warning(tmp_path: Path) -> None:
     assert str(tmp_path) not in str(result["warnings"])
 
 
-def test_search_warning_without_hits(tmp_path: Path) -> None:
+def test_search_warning_without_hits(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
     (tmp_path / "broken.docx").write_bytes(b"not a docx")
+    _index(tmp_path)
     result = mac_bridge.dispatch(
         {"command": "search", "roots": [str(tmp_path)], "query": "алгоритм"}
     )["result"]
@@ -174,6 +191,7 @@ def test_search_warning_without_hits(tmp_path: Path) -> None:
 def test_failed_pdf_page_does_not_hide_later_page_or_other_document(
     tmp_path: Path, monkeypatch
 ) -> None:
+    _temporary_index(tmp_path, monkeypatch)
     import sys
 
     (tmp_path / "scan.pdf").write_bytes(b"synthetic pdf")
@@ -209,6 +227,7 @@ def test_failed_pdf_page_does_not_hide_later_page_or_other_document(
         lambda image: (_ for _ in ()).throw(RuntimeError("private path /tmp/secret")),
     )
     monkeypatch.setattr(extractors, "_cache_path", lambda path: tmp_path / "cache" / "pdf.json")
+    _index(tmp_path)
     result = mac_bridge.dispatch(
         {"command": "search", "roots": [str(tmp_path)], "query": "алгоритм"}
     )["result"]

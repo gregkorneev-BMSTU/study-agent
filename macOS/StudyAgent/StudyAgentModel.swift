@@ -143,6 +143,7 @@ final class StudyAgentModel: ObservableObject {
     private let bridge = MacBackendClient()
     private var didPromptSetupThisLaunch = false
     private var welcomeLeadsToSetup = false
+    private var didScheduleInitialIndex = false
 
     init() {
         Self.migrateLegacyPreferences(into: .standard)
@@ -214,6 +215,7 @@ final class StudyAgentModel: ObservableObject {
 
     func addFolders(_ urls: [URL]) {
         var added = 0
+        var addedFolders: [SavedFolder] = []
         for url in urls {
             let accessGranted = url.startAccessingSecurityScopedResource()
             defer {
@@ -228,7 +230,9 @@ final class StudyAgentModel: ObservableObject {
                 guard !folders.contains(where: { $0.name == url.lastPathComponent && Self.sameFolder($0, url) }) else {
                     continue
                 }
-                folders.append(SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark))
+                let folder = SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark)
+                folders.append(folder)
+                addedFolders.append(folder)
                 added += 1
             } catch {
                 searchStatus = L10n.format(
@@ -242,23 +246,31 @@ final class StudyAgentModel: ObservableObject {
         saveFolders()
         if added > 0 {
             selectedSection = .library
+            if didScheduleInitialIndex { indexFolders(addedFolders) }
             refreshSources()
         }
     }
 
     func removeFolder(_ folder: SavedFolder) {
+        let root = Self.path(of: folder)
         folders.removeAll { $0.id == folder.id }
         saveFolders()
+        if let root { removeIndexedSource(root) }
         refreshSources()
     }
 
     func removeFolder(at path: String) {
         folders.removeAll { Self.path(of: $0) == path }
         saveFolders()
+        removeIndexedSource(path)
         refreshSources()
     }
 
     func refreshSources() {
+        if !didScheduleInitialIndex {
+            didScheduleInitialIndex = true
+            indexFolders(folders)
+        }
         Task {
             do {
                 let (urls, opened) = try openFolderURLs()
@@ -272,6 +284,46 @@ final class StudyAgentModel: ObservableObject {
                     : L10n.format("Подключено источников: %d.", language: language, sourceSummaries.count)
             } catch {
                 sourceSummaries = []
+                searchStatus = localizedError(error)
+            }
+        }
+    }
+
+    private func indexFolders(_ selected: [SavedFolder]) {
+        guard !selected.isEmpty else { return }
+        Task {
+            for folder in selected {
+                do {
+                    let (urls, opened) = try openFolderURLs(for: [folder])
+                    defer { closeFolderURLs(urls, opened: opened) }
+                    guard let root = urls.first else { continue }
+                    _ = try await bridge.requestStreaming(
+                        command: "index_source",
+                        fields: ["root": root.path],
+                        progress: { update in
+                            guard let current = update["current"] as? Int,
+                                  let total = update["total"] as? Int else { return }
+                            self.searchStatus = self.language == .russian
+                                ? "Индексация «\(folder.name)»: \(current)/\(total)"
+                                : "Indexing \(folder.name): \(current)/\(total)"
+                        }
+                    )
+                    if !folders.contains(where: { $0.id == folder.id }) {
+                        _ = try await bridge.request(command: "remove_index_source", fields: ["root": root.path])
+                    }
+                } catch {
+                    searchStatus = localizedError(error)
+                }
+            }
+            refreshSources()
+        }
+    }
+
+    private func removeIndexedSource(_ root: String) {
+        Task {
+            do {
+                _ = try await bridge.request(command: "remove_index_source", fields: ["root": root])
+            } catch {
                 searchStatus = localizedError(error)
             }
         }

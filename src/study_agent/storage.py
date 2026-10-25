@@ -1,0 +1,338 @@
+"""Persistent local SQLite index for source documents and extracted chunks."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sqlite3
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
+
+from study_agent.chunking import Chunk
+
+SCHEMA_VERSION = 1
+
+
+def default_database_path() -> Path:
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library/Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
+    return base / "Study Agent" / "index.sqlite3"
+
+
+class IndexStorage:
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or default_database_path()
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.path.parent.chmod(0o700)
+        with self.connect() as db:
+            db.execute("PRAGMA journal_mode=WAL")
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version > SCHEMA_VERSION:
+                raise RuntimeError("Index database was created by a newer Study Agent")
+            existing_fts = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='chunks_fts'"
+            ).fetchone()
+            if version == SCHEMA_VERSION and existing_fts:
+                try:
+                    db.execute("SELECT count(*) FROM chunks_fts").fetchone()
+                except sqlite3.OperationalError as error:
+                    if "no such module" not in str(error).lower():
+                        raise
+                    # This SQLite build cannot maintain the virtual table. Keep
+                    # ordinary chunks searchable and disable FTS triggers here.
+                    db.execute("BEGIN IMMEDIATE")
+                    for trigger in ("chunks_ai", "chunks_ad", "chunks_au"):
+                        db.execute(f"DROP TRIGGER IF EXISTS {trigger}")
+                    db.commit()
+                    self.fts = False
+                else:
+                    self.fts = True
+                return
+            db.execute("BEGIN IMMEDIATE")
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version == 0:
+                schema = """
+                    CREATE TABLE IF NOT EXISTS sources (
+                        id TEXT PRIMARY KEY, root TEXT NOT NULL UNIQUE, indexed_at TEXT
+                    );
+                    CREATE TABLE IF NOT EXISTS documents (
+                        id TEXT PRIMARY KEY,
+                        source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                        relative_path TEXT NOT NULL, title TEXT NOT NULL, format TEXT NOT NULL,
+                        size_bytes INTEGER NOT NULL, modified_ns INTEGER NOT NULL,
+                        content_hash TEXT, version TEXT NOT NULL, state TEXT NOT NULL,
+                        indexed_at TEXT, warnings TEXT NOT NULL DEFAULT '[]', error_code TEXT,
+                        UNIQUE(source_id, relative_path)
+                    );
+                    CREATE TABLE IF NOT EXISTS chunks (
+                        id TEXT PRIMARY KEY,
+                        document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                        ordinal INTEGER NOT NULL, text TEXT NOT NULL, page_number INTEGER,
+                        heading TEXT, marker TEXT, extraction_type TEXT NOT NULL,
+                        UNIQUE(document_id, ordinal)
+                    );
+                    CREATE INDEX IF NOT EXISTS documents_source ON documents(source_id);
+                    CREATE INDEX IF NOT EXISTS chunks_document ON chunks(document_id);
+                """
+                for statement in schema.split(";"):
+                    if statement.strip():
+                        db.execute(statement)
+                db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            self.fts = self._ensure_fts(db)
+            db.commit()
+
+    @contextmanager
+    def connect(self) -> Iterator[sqlite3.Connection]:
+        db = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        db.row_factory = sqlite3.Row
+        try:
+            db.execute("PRAGMA foreign_keys=ON")
+            db.execute("PRAGMA busy_timeout=5000")
+            yield db
+        finally:
+            db.close()
+
+    def _ensure_fts(self, db: sqlite3.Connection) -> bool:
+        try:
+            db.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts "
+                "USING fts5(text, content='chunks', content_rowid='rowid', "
+                "tokenize='unicode61')"
+            )
+            triggers_present = (
+                db.execute(
+                    "SELECT count(*) FROM sqlite_master WHERE type='trigger' "
+                    "AND name IN ('chunks_ai','chunks_ad','chunks_au')"
+                ).fetchone()[0]
+                == 3
+            )
+            triggers = """
+                CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+                    INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
+                END;
+                CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+                    INSERT INTO chunks_fts(chunks_fts, rowid, text)
+                    VALUES ('delete', old.rowid, old.text);
+                END;
+                CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
+                    INSERT INTO chunks_fts(chunks_fts, rowid, text)
+                    VALUES ('delete', old.rowid, old.text);
+                    INSERT INTO chunks_fts(rowid, text) VALUES (new.rowid, new.text);
+                END;
+            """
+            for statement in triggers.split("END;"):
+                if statement.strip():
+                    db.execute(statement + "END")
+            count = db.execute("SELECT count(*) FROM chunks_fts").fetchone()[0]
+            if (
+                not triggers_present
+                or count != db.execute("SELECT count(*) FROM chunks").fetchone()[0]
+            ):
+                db.execute("INSERT INTO chunks_fts(chunks_fts) VALUES ('rebuild')")
+            return True
+        except sqlite3.OperationalError as error:
+            if "no such module" not in str(error).lower() and "fts5" not in str(error).lower():
+                raise
+            return False
+
+    def list_sources(self) -> list[sqlite3.Row]:
+        with self.connect() as db:
+            return db.execute("SELECT * FROM sources ORDER BY root").fetchall()
+
+    def register_source(self, source_id: str, root: str) -> None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("INSERT OR IGNORE INTO sources(id,root) VALUES (?,?)", (source_id, root))
+            db.commit()
+
+    def get_document(self, source_id: str, relative_path: str) -> sqlite3.Row | None:
+        with self.connect() as db:
+            return db.execute(
+                "SELECT * FROM documents WHERE source_id=? AND relative_path=?",
+                (source_id, relative_path),
+            ).fetchone()
+
+    def put_document(
+        self,
+        *,
+        source_id: str,
+        document_id: str,
+        relative_path: str,
+        title: str,
+        file_format: str,
+        size_bytes: int,
+        modified_ns: int,
+        content_hash: str | None,
+        version: str,
+        state: str,
+        warnings: list[dict],
+        chunks: list[Chunk],
+    ) -> None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                """
+                INSERT INTO documents(id,source_id,relative_path,title,format,
+                                      size_bytes,modified_ns,
+                                      content_hash,version,state,indexed_at,warnings,error_code)
+                VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'),?,NULL)
+                ON CONFLICT(id) DO UPDATE SET title=excluded.title,format=excluded.format,
+                    size_bytes=excluded.size_bytes,modified_ns=excluded.modified_ns,
+                    content_hash=excluded.content_hash,version=excluded.version,state=excluded.state,
+                    indexed_at=excluded.indexed_at,warnings=excluded.warnings,error_code=NULL
+            """,
+                (
+                    document_id,
+                    source_id,
+                    relative_path,
+                    title,
+                    file_format,
+                    size_bytes,
+                    modified_ns,
+                    content_hash,
+                    version,
+                    state,
+                    json.dumps(warnings, ensure_ascii=False),
+                ),
+            )
+            db.execute("DELETE FROM chunks WHERE document_id=?", (document_id,))
+            for chunk in chunks:
+                db.execute(
+                    """
+                    INSERT INTO chunks(id,document_id,ordinal,text,page_number,
+                                       heading,marker,extraction_type)
+                    VALUES (?,?,?,?,?,?,?,?)
+                """,
+                    (
+                        f"{document_id}:{chunk.ordinal}",
+                        document_id,
+                        chunk.ordinal,
+                        chunk.text,
+                        chunk.page_number,
+                        chunk.heading,
+                        chunk.marker,
+                        chunk.extraction_type,
+                    ),
+                )
+            db.commit()
+
+    def record_error(
+        self,
+        source_id: str,
+        document_id: str,
+        relative_path: str,
+        title: str,
+        file_format: str,
+        size_bytes: int,
+        modified_ns: int,
+        version: str,
+        code: str,
+    ) -> None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                """
+                INSERT INTO documents(id,source_id,relative_path,title,format,
+                                      size_bytes,modified_ns,
+                                      version,state,error_code)
+                VALUES (?,?,?,?,?,?,?,?,'error',?)
+                ON CONFLICT(id) DO UPDATE SET state='retry', error_code=excluded.error_code
+            """,
+                (
+                    document_id,
+                    source_id,
+                    relative_path,
+                    title,
+                    file_format,
+                    size_bytes,
+                    modified_ns,
+                    version,
+                    code,
+                ),
+            )
+            db.commit()
+
+    def delete_missing(self, source_id: str, paths: set[str]) -> int:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute(
+                "SELECT id,relative_path FROM documents WHERE source_id=?", (source_id,)
+            ).fetchall()
+            missing = [row["id"] for row in rows if row["relative_path"] not in paths]
+            db.executemany("DELETE FROM documents WHERE id=?", [(item,) for item in missing])
+            db.commit()
+            return len(missing)
+
+    def remove_source(self, source_id: str) -> None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("DELETE FROM sources WHERE id=?", (source_id,))
+            db.commit()
+
+    def list_warnings(self, source_ids: list[str]) -> list[dict]:
+        if not source_ids:
+            return []
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            rows = db.execute(
+                f"SELECT relative_path,title,warnings,error_code FROM documents "
+                f"WHERE source_id IN ({placeholders})",
+                source_ids,
+            ).fetchall()
+        result = []
+        for row in rows:
+            result.extend(json.loads(row["warnings"]))
+            if row["error_code"]:
+                result.append(
+                    {
+                        "document_id": row["relative_path"],
+                        "title": row["title"],
+                        "code": row["error_code"],
+                        "page_number": None,
+                    }
+                )
+        return result
+
+    def search(self, source_ids: list[str], query: str, limit: int = 8) -> list[sqlite3.Row]:
+        terms = re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE)
+        terms = [term for term in terms if len(term) > 1]
+        if not terms or not source_ids or limit < 1:
+            return []
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            if self.fts:
+                match = " OR ".join('"' + term.replace('"', '""') + '"' for term in terms)
+                return db.execute(
+                    f"""
+                    SELECT d.title,d.relative_path,d.source_id,s.root,c.id AS chunk_id,
+                           c.text,c.page_number,c.heading,c.marker,c.extraction_type,
+                           -bm25(chunks_fts) AS rank
+                    FROM chunks_fts JOIN chunks c ON c.rowid=chunks_fts.rowid
+                    JOIN documents d ON d.id=c.document_id JOIN sources s ON s.id=d.source_id
+                    WHERE chunks_fts MATCH ? AND d.source_id IN ({placeholders})
+                    ORDER BY rank DESC,d.relative_path COLLATE NOCASE,c.ordinal LIMIT ?
+                """,
+                    (match, *source_ids, limit),
+                ).fetchall()
+            rows = db.execute(
+                f"""
+                SELECT d.title,d.relative_path,d.source_id,s.root,c.id AS chunk_id,
+                       c.text,c.page_number,c.heading,c.marker,c.extraction_type
+                FROM chunks c JOIN documents d ON d.id=c.document_id
+                JOIN sources s ON s.id=d.source_id WHERE d.source_id IN ({placeholders})
+            """,
+                source_ids,
+            ).fetchall()
+        ranked = [(sum(row["text"].casefold().count(term) for term in terms), row) for row in rows]
+        ranked = [(score, row) for score, row in ranked if score]
+        ranked.sort(
+            key=lambda pair: (-pair[0], pair[1]["relative_path"].casefold(), pair[1]["chunk_id"])
+        )
+        return [row for _, row in ranked[:limit]]
