@@ -8,7 +8,7 @@
 
 Для v1 Beta 1 добавлены unit-тесты команды `diagnose_backend` в JSON Lines bridge: проверяется формат ответа и определение доступности библиотек без запуска или загрузки весов Chandra. Мастер SwiftUI, системные действия Ollama, загрузка модели и оформление Finder требуют отдельной проверки на реальном Mac. Стандартные Python-тесты не скачивают модели.
 
-## Открытый PR #7 — macOS навигация, onboarding и CI
+## PR #7 — macOS навигация, onboarding и CI (включён в Beta 3)
 
 - В отдельной Xcode сборке проверены `NavigationSplitView`, переключение Search/Library и отсутствие пустой области. Debug/Release собраны на macOS 27 с deployment target macOS 14; проверка macOS 14/15 не проводилась.
 - В QA Release UI пройдены три welcome-страницы, английский/русский текст и переход в технический SetupWizard в том же sheet. Реальные скриншоты не сохранены, потому что системный захват экрана возвращал lock screen. VoiceOver, полный keyboard-only сценарий и Reduce Motion не прошли отдельный аудит.
@@ -76,3 +76,14 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 - `scripts/build_macos_dmg.sh --mode development --suffix beta.2` собрал Xcode Release, arm64 Python helper с OCR runtime и DMG. В `Info.plist`: версия `1.0.0`, build `2`. Размер DMG — 227,682,996 bytes. `hdiutil verify` подтвердил целостность; корень образа содержит приложение, `Applications → /Applications` и `.DS_Store`.
 - `codesign --verify --deep --strict` подтвердил подпись смонтированного `.app`; SwiftUI-приложение из образа запускалось в локальной проверке. Визуально проверено центрирование пустого состояния библиотеки. Helper `diagnose_backend` вернул `backend_healthy=true`, `pdf_available=true`, `ocr_runtime_available=true`, `ocr_weights_state=missing`. Веса Chandra не скачивались, OCR inference не запускался.
 - SHA-256 `StudyAgent-v1.0.0-beta.2-macos-arm64.dmg`: `8a6d47363f04d43f326a4501b92996ecde3fc19db1e168a940f8aff7c0feb2f2`. Это ad-hoc сборка без Developer ID и нотариализации; Gatekeeper и чистая установка на другом Mac не проверялись.
+
+## Проверка v1 Beta 3 — 2026-10-25
+
+- GitHub Actions run [40133808873](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40133808873) завершился успешно: Python 3.12/3.13, полный `pytest` и Ruff. Локальный `.venv/bin/python -m ruff check .` прошёл; `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **31 passed**. Полный локальный pytest завершил Python с `Fatal Python error: Aborted` при создании Cocoa `QApplication` в `tests/test_switch.py`.
+- Xcode Debug и Release arm64 собраны на macOS 27 SDK с deployment target 14.0. Swift compiler выдал предупреждение о `BackendProcessControl` без `Sendable`; сборки завершились успешно. macOS 14/15 не проверялись.
+- 25.10.2026 приложение заново собрано скриптом `scripts/build_macos_native_app.sh` в `/tmp/study-agent-liquid-glass-build` и запущено из этой копии. В Settings через accessibility tree и реальный скриншот проверено: отдельной секции/плашки Liquid Glass нет; системные группы настроек и controls отображаются штатно. Запущенная версия — Beta 3 build 3; исходники не добавляют собственный параметр прозрачности окна.
+- DMG `StudyAgent-v1.0.0-beta.3-macos-arm64.dmg`: **228,131,619 bytes**, версия Info.plist `1.0.0 (3)`, `hdiutil verify` — VALID. Образ содержит приложение, символьную ссылку `Applications → /Applications` и `.DS_Store`.
+- На смонтированном HFS+ DMG строгий `codesign --verify --deep --strict` сообщил о FinderInfo xattrs на вложенных лицензионных файлах. После копирования приложения в отдельную папку с `ditto --noextattr --norsrc` строгая проверка подписи прошла. Это не проверка Gatekeeper или Finder drag-install на чистом Mac.
+- Встроенный helper ответил на `diagnose_backend`: backend и PDF доступны, `ocr_runtime_available=true`, `ocr_weights_state=missing`. Веса Chandra не скачивались; OCR inference не запускался.
+- Реальные скриншоты Release app сохранены в `../artifacts/readme/`: поиск и библиотека тёмной темы, настройки тёмной и светлой темы. При проверке русскоязычного интерфейса системные заголовки верхнего меню оставались на английском языке macOS; синхронизация заголовков меню с языком приложения требует исправления.
+- Использование CPU/RAM/FPS, VoiceOver, полного keyboard-only взаимодействия, Reduce Transparency, чистая установка и Gatekeeper на другом компьютере не проверялись. Не заявлять измеренные FPS или совместимость, не проверенную физически.

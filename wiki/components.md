@@ -1,4 +1,4 @@
-# Компоненты и предварительные контракты
+# Компоненты и контракты
 
 Это границы ответственности и возможные сигнатуры, не обязательство прямо сейчас создавать классы. Целевой продукт распространяется через GitHub и не должен зависеть от путей автора.
 
@@ -16,8 +16,9 @@
 | `AgentExecutor` | Выполнить ограниченный план вызовов инструментов с подтверждением действий, где нужно | `execute(plan) -> ActionResult` |
 | `MCPTools` | Узкий набор локальных инструментов MCP с проверкой входов и доступа | MCP-сервер/набор инструментов; контракт уточняется с первыми сценариями |
 | `macOS UI` | Нативные окна поиска, библиотеки и настроек; выбор пользовательских папок, результаты и выбор установленной локальной модели Ollama из списка; системные меню, MenuBarExtra, настройки, SF Symbols и системный открыватель исходников | SwiftUI (`macOS/StudyAgent.xcodeproj`); сборка: `scripts/build_macos_native_app.sh` |
-| `macOS Backend Bridge` | JSON Lines API между SwiftUI и общими Python-сервисами. Поддерживает `list_sources`, `search`, `answer`, `list_models`; stdout зарезервирован для JSON-ответов | `study_agent.mac_bridge`; упаковывается PyInstaller как helper внутрь `.app` |
-| `PySide6 Desktop UI` | Python-прототип экранов поиска, библиотеки и настроек; потенциальная основа отдельной Windows-оболочки. Не используется как UI нативного macOS-приложения | `study_agent.ui`; запуск: `python -m study_agent` |
+| `Python Backend Bridge` | JSON Lines API между клиентом и общими Python-сервисами. В `main` команды `list_sources`, `search`, `answer`, `list_models`, `diagnose_backend`, `install_ocr_model`; формат описан в [черновике протокола](backend-protocol.md) | `study_agent.mac_bridge`; используется macOS-клиентом и подготовленной Windows-веткой |
+| `PySide6 Desktop UI` | Python UI-прототип, используемый для разработки; не используется как UI нативного macOS-приложения и не является текущей Windows-оболочкой | `study_agent.ui`; запуск: `python -m study_agent` |
+| `Windows UI (WinUI 3)` | Отдельный нативный Windows-клиент в незамерженной ветке; пока не является частью `main` и не прошёл платформенную приёмку | `origin/feature/sa-05-windows`; статус и расхождения протокола описаны в [черновике протокола](backend-protocol.md) |
 | `AppleSwitch` | Двухпозиционный переключатель настроек с отрисовкой средствами Qt, короткой анимацией и нативной доступностью Qt checkbox | `study_agent.switch.AppleSwitch(text, compact=False, reduce_motion=False)`; использует `QCheckBox` как единственный источник состояния и сохраняет `toggled`, `stateChanged`, клавишу Space и доступное имя |
 | `Ollama client` | Список установленных локальных моделей и генерация ответа по найденному материалу | `study_agent.ollama`; API только через `127.0.0.1:11434` |
 | `search_sources` | Поиск и ранжирование совпадающих терминов в выбранных текстовых документах | `study_agent.search.search_sources(sources, query)`; выдаёт относительные пути и выдержки |
