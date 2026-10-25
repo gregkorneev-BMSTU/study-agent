@@ -55,12 +55,6 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
-struct SavedFolder: Codable, Identifiable, Hashable {
-    var id: UUID
-    var name: String
-    var bookmark: Data
-}
-
 struct SourceSummary: Identifiable, Decodable {
     var id: String { path }
     let name: String
@@ -137,12 +131,20 @@ final class StudyAgentModel: ObservableObject {
         didSet { defaults.set(reduceMotion, forKey: Keys.reduceMotion) }
     }
     @Published private(set) var folders: [SavedFolder] = []
+    @Published private(set) var hasFailedLibraryOperations = false
     @Published var firstRunPresentation: FirstRunPresentation?
 
     private let defaults = UserDefaults.standard
     private let bridge = MacBackendClient()
     private var didPromptSetupThisLaunch = false
     private var welcomeLeadsToSetup = false
+    private var didScheduleInitialIndex = false
+    private var pendingIndexFolders: [SavedFolder] = []
+    private var pendingRemovalRoots: [String] = []
+    private var failedIndexFolders: [SavedFolder] = []
+    private var failedRemovalRoots: [String] = []
+    private var activeIndexFolderID: UUID?
+    private var isIndexingFolders = false
 
     init() {
         Self.migrateLegacyPreferences(into: .standard)
@@ -154,6 +156,12 @@ final class StudyAgentModel: ObservableObject {
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
+        failedRemovalRoots = defaults.stringArray(forKey: Keys.pendingRemovals) ?? []
+        updateFailedLibraryOperations()
+        for index in folders.indices {
+            folders[index].path = SavedFolder.path(of: folders[index])
+        }
+        saveFolders()
     }
 
     func text(_ source: String) -> String {
@@ -214,6 +222,7 @@ final class StudyAgentModel: ObservableObject {
 
     func addFolders(_ urls: [URL]) {
         var added = 0
+        var addedFolders: [SavedFolder] = []
         for url in urls {
             let accessGranted = url.startAccessingSecurityScopedResource()
             defer {
@@ -228,7 +237,12 @@ final class StudyAgentModel: ObservableObject {
                 guard !folders.contains(where: { $0.name == url.lastPathComponent && Self.sameFolder($0, url) }) else {
                     continue
                 }
-                folders.append(SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark))
+                let folder = SavedFolder(
+                    id: UUID(), name: url.lastPathComponent, bookmark: bookmark,
+                    path: SavedFolder.canonicalPath(url.path)
+                )
+                folders.append(folder)
+                addedFolders.append(folder)
                 added += 1
             } catch {
                 searchStatus = L10n.format(
@@ -242,29 +256,42 @@ final class StudyAgentModel: ObservableObject {
         saveFolders()
         if added > 0 {
             selectedSection = .library
+            if didScheduleInitialIndex { indexFolders(addedFolders) }
             refreshSources()
         }
     }
 
     func removeFolder(_ folder: SavedFolder) {
+        let root = SavedFolder.path(of: folder)
         folders.removeAll { $0.id == folder.id }
+        pendingIndexFolders.removeAll { $0.id == folder.id }
+        failedIndexFolders.removeAll { $0.id == folder.id }
+        updateFailedLibraryOperations()
         saveFolders()
+        if let root { removeIndexedSource(root) }
         refreshSources()
     }
 
     func removeFolder(at path: String) {
-        folders.removeAll { Self.path(of: $0) == path }
+        folders.removeAll { SavedFolder.path(of: $0) == path }
+        pendingIndexFolders.removeAll { SavedFolder.path(of: $0) == path }
+        failedIndexFolders.removeAll { SavedFolder.path(of: $0) == path }
+        updateFailedLibraryOperations()
         saveFolders()
+        removeIndexedSource(path)
         refreshSources()
     }
 
     func refreshSources() {
+        if !didScheduleInitialIndex {
+            didScheduleInitialIndex = true
+            indexFolders(folders)
+            retryFailedLibraryOperations()
+        }
         Task {
             do {
-                let (urls, opened) = try openFolderURLs()
-                defer { closeFolderURLs(urls, opened: opened) }
                 let response = try await bridge.request(command: "list_sources", fields: [
-                    "roots": urls.map(\.path)
+                    "roots": SavedFolder.searchRoots(folders)
                 ])
                 sourceSummaries = try response.decode("sources", as: [SourceSummary].self)
                 searchStatus = sourceSummaries.isEmpty
@@ -274,6 +301,113 @@ final class StudyAgentModel: ObservableObject {
                 sourceSummaries = []
                 searchStatus = localizedError(error)
             }
+        }
+    }
+
+    private func indexFolders(_ selected: [SavedFolder]) {
+        for folder in selected where folders.contains(where: { $0.id == folder.id }) {
+            if activeIndexFolderID != folder.id && !pendingIndexFolders.contains(where: { $0.id == folder.id }) {
+                pendingIndexFolders.append(folder)
+            }
+        }
+        drainIndexQueue()
+    }
+
+    private func removeIndexedSource(_ root: String) {
+        failedRemovalRoots.removeAll { $0 == root }
+        if !pendingRemovalRoots.contains(root) { pendingRemovalRoots.append(root) }
+        savePendingRemovals()
+        updateFailedLibraryOperations()
+        drainIndexQueue()
+    }
+
+    func retryFailedLibraryOperations() {
+        guard hasFailedLibraryOperations else { return }
+        for root in failedRemovalRoots where !pendingRemovalRoots.contains(root) {
+            pendingRemovalRoots.append(root)
+        }
+        for folder in failedIndexFolders where folders.contains(where: { $0.id == folder.id }) {
+            if activeIndexFolderID != folder.id && !pendingIndexFolders.contains(where: { $0.id == folder.id }) {
+                pendingIndexFolders.append(folder)
+            }
+        }
+        failedRemovalRoots.removeAll()
+        failedIndexFolders.removeAll()
+        updateFailedLibraryOperations()
+        drainIndexQueue()
+    }
+
+    private func savePendingRemovals() {
+        defaults.set(pendingRemovalRoots + failedRemovalRoots, forKey: Keys.pendingRemovals)
+    }
+
+    private func updateFailedLibraryOperations() {
+        hasFailedLibraryOperations = !failedIndexFolders.isEmpty || !failedRemovalRoots.isEmpty
+    }
+
+    private func drainIndexQueue() {
+        guard !isIndexingFolders else { return }
+        isIndexingFolders = true
+        Task {
+            while !pendingRemovalRoots.isEmpty || !pendingIndexFolders.isEmpty {
+                if !pendingRemovalRoots.isEmpty {
+                    let root = pendingRemovalRoots.removeFirst()
+                    if folders.contains(where: { SavedFolder.path(of: $0) == root }) {
+                        savePendingRemovals()
+                        continue
+                    }
+                    do {
+                        _ = try await bridge.request(command: "remove_index_source", fields: ["root": root])
+                        savePendingRemovals()
+                    } catch BackendClientError.indexBusy {
+                        if !pendingRemovalRoots.contains(root) { pendingRemovalRoots.append(root) }
+                        try? await Task.sleep(for: .seconds(2))
+                    } catch {
+                        if !failedRemovalRoots.contains(root) { failedRemovalRoots.append(root) }
+                        savePendingRemovals()
+                        updateFailedLibraryOperations()
+                        searchStatus = localizedError(error)
+                    }
+                    continue
+                }
+                let folder = pendingIndexFolders.removeFirst()
+                guard folders.contains(where: { $0.id == folder.id }) else { continue }
+                activeIndexFolderID = folder.id
+                do {
+                    let (urls, opened) = try openFolderURLs(for: [folder])
+                    defer { closeFolderURLs(urls, opened: opened) }
+                    guard let root = urls.first else { activeIndexFolderID = nil; continue }
+                    _ = try await bridge.requestStreaming(
+                        command: "index_source",
+                        fields: ["root": root.path],
+                        progress: { update in
+                            guard let current = update["current"] as? Int,
+                                  let total = update["total"] as? Int else { return }
+                            self.searchStatus = self.language == .russian
+                                ? "Индексация «\(folder.name)»: \(current)/\(total)"
+                                : "Indexing \(folder.name): \(current)/\(total)"
+                        }
+                    )
+                    if !folders.contains(where: { $0.id == folder.id }) {
+                        removeIndexedSource(root.path)
+                    }
+                } catch BackendClientError.indexBusy {
+                    if folders.contains(where: { $0.id == folder.id }) {
+                        pendingIndexFolders.append(folder)
+                    }
+                    try? await Task.sleep(for: .seconds(2))
+                } catch {
+                    if folders.contains(where: { $0.id == folder.id }) &&
+                        !failedIndexFolders.contains(where: { $0.id == folder.id }) {
+                        failedIndexFolders.append(folder)
+                    }
+                    updateFailedLibraryOperations()
+                    searchStatus = localizedError(error)
+                }
+                activeIndexFolderID = nil
+            }
+            isIndexingFolders = false
+            refreshSources()
         }
     }
 
@@ -326,17 +460,18 @@ final class StudyAgentModel: ObservableObject {
         searchStatus = text("Ищу в подключённых материалах…")
         Task {
             do {
-                let (urls, opened) = try openFolderURLs()
-                defer { closeFolderURLs(urls, opened: opened) }
                 let searchResponse = try await bridge.request(command: "search", fields: [
-                    "roots": urls.map(\.path),
+                    "roots": SavedFolder.searchRoots(folders),
                     "query": searchText
                 ])
                 let found = try searchResponse.decode("hits", as: [SearchHit].self)
                 searchWarnings = (try? searchResponse.decode("warnings", as: [SearchWarning].self)) ?? []
                 hits = found
                 guard !found.isEmpty else {
-                    searchStatus = text("В выбранных материалах не нашёл фрагментов по этому запросу.")
+                    let backendIndexing = (try? searchResponse.decode("indexing", as: Bool.self)) ?? false
+                    searchStatus = backendIndexing || isIndexingFolders
+                        ? text("Материалы ещё индексируются. Повторите поиск после завершения обработки.")
+                        : text("В выбранных материалах не нашёл фрагментов по этому запросу.")
                     isSearching = false
                     return
                 }
@@ -370,7 +505,7 @@ final class StudyAgentModel: ObservableObject {
     }
 
     func open(_ hit: SearchHit) {
-        guard let folder = folders.first(where: { Self.path(of: $0) == hit.sourceRoot }) else {
+        guard let folder = folders.first(where: { SavedFolder.path(of: $0) == hit.sourceRoot }) else {
             searchStatus = text("Источник больше не подключён.")
             return
         }
@@ -412,6 +547,10 @@ final class StudyAgentModel: ObservableObject {
             let hasAccess = url.startAccessingSecurityScopedResource()
             urls.append(url)
             opened.append(hasAccess)
+            let canonicalPath = SavedFolder.canonicalPath(url.path)
+            if folder.path != canonicalPath {
+                updatePath(canonicalPath, for: folder.id)
+            }
             if stale, let updated = try? url.bookmarkData(options: []) {
                 updateBookmark(updated, for: folder.id)
             }
@@ -431,6 +570,12 @@ final class StudyAgentModel: ObservableObject {
         saveFolders()
     }
 
+    private func updatePath(_ path: String, for id: UUID) {
+        guard let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        folders[index].path = path
+        saveFolders()
+    }
+
     private static func sameFolder(_ folder: SavedFolder, _ url: URL) -> Bool {
         var stale = false
         guard let existing = try? URL(
@@ -440,16 +585,6 @@ final class StudyAgentModel: ObservableObject {
             bookmarkDataIsStale: &stale
         ) else { return false }
         return existing.standardizedFileURL == url.standardizedFileURL
-    }
-
-    private static func path(of folder: SavedFolder) -> String? {
-        var stale = false
-        return try? URL(
-            resolvingBookmarkData: folder.bookmark,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &stale
-        ).path
     }
 
     private static func decodeFolders(from data: Data?) -> [SavedFolder] {
@@ -476,7 +611,10 @@ final class StudyAgentModel: ObservableObject {
                 guard url.hasDirectoryPath, let bookmark = try? url.bookmarkData(options: []) else {
                     return nil
                 }
-                return SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark)
+                return SavedFolder(
+                    id: UUID(), name: url.lastPathComponent, bookmark: bookmark,
+                    path: url.standardizedFileURL.path
+                )
             }
             if let data = try? JSONEncoder().encode(folders) {
                 defaults.set(data, forKey: Keys.folders)
@@ -488,6 +626,7 @@ final class StudyAgentModel: ObservableObject {
 
 private enum Keys {
     static let folders = "library.bookmarks.v1"
+    static let pendingRemovals = "library.pending_removals.v1"
     static let model = "model"
     static let language = "general/language"
     static let theme = "appearance/theme"
@@ -526,6 +665,9 @@ private struct MacBackendClient {
                     guard envelope["ok"] as? Bool == true,
                           let result = envelope["result"] as? [String: Any] else {
                         let error = envelope["error"] as? [String: Any]
+                        if error?["code"] as? String == "index_busy" {
+                            throw BackendClientError.indexBusy
+                        }
                         throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
                     }
                     continuation.resume(returning: result)
@@ -591,6 +733,9 @@ private struct MacBackendClient {
                         guard envelope["ok"] as? Bool == true,
                               let result = envelope["result"] as? [String: Any] else {
                             let error = envelope["error"] as? [String: Any]
+                            if error?["code"] as? String == "index_busy" {
+                                throw BackendClientError.indexBusy
+                            }
                             throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
                         }
                         continuation.resume(returning: result)
@@ -609,6 +754,11 @@ private struct MacBackendClient {
     }
 
     private static func executableURL() throws -> URL {
+        #if DEBUG
+        if let path = ProcessInfo.processInfo.environment["STUDY_AGENT_BACKEND_EXECUTABLE"] {
+            return URL(fileURLWithPath: path)
+        }
+        #endif
         let url = Bundle.main.bundleURL
             .appending(path: "Contents/Resources/Backend/StudyAgentBackend/StudyAgentBackend")
         guard FileManager.default.isExecutableFile(atPath: url.path) else {
@@ -649,12 +799,14 @@ private final class BackendProcessControl {
 private enum BackendClientError: LocalizedError {
     case missingBackend
     case invalidResponse
+    case indexBusy
     case message(String)
 
     var errorDescription: String? {
         switch self {
         case .missingBackend: "Не найден встроенный локальный backend. Соберите приложение скриптом scripts/build_macos_native_app.sh."
         case .invalidResponse: "Локальный backend вернул некорректный ответ."
+        case .indexBusy: "Индексация занята другим процессом. Повторяем запрос."
         case .message(let message): message
         }
     }

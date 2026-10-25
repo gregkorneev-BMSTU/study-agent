@@ -124,6 +124,8 @@ enum L10n {
         "Не удалось сохранить доступ к папке «%@»: %@": "Could not save access to “%@”: %@",
         "Добавьте папку с учебными материалами в библиотеку.": "Add a folder with study materials to your library.",
         "Подключено источников: %d.": "Connected sources: %d.",
+        "Не все операции с библиотекой завершены.": "Some library operations did not finish.",
+        "Повторить": "Retry",
         "Подключение к локальному Ollama…": "Connecting to local Ollama…",
         "В Ollama пока нет установленных моделей.": "No models are installed in Ollama yet.",
         "Найдено моделей: %d.": "Models found: %d.",

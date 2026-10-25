@@ -1,5 +1,7 @@
 """Read-only access to documents in an explicitly selected local folder."""
 
+import os
+import stat as stat_module
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +21,7 @@ class DocumentRef:
     path: str
     size_bytes: int
     modified_at: datetime
+    modified_ns: int = 0
 
 
 class LocalFolderSource:
@@ -29,24 +32,46 @@ class LocalFolderSource:
         if not self.root.is_dir():
             raise NotADirectoryError(self.root)
 
-    def list_documents(self) -> list[DocumentRef]:
+    def list_documents(self, errors: list[tuple[str, str]] | None = None) -> list[DocumentRef]:
         documents = []
-        for path in self.root.rglob("*"):
-            if path.is_symlink() or not path.is_file():
-                continue
-            if path.suffix.lower() not in SUPPORTED_SUFFIXES:
-                continue
-            relative_path = path.relative_to(self.root).as_posix()
-            stat = path.stat()
-            documents.append(
-                DocumentRef(
-                    document_id=relative_path,
-                    title=path.stem,
-                    path=relative_path,
-                    size_bytes=stat.st_size,
-                    modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
+
+        def raise_walk_error(error: OSError) -> None:
+            raise error
+
+        for directory, subdirs, files in os.walk(self.root, onerror=raise_walk_error):
+            subdirs[:] = [name for name in subdirs if not (Path(directory) / name).is_symlink()]
+            for name in files:
+                path = Path(directory) / name
+                if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+                    continue
+                relative_path = path.relative_to(self.root).as_posix()
+                try:
+                    if path.is_symlink():
+                        continue
+                    stat = path.stat()
+                except OSError as error:
+                    if errors is not None:
+                        code = (
+                            "document_disappeared"
+                            if isinstance(error, FileNotFoundError)
+                            else "permission_denied"
+                            if isinstance(error, PermissionError)
+                            else "document_stat_failed"
+                        )
+                        errors.append((relative_path, code))
+                    continue
+                if not stat_module.S_ISREG(stat.st_mode):
+                    continue
+                documents.append(
+                    DocumentRef(
+                        document_id=relative_path,
+                        title=path.stem,
+                        path=relative_path,
+                        size_bytes=stat.st_size,
+                        modified_at=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
+                        modified_ns=stat.st_mtime_ns,
+                    )
                 )
-            )
         return sorted(documents, key=lambda document: document.path.casefold())
 
     def read(self, document_id: str) -> list[ExtractedBlock]:
@@ -61,6 +86,6 @@ class LocalFolderSource:
         resolved_path = path.resolve(strict=True)
         if not resolved_path.is_relative_to(self.root) or not resolved_path.is_file():
             raise ValueError("document_id does not identify a file inside the selected folder")
-        
+
         # Теперь возвращает список структурированных блоков вместо сырой строки
         return extract_document(resolved_path)

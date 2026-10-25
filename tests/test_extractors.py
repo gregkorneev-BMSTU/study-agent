@@ -158,10 +158,16 @@ def test_extract_docx_paragraphs_and_tables(tmp_path: Path) -> None:
         "Chapter C",
     ]
     assert len({block.marker for block in result}) == len(result)
+    from study_agent.indexer import DocumentIndexer
     from study_agent.search import search_sources
+    from study_agent.storage import IndexStorage
+
+    source = LocalFolderSource(tmp_path)
+    storage = IndexStorage(tmp_path / "index.sqlite3")
+    DocumentIndexer(storage).sync_source(source)
 
     assert (
-        search_sources([LocalFolderSource(tmp_path)], "table B")[0].document_id == "document.docx"
+        search_sources([source], "table B", storage=storage)[0].document_id == "document.docx"
     )
 
 

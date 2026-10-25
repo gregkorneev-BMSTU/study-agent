@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -115,6 +116,9 @@ struct ContentView: View {
         }
         .onAppear {
             MenuBarLocalization.apply(model.language)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.retryFailedLibraryOperations()
         }
         .onChange(of: model.language) { _, language in MenuBarLocalization.apply(language) }
         .onChange(of: model.firstRunPresentation) { _, _ in MenuBarLocalization.apply(model.language) }
@@ -246,6 +250,16 @@ private struct LibraryPanel: View {
                 title: model.text("Библиотека"),
                 subtitle: model.text("Подключайте только те папки, которые хотите искать. Файлы не покидают этот компьютер.")
             )
+
+            if model.hasFailedLibraryOperations {
+                HStack {
+                    Text(model.text("Не все операции с библиотекой завершены."))
+                    Spacer()
+                    Button(model.text("Повторить"), systemImage: "arrow.clockwise") {
+                        model.retryFailedLibraryOperations()
+                    }
+                }
+            }
 
             if model.sourceSummaries.isEmpty {
                 ContentUnavailableView {

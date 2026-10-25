@@ -1,12 +1,13 @@
-"""Simple local text retrieval for the first desktop workflow."""
+"""Lexical retrieval from the persistent document index."""
 
-import re
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 
+from study_agent.indexer import source_id
 from study_agent.sources import LocalFolderSource
-
-TOKEN_RE = re.compile(r"[\w-]+", re.UNICODE)
+from study_agent.storage import IndexStorage
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,11 @@ class SearchHit:
     excerpt: str
     score: int
     source_root: Path
+    page_number: int | None = None
+    heading: str | None = None
+    marker: str | None = None
+    extraction_type: str | None = None
+    chunk_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -32,65 +38,26 @@ def search_sources(
     limit: int = 8,
     *,
     warnings: list[SearchWarning] | None = None,
+    storage: IndexStorage | None = None,
 ) -> list[SearchHit]:
-    """Rank selected text files by matching query terms and return short excerpts."""
-    terms = {term.casefold() for term in TOKEN_RE.findall(query) if len(term) > 1}
-    if not terms:
-        return []
-
-    hits: list[SearchHit] = []
-    for source in sources:
-        for document in source.list_documents():
-            try:
-                extracted = source.read(document.document_id)
-            except Exception:
-                # A malformed document must not hide results from other files.
-                if warnings is not None:
-                    warnings.append(
-                        SearchWarning(
-                            document.document_id, document.title, "document_extraction_failed"
-                        )
-                    )
-                continue
-
-            # АДАПТЕР МИГРАЦИИ: Склеиваем блоки обратно в текст для обратной совместимости
-            if isinstance(extracted, list):
-                text_parts = []
-                for block in extracted:
-                    if block.warnings and warnings is not None:
-                        warnings.append(
-                            SearchWarning(
-                                document.document_id,
-                                document.title,
-                                "ocr_failed"
-                                if block.extraction_type == "ocr"
-                                else "document_extraction_failed",
-                                block.page_number,
-                            )
-                        )
-                    if not block.text.strip():
-                        continue
-                    if block.source_type == "pdf" and block.page_number:
-                        text_parts.append(f"## Page {block.page_number}\n\n{block.text}")
-                    else:
-                        text_parts.append(block.text)
-                text = "\n\n".join(text_parts)
-            else:
-                text = extracted
-
-            folded = text.casefold()
-            score = sum(folded.count(term) for term in terms)
-            if not score:
-                continue
-            best_term = max(terms, key=folded.count)
-            position = folded.find(best_term)
-            start = max(0, position - 180)
-            end = min(len(text), position + 420)
-            excerpt = text[start:end].strip()
-            if start:
-                excerpt = "…" + excerpt
-            if end < len(text):
-                excerpt += "…"
-            hits.append(SearchHit(document.title, document.path, excerpt, score, source.root))
-
-    return sorted(hits, key=lambda hit: (-hit.score, hit.document_id.casefold()))[:limit]
+    """Search saved chunks without opening or extracting source documents."""
+    index = storage or IndexStorage()
+    keys = [source_id(source.root) for source in sources]
+    if warnings is not None:
+        warnings.extend(SearchWarning(**item) for item in index.list_warnings(keys))
+    rows = index.search(keys, query, limit)
+    return [
+        SearchHit(
+            title=row["title"],
+            document_id=row["relative_path"],
+            excerpt=row["text"],
+            score=max(1, round(float(row["rank"]) * 1_000_000)) if "rank" in row.keys() else 1,
+            source_root=Path(row["root"]),
+            page_number=row["page_number"],
+            heading=row["heading"],
+            marker=row["marker"],
+            extraction_type=row["extraction_type"],
+            chunk_id=row["chunk_id"],
+        )
+        for row in rows
+    ]

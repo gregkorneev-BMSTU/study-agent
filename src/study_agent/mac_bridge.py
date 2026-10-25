@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
+from study_agent.indexer import DocumentIndexer, IndexBusyError, source_id
 from study_agent.ocr_model import download_model, model_is_installed
 from study_agent.ollama import OllamaError, answer, list_models
-from study_agent.search import search_sources
 from study_agent.sources import LocalFolderSource
+from study_agent.storage import IndexStorage
 
 
 def dispatch(
@@ -24,14 +26,49 @@ def dispatch(
         command = request.get("command")
         if command == "list_sources":
             result = {"sources": [_source_summary(root) for root in _roots(request)]}
+        elif command in ("index_source", "sync_source"):
+            root = Path(_required_text(request, "root"))
+            indexer = DocumentIndexer(IndexStorage())
+            result = indexer.sync_source(
+                LocalFolderSource(root),
+                progress_callback=progress_callback,
+                verify_hash=request.get("verify_hash") is True,
+            ).to_dict()
+        elif command == "index_status":
+            root = Path(_required_text(request, "root"))
+            result = DocumentIndexer(IndexStorage()).get_index_status(source_id(root))
+        elif command == "remove_index_source":
+            root = Path(_required_text(request, "root"))
+            DocumentIndexer(IndexStorage()).remove_source(source_id(root))
+            result = {"removed": True}
         elif command == "search":
             roots = _roots(request)
             query = _required_text(request, "query")
             warnings = []
-            hits = search_sources(
-                [LocalFolderSource(root) for root in roots], query, warnings=warnings
-            )
+            # Stored roots can be temporarily offline. Search needs only their IDs.
+            index = IndexStorage()
+            keys = [source_id(root) for root in roots]
+            from study_agent.search import SearchHit, SearchWarning
+
+            warnings = [SearchWarning(**item) for item in index.list_warnings(keys)]
+            rows = index.search(keys, query)
+            hits = [
+                SearchHit(
+                    row["title"],
+                    row["relative_path"],
+                    row["text"],
+                    max(1, round(float(row["rank"]) * 1_000_000)) if "rank" in row.keys() else 1,
+                    Path(row["root"]),
+                    row["page_number"],
+                    row["heading"],
+                    row["marker"],
+                    row["extraction_type"],
+                    row["chunk_id"],
+                )
+                for row in rows
+            ]
             result = {
+                "indexing": index.pending_sources(keys),
                 "warnings": [
                     {
                         "document_id": warning.document_id,
@@ -48,6 +85,11 @@ def dispatch(
                         "excerpt": hit.excerpt,
                         "score": hit.score,
                         "source_root": str(hit.source_root),
+                        "page_number": hit.page_number,
+                        "heading": hit.heading,
+                        "marker": hit.marker,
+                        "extraction_type": hit.extraction_type,
+                        "chunk_id": hit.chunk_id,
                     }
                     for hit in hits
                 ],
@@ -79,11 +121,14 @@ def dispatch(
         else:
             raise ValueError("Unknown backend command")
         return {"request_id": request_id, "ok": True, "result": result}
-    except (OSError, OllamaError, RuntimeError, TypeError, ValueError) as error:
+    except (OSError, OllamaError, RuntimeError, TypeError, ValueError, sqlite3.Error) as error:
         return {
             "request_id": request_id,
             "ok": False,
-            "error": {"message": str(error)},
+            "error": {
+                "message": str(error),
+                "code": "index_busy" if isinstance(error, IndexBusyError) else "backend_error",
+            },
         }
 
 
@@ -133,12 +178,23 @@ def _hit_context(request: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _source_summary(root: Path) -> dict[str, Any]:
-    source = LocalFolderSource(root)
-    return {
-        "name": source.root.name,
-        "path": str(source.root),
-        "document_count": len(source.list_documents()),
-    }
+    try:
+        source = LocalFolderSource(root)
+        return {
+            "name": source.root.name,
+            "path": str(source.root),
+            "document_count": len(source.list_documents()),
+            "available": True,
+        }
+    except OSError:
+        index = IndexStorage()
+        status = DocumentIndexer(index).get_index_status(source_id(root))
+        return {
+            "name": root.name,
+            "path": str(root),
+            "document_count": status["documents"],
+            "available": False,
+        }
 
 
 def main() -> int:
@@ -149,8 +205,20 @@ def main() -> int:
             if not isinstance(request, dict):
                 raise ValueError("request must be a JSON object")
 
-            def report_progress(event: dict[str, Any]) -> None:
-                sys.stdout.write(json.dumps({"event": "progress", "result": event}) + "\n")
+            request_id = request.get("request_id")
+
+            def report_progress(event: dict[str, Any], request_id: Any = request_id) -> None:
+                sys.stdout.write(
+                    json.dumps(
+                        {
+                            "event": "progress",
+                            "request_id": request_id,
+                            "result": event,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
                 sys.stdout.flush()
 
             response = dispatch(request, progress_callback=report_progress)
