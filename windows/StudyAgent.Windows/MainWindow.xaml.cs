@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         ActiveWindow = this;
+        ApplyLanguage();
 
         string savedTheme =
             Windows.Storage.ApplicationData.Current.LocalSettings
@@ -35,6 +36,20 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon("Assets/AppIcon.ico");
     }
 
+    public void ApplyLanguage()
+    {
+        SearchNavItem.Content =
+            Services.LocalizationService.Text("Поиск", "Search");
+
+        LibraryNavItem.Content =
+            Services.LocalizationService.Text("Библиотека", "Library");
+
+        AboutNavItem.Content =
+            Services.LocalizationService.Text("О программе", "About");
+
+        SettingsNavItem.Content =
+            Services.LocalizationService.Text("Настройки", "Settings");
+    }
     private void TitleBar_PaneToggleRequested(
         TitleBar sender, object args)
     {

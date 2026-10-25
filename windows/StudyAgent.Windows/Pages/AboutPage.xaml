@@ -1,19 +1,57 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<Page
+﻿<Page
     x:Class="StudyAgent_Windows.Pages.AboutPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:StudyAgent_Windows.Pages"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid Padding="24,16,24,16" RowSpacing="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
-        <TextBlock Grid.Row="1" Text="This is the About page" />
-    </Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="32" Spacing="20">
+
+            <StackPanel Spacing="8">
+                <TextBlock
+                    x:Name="AboutTitle"
+                    Text="О программе"
+                    Style="{StaticResource TitleTextBlockStyle}"/>
+
+                <TextBlock
+                    x:Name="AboutSubtitle"
+                    Text="Study Agent — локальный помощник для работы с учебными материалами."
+                    TextWrapping="Wrap"
+                    Opacity="0.75"/>
+            </StackPanel>
+
+            <Border
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="20">
+
+                <StackPanel Spacing="12">
+                    <TextBlock
+                        Text="Study Agent"
+                        FontSize="24"
+                        FontWeight="SemiBold"/>
+
+                    <TextBlock
+                        x:Name="VersionLabel"
+                        Text="Версия"
+                        FontWeight="SemiBold"/>
+
+                    <TextBlock
+                        x:Name="VersionValue"
+                        Text="—"/>
+
+                    <TextBlock
+                        x:Name="DescriptionText"
+                        TextWrapping="Wrap"/>
+
+                    <TextBlock
+                        x:Name="PrivacyText"
+                        TextWrapping="Wrap"
+                        Opacity="0.75"/>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
 </Page>

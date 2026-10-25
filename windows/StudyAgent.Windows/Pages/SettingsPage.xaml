@@ -8,10 +8,12 @@
 
             <StackPanel Spacing="8">
                 <TextBlock
+                    x:Name="SettingsTitle"
                     Text="Настройки"
                     Style="{StaticResource TitleTextBlockStyle}"/>
 
                 <TextBlock
+                    x:Name="SettingsSubtitle"
                     Text="Настройте Study Agent под свои предпочтения."
                     TextWrapping="Wrap"
                     Opacity="0.7"/>
@@ -19,6 +21,33 @@
 
             <StackPanel Spacing="12">
                 <TextBlock
+                    x:Name="LanguageHeading"
+                    Text="Язык интерфейса"
+                    FontSize="18"
+                    FontWeight="SemiBold"/>
+
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="16">
+
+                    <ComboBox
+                        x:Name="LanguageCombo"
+                        Header="Язык"
+                        MinWidth="200"
+                        SelectionChanged="LanguageCombo_SelectionChanged">
+
+                        <ComboBoxItem Content="Русский"/>
+                        <ComboBoxItem Content="English"/>
+                    </ComboBox>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="12">
+                <TextBlock
+                    x:Name="AppearanceHeading"
                     Text="Внешний вид и доступность"
                     FontSize="18"
                     FontWeight="SemiBold"/>
@@ -38,10 +67,12 @@
 
                         <StackPanel Spacing="4">
                             <TextBlock
+                                x:Name="ThemeHeading"
                                 Text="Цветовая тема"
                                 FontWeight="SemiBold"/>
 
                             <TextBlock
+                                x:Name="ThemeDescription"
                                 Text="Выберите оформление приложения."
                                 TextWrapping="Wrap"
                                 Opacity="0.7"/>
@@ -53,9 +84,17 @@
                             HorizontalAlignment="Stretch"
                             SelectionChanged="ThemeCombo_SelectionChanged">
 
-                            <ComboBoxItem Content="Системная"/>
-                            <ComboBoxItem Content="Светлая"/>
-                            <ComboBoxItem Content="Тёмная"/>
+                            <ComboBoxItem
+                                x:Name="SystemThemeItem"
+                                Content="Системная"/>
+
+                            <ComboBoxItem
+                                x:Name="LightThemeItem"
+                                Content="Светлая"/>
+
+                            <ComboBoxItem
+                                x:Name="DarkThemeItem"
+                                Content="Тёмная"/>
                         </ComboBox>
                     </Grid>
                 </Border>
@@ -63,6 +102,7 @@
 
             <StackPanel Spacing="12">
                 <TextBlock
+                    x:Name="ModelHeading"
                     Text="Локальная языковая модель"
                     FontSize="18"
                     FontWeight="SemiBold"/>
@@ -80,6 +120,7 @@
                             FontWeight="SemiBold"/>
 
                         <TextBlock
+                            x:Name="ModelDescription"
                             Text="Для генерации ответов используется локальная Ollama. Выбрать установленную модель пока можно на странице поиска."
                             TextWrapping="Wrap"
                             Opacity="0.7"/>
@@ -89,6 +130,7 @@
 
             <StackPanel Spacing="12">
                 <TextBlock
+                    x:Name="PrivacyHeading"
                     Text="Конфиденциальность"
                     FontSize="18"
                     FontWeight="SemiBold"/>
@@ -102,10 +144,12 @@
 
                     <StackPanel Spacing="6">
                         <TextBlock
+                            x:Name="PrivacySubheading"
                             Text="Локальная обработка"
                             FontWeight="SemiBold"/>
 
                         <TextBlock
+                            x:Name="PrivacyDescription"
                             Text="Study Agent обрабатывает выбранные учебные материалы на компьютере. Для генерации ответа вопрос и найденные выдержки передаются локальному серверу Ollama."
                             TextWrapping="Wrap"
                             Opacity="0.7"/>

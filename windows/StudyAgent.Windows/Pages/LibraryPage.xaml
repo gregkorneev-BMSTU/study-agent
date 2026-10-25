@@ -7,11 +7,11 @@
         <StackPanel Spacing="18">
 
             <TextBlock
-                Text="Библиотека"
+                x:Name="LibraryTitle" Text="Библиотека"
                 Style="{StaticResource TitleTextBlockStyle}" />
 
             <TextBlock
-                Text="Подключённые учебные материалы"
+                x:Name="LibrarySubtitle" Text="Подключённые учебные материалы"
                 Style="{StaticResource BodyTextBlockStyle}" />
 
             <Button
@@ -20,7 +20,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <SymbolIcon Symbol="Add" />
                     <TextBlock
-                        Text="Добавить папку"
+                        x:Name="AddFolderLabel" Text="Добавить папку"
                         VerticalAlignment="Center" />
                 </StackPanel>
             </Button>

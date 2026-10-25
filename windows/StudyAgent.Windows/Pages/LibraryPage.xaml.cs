@@ -24,6 +24,30 @@ public sealed partial class LibraryPage : Page
         Loaded += LibraryPage_Loaded;
     }
 
+
+    private void ApplyLanguage()
+    {
+        LibraryTitle.Text =
+            LocalizationService.Text("Библиотека", "Library");
+
+        LibrarySubtitle.Text =
+            LocalizationService.Text(
+                "Подключённые учебные материалы",
+                "Connected study materials");
+
+        AddFolderLabel.Text =
+            LocalizationService.Text("Добавить папку", "Add Folder");
+
+        DiagnoseButton.Content =
+            LocalizationService.Text(
+                "Проверить Python-backend", "Check Python Backend");
+
+        LibraryStatus.Text =
+            LocalizationService.Text(
+                LocalizationService.Text("Добавьте папку с учебными материалами.", "Add a folder containing study materials."),
+                "Add a folder containing study materials.");
+    }
+
     private async void LibraryPage_Loaded(
         object sender, RoutedEventArgs e)
     {
@@ -31,6 +55,7 @@ public sealed partial class LibraryPage : Page
             return;
 
         _initialized = true;
+        ApplyLanguage();
 
         try
         {
@@ -52,7 +77,7 @@ public sealed partial class LibraryPage : Page
         catch (Exception ex)
         {
             LibraryStatus.Text =
-                $"Ошибка загрузки библиотеки: {ex.Message}";
+                $"{LocalizationService.Text("Ошибка загрузки библиотеки", "Error loading library")}: {ex.Message}";
         }
     }
 
@@ -72,11 +97,11 @@ public sealed partial class LibraryPage : Page
             if (_roots.Count == 0)
             {
                 LibraryStatus.Text =
-                    "Добавьте папку с учебными материалами.";
+                    LocalizationService.Text("Добавьте папку с учебными материалами.", "Add a folder containing study materials.");
                 return;
             }
 
-            LibraryStatus.Text = "Обновляем библиотеку...";
+            LibraryStatus.Text = LocalizationService.Text("Обновляем библиотеку...", "Refreshing library...");
 
             using var response =
                 await _bridge.ListSourcesAsync(_roots.ToArray());
@@ -88,7 +113,7 @@ public sealed partial class LibraryPage : Page
             foreach (JsonElement source in sources.EnumerateArray())
             {
                 string name = source.GetProperty("name")
-                    .GetString() ?? "Без названия";
+                    .GetString() ?? LocalizationService.Text("Без названия", "Untitled");
 
                 string path = source.GetProperty("path")
                     .GetString() ?? "";
@@ -108,7 +133,7 @@ public sealed partial class LibraryPage : Page
 
                 var details = new TextBlock
                 {
-                    Text = $"{count} документов",
+                    Text = $"{count} {LocalizationService.Text("документов", "documents")}",
                     Opacity = 0.75
                 };
 
@@ -121,7 +146,7 @@ public sealed partial class LibraryPage : Page
 
                 var removeButton = new Button
                 {
-                    Content = "Отключить",
+                    Content = LocalizationService.Text("Отключить", "Remove"),
                     Tag = path,
                     HorizontalAlignment = HorizontalAlignment.Left
                 };
@@ -150,12 +175,12 @@ public sealed partial class LibraryPage : Page
             }
 
             LibraryStatus.Text =
-                $"Подключено папок: {_roots.Count}";
+                $"{LocalizationService.Text("Подключено папок", "Connected folders")}: {_roots.Count}";
         }
         catch (Exception ex)
         {
             LibraryStatus.Text =
-                $"Не удалось обновить библиотеку: {ex.Message}";
+                $"{LocalizationService.Text("Не удалось обновить библиотеку", "Could not refresh library")}: {ex.Message}";
         }
         finally
         {
@@ -175,7 +200,7 @@ public sealed partial class LibraryPage : Page
         {
             var window = MainWindow.ActiveWindow
                 ?? throw new InvalidOperationException(
-                    "Главное окно недоступно.");
+                    LocalizationService.Text("Главное окно недоступно.", "Main window is unavailable."));
 
             var picker = new FolderPicker();
             picker.FileTypeFilter.Add("*");
@@ -196,14 +221,14 @@ public sealed partial class LibraryPage : Page
                     StringComparison.OrdinalIgnoreCase)))
             {
                 LibraryStatus.Text =
-                    "Эта папка уже подключена.";
+                    LocalizationService.Text("Эта папка уже подключена.", "This folder is already connected.");
                 return;
             }
 
             if (!Directory.Exists(folder.Path))
             {
                 LibraryStatus.Text =
-                    "Выбранная папка недоступна.";
+                    LocalizationService.Text("Выбранная папка недоступна.", "The selected folder is unavailable.");
                 return;
             }
 
@@ -221,7 +246,7 @@ public sealed partial class LibraryPage : Page
         catch (Exception ex)
         {
             LibraryStatus.Text =
-                $"Ошибка добавления папки: {ex.Message}";
+                $"{LocalizationService.Text("Ошибка добавления папки", "Error adding folder")}: {ex.Message}";
         }
     }
 
@@ -252,7 +277,7 @@ public sealed partial class LibraryPage : Page
         catch (Exception ex)
         {
             LibraryStatus.Text =
-                $"Ошибка отключения папки: {ex.Message}";
+                $"{LocalizationService.Text("Ошибка отключения папки", "Error removing folder")}: {ex.Message}";
         }
     }
 
@@ -260,8 +285,8 @@ public sealed partial class LibraryPage : Page
         object sender, RoutedEventArgs e)
     {
         DiagnoseButton.IsEnabled = false;
-        DiagnoseButton.Content = "Проверка выполняется...";
-        BackendStatus.Text = "Запрос отправлен. Ожидаем ответ backend...";
+        DiagnoseButton.Content = LocalizationService.Text("Проверка выполняется...", "Checking...");
+        BackendStatus.Text = LocalizationService.Text("Запрос отправлен. Ожидаем ответ backend...", "Request sent. Waiting for backend...");
 
         try
         {
@@ -273,29 +298,29 @@ public sealed partial class LibraryPage : Page
             BackendStatus.Text =
                 "Backend: " +
                 (data.GetProperty("backend_healthy").GetBoolean()
-                    ? "Работает" : "Ошибка") +
+                    ? LocalizationService.Text("Работает", "Working") : LocalizationService.Text("Ошибка", "Error")) +
                 "\nPDF: " +
                 (data.GetProperty("pdf_available").GetBoolean()
-                    ? "Доступен" : "Недоступен") +
+                    ? LocalizationService.Text("Доступен", "Available") : LocalizationService.Text("Недоступен", "Unavailable")) +
                 "\nOCR: " +
                 (data.GetProperty("ocr_runtime_available").GetBoolean()
-                    ? "Доступен" : "Не установлен");
+                    ? LocalizationService.Text("Доступен", "Available") : LocalizationService.Text("Не установлен", "Not installed"));
         }
         catch (Exception ex)
         {
             BackendStatus.Text =
-                $"Ошибка диагностики: {ex.Message}";
+                $"{LocalizationService.Text("Ошибка диагностики", "Diagnostic error")}: {ex.Message}";
         }
         finally
         {
             DiagnoseButton.IsEnabled = true;
-            DiagnoseButton.Content = "Проверить Python-backend";
+            DiagnoseButton.Content = LocalizationService.Text("Проверить Python-backend", "Check Python Backend");
 
             var dialog = new ContentDialog
             {
-                Title = "Результат диагностики",
+                Title = LocalizationService.Text("Результат диагностики", "Diagnostic Results"),
                 Content = BackendStatus.Text,
-                CloseButtonText = "Закрыть",
+                CloseButtonText = LocalizationService.Text("Закрыть", "Close"),
                 XamlRoot = this.XamlRoot
             };
 

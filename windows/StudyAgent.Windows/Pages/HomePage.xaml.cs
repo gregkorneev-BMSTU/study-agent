@@ -22,6 +22,56 @@ public sealed partial class HomePage : Page
     public HomePage()
     {
         InitializeComponent();
+        ApplyLanguage();
+    }
+
+    private static string T(string ru, string en)
+    {
+        return LocalizationService.Text(ru, en);
+    }
+
+
+    private void ApplyLanguage()
+    {
+        SearchTitle.Text =
+            T("Поиск по учебным материалам", "Search Study Materials");
+
+        SearchSubtitle.Text =
+            T("Поиск документов и ответы на вопросы",
+              "Search documents and get answers to questions");
+
+        QueryInput.PlaceholderText =
+            T("Введите вопрос или поисковый запрос...",
+              "Enter a question or search query...");
+
+        SearchButton.Content = T("Найти", "Search");
+
+        ModelHeading.Text =
+            T("Локальная языковая модель", "Local Language Model");
+
+        ModelsComboBox.PlaceholderText =
+            T("Модель не выбрана", "No model selected");
+
+        RefreshModelsButton.Content =
+            T("Обновить модели", "Refresh Models");
+
+        GenerateButton.Content =
+            T("Сгенерировать ответ", "Generate Answer");
+
+        OllamaStatus.Text =
+            T("Нажмите «Обновить модели», чтобы проверить Ollama.",
+              "Click Refresh Models to check Ollama.");
+
+        SearchStatus.Text =
+            T("Введите запрос для поиска.", "Enter a search query.");
+
+        AnswerHeading.Text =
+            T("Ответ по найденным материалам",
+              "Answer Based on Found Materials");
+
+        AnswerText.Text =
+            T("После поиска выберите модель и нажмите «Сгенерировать ответ».",
+              "After searching, select a model and click Generate Answer.");
     }
 
     private async void SearchButton_Click(
@@ -49,7 +99,7 @@ public sealed partial class HomePage : Page
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            SearchStatus.Text = "Введите поисковый запрос.";
+            SearchStatus.Text = T("Введите поисковый запрос.", "Enter a search query.");
             return;
         }
 
@@ -57,8 +107,8 @@ public sealed partial class HomePage : Page
         _lastHits = Array.Empty<JsonElement>();
         _lastQuery = "";
         ResultsPanel.Children.Clear();
-        AnswerText.Text = "Ожидание результатов поиска...";
-        SearchStatus.Text = "Ищем документы...";
+        AnswerText.Text = T("Ожидание результатов поиска...", "Waiting for search results...");
+        SearchStatus.Text = T("Ищем документы...", "Searching documents...");
 
         try
         {
@@ -70,8 +120,8 @@ public sealed partial class HomePage : Page
             if (roots.Length == 0)
             {
                 SearchStatus.Text =
-                    "Сначала добавьте папку в разделе «Библиотека».";
-                AnswerText.Text = "Нет подключённых документов.";
+                    T("Сначала добавьте папку в разделе «Библиотека».", "First add a folder in Library.");
+                AnswerText.Text = T("Нет подключённых документов.", "No documents are connected.");
                 return;
             }
 
@@ -90,19 +140,19 @@ public sealed partial class HomePage : Page
 
             if (_lastHits.Length == 0)
             {
-                SearchStatus.Text = "Ничего не найдено.";
+                SearchStatus.Text = T("Ничего не найдено.", "No results found.");
                 AnswerText.Text =
-                    "Для генерации ответа нужны найденные материалы.";
+                    T("Для генерации ответа нужны найденные материалы.", "Matching documents are required to generate an answer.");
                 return;
             }
 
             SearchStatus.Text =
-                $"Найдено результатов: {_lastHits.Length}";
+                $"{T("Найдено результатов", "Results found")}: {_lastHits.Length}";
 
             foreach (JsonElement hit in _lastHits)
             {
                 string title = hit.GetProperty("title")
-                    .GetString() ?? "Без названия";
+                    .GetString() ?? T("Без названия", "Untitled");
 
                 string excerpt = hit.GetProperty("excerpt")
                     .GetString() ?? "";
@@ -119,8 +169,8 @@ public sealed partial class HomePage : Page
             }
 
             AnswerText.Text =
-                "Документы найдены. Выберите модель Ollama " +
-                "и нажмите «Сгенерировать ответ».";
+                T("Документы найдены. Выберите модель Ollama ", "Documents found. Select an Ollama model ") +
+                T("и нажмите «Сгенерировать ответ».", "and click Generate Answer.");
         }
         catch (Exception ex)
         {
@@ -130,17 +180,17 @@ public sealed partial class HomePage : Page
                     StringComparison.OrdinalIgnoreCase))
             {
                 SearchStatus.Text =
-                    "Некоторым документам требуется OCR, " +
-                    "который пока не установлен.";
+                    T("Некоторым документам требуется OCR, ", "Some documents require OCR, ") +
+                    T("который пока не установлен.", "which is not installed yet.");
             }
             else
             {
                 SearchStatus.Text =
-                    $"Ошибка поиска: {ex.Message}";
+                    $"{T("Ошибка поиска", "Search error")}: {ex.Message}";
             }
 
             AnswerText.Text =
-                "Генерация недоступна, поскольку поиск не завершился.";
+                T("Генерация недоступна, поскольку поиск не завершился.", "Answer generation is unavailable because the search did not finish.");
         }
         finally
         {
@@ -156,7 +206,7 @@ public sealed partial class HomePage : Page
 
         SetBusy(true);
         ModelsComboBox.Items.Clear();
-        OllamaStatus.Text = "Проверяем Ollama...";
+        OllamaStatus.Text = T("Проверяем Ollama...", "Checking Ollama...");
 
         try
         {
@@ -177,21 +227,21 @@ public sealed partial class HomePage : Page
             if (ModelsComboBox.Items.Count == 0)
             {
                 OllamaStatus.Text =
-                    "Ollama доступна, но модели не установлены.";
+                    T("Ollama доступна, но модели не установлены.", "Ollama is available, but no models are installed.");
             }
             else
             {
                 ModelsComboBox.SelectedIndex = 0;
                 OllamaStatus.Text =
-                    $"Доступно моделей: {ModelsComboBox.Items.Count}";
+                    $"{T("Доступно моделей", "Available models")}: {ModelsComboBox.Items.Count}";
             }
         }
         catch (Exception ex)
         {
             OllamaStatus.Text =
-                "Ollama не найдена или не запущена. " +
-                "Её можно установить позже. " +
-                $"Подробности: {ex.Message}";
+                T("Ollama не найдена или не запущена. ", "Ollama was not found or is not running. ") +
+                T("Её можно установить позже. ", "You can install it later. ") +
+                $"{T("Подробности", "Details")}: {ex.Message}";
         }
         finally
         {
@@ -210,7 +260,7 @@ public sealed partial class HomePage : Page
 
         SetBusy(true);
         AnswerText.Text =
-            "Генерируем ответ. Локальная модель может работать долго...";
+            T("Генерируем ответ. Локальная модель может работать долго...", "Generating an answer. The local model may take some time...");
 
         try
         {
@@ -222,12 +272,12 @@ public sealed partial class HomePage : Page
             AnswerText.Text = response.RootElement
                 .GetProperty("result")
                 .GetProperty("answer")
-                .GetString() ?? "Модель вернула пустой ответ.";
+                .GetString() ?? T("Модель вернула пустой ответ.", "The model returned an empty answer.");
         }
         catch (Exception ex)
         {
             AnswerText.Text =
-                $"Не удалось получить ответ: {ex.Message}";
+                $"{T("Не удалось получить ответ", "Could not generate an answer")}: {ex.Message}";
         }
         finally
         {
@@ -283,7 +333,7 @@ public sealed partial class HomePage : Page
 
         card.Children.Add(new TextBlock
         {
-            Text = $"Источник: {sourceRoot}",
+            Text = $"{T("Источник", "Source")}: {sourceRoot}",
             Opacity = 0.7,
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12
@@ -291,7 +341,7 @@ public sealed partial class HomePage : Page
 
         card.Children.Add(new TextBlock
         {
-            Text = $"Документ: {documentId} | Оценка: {score:F2}",
+            Text = $"{T("Документ", "Document")}: {documentId} | {T("Оценка", "Score")}: {score:F2}",
             Opacity = 0.7,
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12
