@@ -47,9 +47,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from study_agent.indexer import DocumentIndexer, source_id
 from study_agent.ollama import answer, list_models
-from study_agent.search import SearchHit, search_sources
+from study_agent.search import SearchHit, SearchWarning, search_sources
 from study_agent.sources import LocalFolderSource
+from study_agent.storage import IndexStorage
 from study_agent.switch import AppleSwitch
 from study_agent.theme import ThemeTokens, build_stylesheet, tokens_for
 
@@ -83,6 +85,16 @@ def set_status(label: QLabel, text: str, state: str) -> None:
     label.setProperty("state", state)
     label.style().unpolish(label)
     label.style().polish(label)
+
+
+def _index_and_search(paths: list[Path], query: str) -> tuple[list[SearchHit], list[SearchWarning]]:
+    storage = IndexStorage()
+    indexer = DocumentIndexer(storage)
+    sources = [LocalFolderSource(path) for path in paths]
+    for source in sources:
+        indexer.sync_source(source)
+    warnings: list[SearchWarning] = []
+    return search_sources(sources, query, warnings=warnings, storage=storage), warnings
 
 
 def _tinted_symbol_icon(name: str, color: str) -> QIcon:
@@ -143,6 +155,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(760, 560)
         self.sources: list[Path] = self._saved_sources()
         self.workers: list[Worker] = []
+        self.library_workers: list[Worker] = []
         self.installed_models: list[str] = []
         self.current_page = 0
         self.canvas = named(Canvas(), "canvas")
@@ -167,6 +180,8 @@ class MainWindow(QMainWindow):
         self._apply_appearance()
         self._show_sources()
         self.refresh_models()
+        for path in self.sources:
+            self._schedule_index(path)
 
     def _build_menu_bar(self) -> None:
         menu_bar: QMenuBar = self.menuBar()
@@ -227,15 +242,11 @@ class MainWindow(QMainWindow):
         for command, label, shortcut in edit_commands:
             action = QAction(label, self)
             action.setShortcut(shortcut)
-            action.triggered.connect(
-                lambda _checked=False, name=command: self._edit_command(name)
-            )
+            action.triggered.connect(lambda _checked=False, name=command: self._edit_command(name))
             edit_menu.addAction(action)
             self.edit_actions[command] = action
         edit_menu.aboutToShow.connect(self._update_edit_actions)
-        QApplication.instance().focusChanged.connect(
-            lambda _old, _new: self._update_edit_actions()
-        )
+        QApplication.instance().focusChanged.connect(lambda _old, _new: self._update_edit_actions())
         for line_edit in self.findChildren(QLineEdit):
             line_edit.selectionChanged.connect(self._update_edit_actions)
             line_edit.textChanged.connect(self._update_edit_actions)
@@ -247,9 +258,7 @@ class MainWindow(QMainWindow):
             action = QAction(label, self)
             action.setCheckable(True)
             action.setChecked(index == 0)
-            action.triggered.connect(
-                lambda _checked=False, page=index: self._navigate(page)
-            )
+            action.triggered.connect(lambda _checked=False, page=index: self._navigate(page))
             view_menu.addAction(action)
             self.view_actions[index] = action
         view_menu.addSeparator()
@@ -283,9 +292,7 @@ class MainWindow(QMainWindow):
 
         window_menu = add_menu("Окно")
         minimize = QAction("Свернуть", self)
-        minimize.setShortcut(
-            QKeySequence("Meta+M" if sys.platform == "darwin" else "Ctrl+M")
-        )
+        minimize.setShortcut(QKeySequence("Meta+M" if sys.platform == "darwin" else "Ctrl+M"))
         minimize.triggered.connect(self.showMinimized)
         window_menu.addAction(minimize)
         close = QAction("Закрыть окно", self)
@@ -315,23 +322,15 @@ class MainWindow(QMainWindow):
                 action.setEnabled(False)
             return
         is_line_edit = isinstance(target, QLineEdit)
-        has_selection = (
-            isinstance(target, (QLineEdit, QLabel)) and target.hasSelectedText()
-        )
-        self.edit_actions["undo"].setEnabled(
-            is_line_edit and target.isUndoAvailable()
-        )
-        self.edit_actions["redo"].setEnabled(
-            is_line_edit and target.isRedoAvailable()
-        )
+        has_selection = isinstance(target, (QLineEdit, QLabel)) and target.hasSelectedText()
+        self.edit_actions["undo"].setEnabled(is_line_edit and target.isUndoAvailable())
+        self.edit_actions["redo"].setEnabled(is_line_edit and target.isRedoAvailable())
         self.edit_actions["cut"].setEnabled(is_line_edit and has_selection)
         self.edit_actions["copy"].setEnabled(has_selection)
         self.edit_actions["paste"].setEnabled(
             is_line_edit and bool(QApplication.clipboard().text())
         )
-        self.edit_actions["select_all"].setEnabled(
-            is_line_edit and bool(target.text())
-        )
+        self.edit_actions["select_all"].setEnabled(is_line_edit and bool(target.text()))
 
     def _edit_command(self, command: str) -> None:
         target = self._edit_target()
@@ -569,16 +568,12 @@ class MainWindow(QMainWindow):
         )
         self.reduce_transparency.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.reduce_transparency)
-        self.high_contrast = AppleSwitch(
-            "Повышенный контраст", reduce_motion=reduce_motion_enabled
-        )
+        self.high_contrast = AppleSwitch("Повышенный контраст", reduce_motion=reduce_motion_enabled)
         self.high_contrast.setChecked(SETTINGS.value("appearance/high_contrast", False, type=bool))
         self.high_contrast.setToolTip("Усилить контраст текста, границ и клавиатурного фокуса.")
         self.high_contrast.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.high_contrast)
-        self.reduce_motion = AppleSwitch(
-            "Уменьшить движение", reduce_motion=reduce_motion_enabled
-        )
+        self.reduce_motion = AppleSwitch("Уменьшить движение", reduce_motion=reduce_motion_enabled)
         self.setting_switches = (
             self.reduce_transparency,
             self.high_contrast,
@@ -706,15 +701,41 @@ class MainWindow(QMainWindow):
                 self.sources.append(path)
                 self._save_sources()
                 self._show_sources()
+                self._schedule_index(path)
+
+    def _schedule_index(self, path: Path) -> None:
+        set_status(self.search_state, f"Индексирую «{path.name}»…", "progress")
+        worker = Worker(
+            lambda: DocumentIndexer(IndexStorage()).sync_source(LocalFolderSource(path))
+        )
+        worker.succeeded.connect(
+            lambda _report: set_status(
+                self.search_state, f"Индексация «{path.name}» завершена.", "success"
+            )
+        )
+        worker.failed.connect(lambda message: set_status(self.search_state, message, "error"))
+        self._queue_library(worker)
 
     def remove_source(self) -> None:
         item = self.source_list.currentItem()
         if item is None:
             return
         path = Path(item.data(Qt.ItemDataRole.UserRole))
+        set_status(self.search_state, f"Удаляю «{path.name}» из индекса…", "progress")
+        worker = Worker(lambda: DocumentIndexer(IndexStorage()).remove_source(source_id(path)))
+        worker.succeeded.connect(lambda _result: self._removal_finished(path))
+        worker.failed.connect(
+            lambda message: set_status(
+                self.search_state, f"Не удалось удалить «{path.name}»: {message}", "error"
+            )
+        )
+        self._queue_library(worker)
+
+    def _removal_finished(self, path: Path) -> None:
         self.sources = [source for source in self.sources if source != path]
         self._save_sources()
         self._show_sources()
+        set_status(self.search_state, f"«{path.name}» удалён из индекса.", "success")
 
     def refresh_models(self) -> None:
         set_status(self.sidebar_status, "Ollama: проверка…", "progress")
@@ -774,27 +795,35 @@ class MainWindow(QMainWindow):
             return
         self.question.clear()
         self.ask_button.setEnabled(False)
-        set_status(self.search_state, "Ищу фрагменты в выбранных папках…", "progress")
+        self._search_warning_text = ""
+        set_status(self.search_state, "Индексирую материалы и ищу фрагменты…", "progress")
         self._clear_results()
-        worker = Worker(
-            lambda: search_sources([LocalFolderSource(path) for path in self.sources], query)
-        )
-        worker.succeeded.connect(lambda hits: self._retrieved(query, hits))
-        worker.failed.connect(self._search_failed)
-        self._run(worker)
 
-    def _retrieved(self, query: str, hits: list[SearchHit]) -> None:
+        def retrieve() -> tuple[list[SearchHit], list[SearchWarning]]:
+            return _index_and_search(self.sources, query)
+
+        worker = Worker(retrieve)
+        worker.succeeded.connect(lambda result: self._retrieved(query, *result))
+        worker.failed.connect(self._search_failed)
+        self._queue_library(worker)
+
+    def _retrieved(self, query: str, hits: list[SearchHit], warnings: list[SearchWarning]) -> None:
+        warning_text = ""
+        if warnings:
+            names = ", ".join(sorted({warning.document_id for warning in warnings}))
+            warning_text = f" Не удалось прочитать {len(warnings)} фрагм.: {names}."
+        self._search_warning_text = warning_text
         if not hits:
             set_status(
                 self.search_state,
-                "В выбранных материалах не нашёл фрагментов по этому запросу.",
+                "В выбранных материалах не нашёл фрагментов по этому запросу." + warning_text,
                 "warning",
             )
             self.ask_button.setEnabled(True)
             return
         set_status(
             self.search_state,
-            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…",
+            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…{warning_text}",
             "progress",
         )
         for number, hit in enumerate(hits, start=1):
@@ -814,9 +843,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 12, 16, 12)
         title_text = f"[{number}]  {hit.title}  ·  {hit.source_root.name}/{hit.document_id}"
-        title = named(
-            QPushButton(title_text), "link"
-        )
+        title = named(QPushButton(title_text), "link")
         title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
@@ -838,13 +865,14 @@ class MainWindow(QMainWindow):
         self.results_layout.addWidget(card)
         set_status(
             self.search_state,
-            f"Ответ подготовлен локально по {min(len(hits), 5)} источникам.",
+            f"Ответ подготовлен локально по {min(len(hits), 5)} источникам."
+            + self._search_warning_text,
             "success",
         )
         self.ask_button.setEnabled(True)
 
     def _search_failed(self, message: str) -> None:
-        set_status(self.search_state, message, "error")
+        set_status(self.search_state, message + getattr(self, "_search_warning_text", ""), "error")
         self.ask_button.setEnabled(True)
 
     def _clear_results(self) -> None:
@@ -865,6 +893,17 @@ class MainWindow(QMainWindow):
             lambda: self.workers.remove(worker) if worker in self.workers else None
         )
         worker.start()
+
+    def _queue_library(self, worker: Worker) -> None:
+        self.library_workers.append(worker)
+        worker.finished.connect(lambda: self._library_worker_finished(worker))
+        if len(self.library_workers) == 1:
+            self._run(worker)
+
+    def _library_worker_finished(self, worker: Worker) -> None:
+        self.library_workers.remove(worker)
+        if self.library_workers:
+            self._run(self.library_workers[0])
 
 
 def main() -> int:

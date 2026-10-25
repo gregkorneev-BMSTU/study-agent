@@ -2,6 +2,9 @@ from pathlib import Path
 
 import pytest
 
+from study_agent.models import (
+    ExtractedBlock,  # Шаг исправления: импортируем новый общий контракт данных
+)
 from study_agent.sources import LocalFolderSource
 
 
@@ -19,7 +22,16 @@ def test_lists_supported_formats_and_reads_text_files(tmp_path: Path) -> None:
         "summary.TXT",
         "week-1/notes.md",
     ]
-    assert source.read("week-1/notes.md") == "# Notes"
+    
+    # Шаг исправления: проверяем, что вернулся список DTO-блоков с правильным содержимым
+    result = source.read("week-1/notes.md")
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0] == ExtractedBlock(
+        text="# Notes",
+        source_type="text",
+        extraction_type="digital"
+    )
 
 
 def test_rejects_paths_outside_root(tmp_path: Path) -> None:

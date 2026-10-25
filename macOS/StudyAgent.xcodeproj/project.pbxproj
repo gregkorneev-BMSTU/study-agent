@@ -15,6 +15,7 @@
 		A10000000000000000000008 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Localization.swift */; };
 		A10000000000000000000009 /* SetupWizard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* SetupWizard.swift */; };
 		A10000000000000000000010 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* WelcomeView.swift */; };
+		A10000000000000000000011 /* SavedFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* SavedFolder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		A20000000000000000000008 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* SetupWizard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWizard.swift; sourceTree = "<group>"; };
 		A20000000000000000000010 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* SavedFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedFolder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +53,7 @@
 			children = (
 				A20000000000000000000001 /* StudyAgentApp.swift */,
 				A20000000000000000000002 /* StudyAgentModel.swift */,
+				A20000000000000000000011 /* SavedFolder.swift */,
 				A20000000000000000000003 /* ContentView.swift */,
 				A20000000000000000000008 /* Localization.swift */,
 				A20000000000000000000009 /* SetupWizard.swift */,
@@ -97,7 +100,7 @@
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */, A10000000000000000000008 /* Localization.swift in Sources */, A10000000000000000000009 /* SetupWizard.swift in Sources */, A10000000000000000000010 /* WelcomeView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000011 /* SavedFolder.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */, A10000000000000000000008 /* Localization.swift in Sources */, A10000000000000000000009 /* SetupWizard.swift in Sources */, A10000000000000000000010 /* WelcomeView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -107,8 +110,8 @@
 /* Begin XCBuildConfiguration section */
 		A70000000000000000000001 /* Debug project settings */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
 		A70000000000000000000002 /* Release project settings */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Release; };
-		A70000000000000000000003 /* Debug target settings */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 2; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSHumanReadableCopyright = "Developer: Gregory Korneev"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 1.0.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
-		A70000000000000000000004 /* Release target settings */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 2; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSHumanReadableCopyright = "Developer: Gregory Korneev"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 1.0.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Release; };
+		A70000000000000000000003 /* Debug target settings */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 4; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSHumanReadableCopyright = "Developer: Gregory Korneev"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 1.0.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Debug; };
+		A70000000000000000000004 /* Release target settings */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Manual; CURRENT_PROJECT_VERSION = 4; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = "Study Agent"; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education"; INFOPLIST_KEY_NSHumanReadableCopyright = "Developer: Gregory Korneev"; MACOSX_DEPLOYMENT_TARGET = 14.0; MARKETING_VERSION = 1.0.0; PRODUCT_BUNDLE_IDENTIFIER = com.gregkorneev.studyagent; PRODUCT_NAME = "Study Agent"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */

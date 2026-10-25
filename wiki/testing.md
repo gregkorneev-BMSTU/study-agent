@@ -1,14 +1,36 @@
 # Тестирование
 
+## Исправления после ревью PR #11 (2026-10-25)
+
+PySide6 начинает инкрементальную индексацию в рабочем потоке сразу после добавления папки и повторяет её для сохранённых источников при запуске. Поиск, индексация и удаление источника проходят через одну очередь. Папка исчезает из сохранённой библиотеки только после успешного удаления текста из SQLite; при ошибке она остаётся доступной для повтора. Тест `test_ui_index.py` проверяет добавление, появление и удаление текста, ошибку удаления и порядок запуска задач. При большом корпусе поиск ждёт завершения текущей индексации; длительность OCR отдельно не измерялась.
+
+Пути macOS-источников приводятся к каноническому виду при сохранении и при чтении доступной папки. Swift-тест создаёт символическую ссылку и проверяет, что путь для поиска совпадает с путём целевой папки. Отдельный Swift-тест компилирует `StudyAgentModel` и через подменный backend проверяет повтор индексации и удаления после временного сбоя. CI дополнительно собирает всё macOS-приложение. Путь ранее сохранённой ссылки, цель которой уже недоступна, нельзя канонизировать до восстановления доступа.
+
+Локально полный `pytest -q` с временной копией Qt platform plugins без флага `hidden` — **72 passed**; `ruff check .`, обе Swift-проверки и Debug `xcodebuild` прошли. [CI для последнего коммита PR #11](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40207795289) прошёл на Python 3.12, 3.13 и macOS. Физическое отключение диска во время индексации остаётся ручным сценарием.
+
+## SA-01: постоянный индекс
+
+Новые синтетические тесты используют временную SQLite-базу и TXT/MD-файлы. Они проверяют первичную и повторную индексацию, замену изменённого текста без старых поисковых записей, добавление и удаление файлов, повторное открытие базы, Unicode и одинаковые имена в разных источниках, ошибку отдельного документа, отмену и продолжение, недоступный корень и поиск без вызова `source.read()`. Отдельно проверяются границы фрагментов и сохранение страницы/маркера. Обычный CI не загружает OCR-веса или Qwen. Точные результаты последнего запуска приводятся только после выполнения проверок в этой ветке.
+
+Регрессия поиска с отключённым источником проверяется через JSON bridge: после создания индекса папка исчезает, а запрос по сохранённому пути всё равно возвращает фрагмент. macOS-клиент передаёт сохранённые пути без открытия bookmark; SwiftUI-сценарий с реально отозванной закладкой требует ручной проверки в приложении.
+
+Для macOS-клиента добавлена отдельная Swift-проверка: сохранённый путь работает при повреждённой bookmark, ошибка одной старой bookmark не прерывает выбор других путей, а старый формат настроек читается. GitHub CI запускает её на macOS. Повтор после ошибок backend проверяется подменным backend; реальное отключение источника требует ручной проверки.
+
+Локальная проверка последнего исправления PR #11: Swift-проверка прошла, Release `xcodebuild` прошёл, `pytest -q --ignore=tests/test_switch.py` — 65 passed, `ruff check .` — успешно. Последующее расследование Qt-сбоя позволило запустить весь набор: **68 passed** с отдельным каталогом платформенных плагинов.
+
+Причина прежнего `Fatal Python error: Aborted` в `tests/test_switch.py` установлена: у `libqminimal.dylib`, `libqoffscreen.dylib` и `libqcocoa.dylib` внутри локальной `.venv` выставлен macOS-флаг `hidden`. Qt перечисляет каталог `PySide6/Qt/plugins/platforms` без скрытых файлов и сообщает, что не нашёл плагин `minimal`; аварийное завершение происходит до выполнения кода теста. Копии `libqminimal.dylib` и `libqoffscreen.dylib` во временном каталоге без флага `hidden` и переменная `QT_QPA_PLATFORM_PLUGIN_PATH`, указывающая на него, дали полный результат `pytest -q`: **68 passed**. Эта особенность локальной установки PySide6 не воспроизводилась в GitHub CI. Физическое отключение диска в нативном приложении отдельно не проверялось; для него нужен установленный backend и выбранный съёмный источник.
+
 ## Автоматические проверки
 
 Минимальная CI матрица запускает Python 3.12 и 3.13, `pytest` и `ruff check .`; целевая матрица должна покрывать Windows и macOS, как только зависимости позволяют это надёжно сделать. CI не скачивает модели и не требует Ollama/Chandra weights. Локально запускаются те же команды из README после установки `.[dev]`.
 
 Текущие тесты покрывают `LocalFolderSource`, OCR-маршрутизацию страниц PDF и локальный кэш. Проверки используют подменённый PDF renderer и OCR, не загружают Chandra weights и не проверяют точность модели.
 
+Проверка упаковки 2026-10-25: установленная Beta 3 аварийно завершала backend на реальной папке со сканированными PDF. Причина — отсутствие нативного расширения `torchvision` и соседних `.dylibs` в PyInstaller bundle. После исправления скрипта сборки новый `.app` прошёл `codesign --verify --deep --strict`, а упакованный backend вернул корректный JSON для текстового поиска. На сканированном PDF процесс перешёл к загрузке весов OCR и не завершился прежней ошибкой импорта в течение 15 секунд. Полный OCR и качество распознавания в этой проверке не подтверждены.
+
 Для v1 Beta 1 добавлены unit-тесты команды `diagnose_backend` в JSON Lines bridge: проверяется формат ответа и определение доступности библиотек без запуска или загрузки весов Chandra. Мастер SwiftUI, системные действия Ollama, загрузка модели и оформление Finder требуют отдельной проверки на реальном Mac. Стандартные Python-тесты не скачивают модели.
 
-## Открытый PR #7 — macOS навигация, onboarding и CI
+## PR #7 — macOS навигация, onboarding и CI (включён в Beta 3)
 
 - В отдельной Xcode сборке проверены `NavigationSplitView`, переключение Search/Library и отсутствие пустой области. Debug/Release собраны на macOS 27 с deployment target macOS 14; проверка macOS 14/15 не проводилась.
 - В QA Release UI пройдены три welcome-страницы, английский/русский текст и переход в технический SetupWizard в том же sheet. Реальные скриншоты не сохранены, потому что системный захват экрана возвращал lock screen. VoiceOver, полный keyboard-only сценарий и Reduce Motion не прошли отдельный аудит.
@@ -76,3 +98,52 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 - `scripts/build_macos_dmg.sh --mode development --suffix beta.2` собрал Xcode Release, arm64 Python helper с OCR runtime и DMG. В `Info.plist`: версия `1.0.0`, build `2`. Размер DMG — 227,682,996 bytes. `hdiutil verify` подтвердил целостность; корень образа содержит приложение, `Applications → /Applications` и `.DS_Store`.
 - `codesign --verify --deep --strict` подтвердил подпись смонтированного `.app`; SwiftUI-приложение из образа запускалось в локальной проверке. Визуально проверено центрирование пустого состояния библиотеки. Helper `diagnose_backend` вернул `backend_healthy=true`, `pdf_available=true`, `ocr_runtime_available=true`, `ocr_weights_state=missing`. Веса Chandra не скачивались, OCR inference не запускался.
 - SHA-256 `StudyAgent-v1.0.0-beta.2-macos-arm64.dmg`: `8a6d47363f04d43f326a4501b92996ecde3fc19db1e168a940f8aff7c0feb2f2`. Это ad-hoc сборка без Developer ID и нотариализации; Gatekeeper и чистая установка на другом Mac не проверялись.
+
+## Проверка v1 Beta 3 — 2026-10-25
+
+- GitHub Actions run [40133808873](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40133808873) завершился успешно: Python 3.12/3.13, полный `pytest` и Ruff. Локальный `.venv/bin/python -m ruff check .` прошёл; `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **31 passed**. Полный локальный pytest завершил Python с `Fatal Python error: Aborted` при создании Cocoa `QApplication` в `tests/test_switch.py`.
+- Xcode Debug и Release arm64 собраны на macOS 27 SDK с deployment target 14.0. Swift compiler выдал предупреждение о `BackendProcessControl` без `Sendable`; сборки завершились успешно. macOS 14/15 не проверялись.
+- 25.10.2026 приложение заново собрано скриптом `scripts/build_macos_native_app.sh` в `/tmp/study-agent-liquid-glass-build` и запущено из этой копии. В Settings через accessibility tree и реальный скриншот проверено: отдельной секции/плашки Liquid Glass нет; системные группы настроек и controls отображаются штатно. Запущенная версия — Beta 3 build 3; исходники не добавляют собственный параметр прозрачности окна.
+- DMG `StudyAgent-v1.0.0-beta.3-macos-arm64.dmg`: **228,131,619 bytes**, версия Info.plist `1.0.0 (3)`, `hdiutil verify` — VALID. Образ содержит приложение, символьную ссылку `Applications → /Applications` и `.DS_Store`.
+- На смонтированном HFS+ DMG строгий `codesign --verify --deep --strict` сообщил о FinderInfo xattrs на вложенных лицензионных файлах. После копирования приложения в отдельную папку с `ditto --noextattr --norsrc` строгая проверка подписи прошла. Это не проверка Gatekeeper или Finder drag-install на чистом Mac.
+- Встроенный helper ответил на `diagnose_backend`: backend и PDF доступны, `ocr_runtime_available=true`, `ocr_weights_state=missing`. Веса Chandra не скачивались; OCR inference не запускался.
+- Реальные скриншоты Release app сохранены в `../artifacts/readme/`: поиск и библиотека тёмной темы, настройки тёмной и светлой темы. При проверке русскоязычного интерфейса системные заголовки верхнего меню оставались на английском языке macOS; синхронизация заголовков меню с языком приложения требует исправления.
+- Использование CPU/RAM/FPS, VoiceOver, полного keyboard-only взаимодействия, Reduce Transparency, чистая установка и Gatekeeper на другом компьютере не проверялись. Не заявлять измеренные FPS или совместимость, не проверенную физически.
+
+## SA-01: воспроизводимый замер TXT
+
+На macOS в локальном `.venv` создан временный корпус из 30 синтетических TXT, каждый с 80 повторениями фразы. SQLite размещалась в том же временном каталоге; веса OCR не загружались. Один прогон `DocumentIndexer.sync_source` и `search_sources` через `perf_counter` дал: первая индексация 0,0464 с и 30 извлечений; повторная 0,0125 с и 0 извлечений; после изменения одного файла 0,0333 с и 1 извлечение; поиск 0,0009 с и 0 извлечений (8 результатов по лимиту). Это локальные ориентиры, не пороги производительности для PDF/OCR или других машин.
+
+Проверка реализации SA-01 на macOS (2026-10-25): `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **58 passed**; `.venv/bin/ruff check .` — успешно. Полный `pytest -q` аварийно завершился при создании Qt Cocoa `QApplication` в `tests/test_switch.py`; это не считается успешным полным прогоном. Xcode Release `xcodebuild` с `CODE_SIGNING_ALLOWED=NO` прошёл после исправления захвата `self`; остаётся прежнее предупреждение Swift 6 о `BackendProcessControl` как non-Sendable. JSON Lines smoke test с временной SQLite подтвердил поток прогресса, финальный отчёт и поиск по кириллическому имени; Windows-сборка на этой машине не проверялась.
+
+## Дополнительная проверка PR #11 перед объединением
+
+Регрессии проверяют: `search.result.indexing` до и во время первой индексации, успешный поиск после завершения; занятую файловую блокировку (`index_busy`) и повтор команды после её освобождения; ошибки `stat()` и исчезновение отдельного файла при сохранении старого текста и обработке остальных; отключение FTS5, запись в основной `chunks`, последующее восстановление FTS5 с перестройкой индекса и триггеров. macOS-очередь проверена компиляцией Release и просмотром последовательного worker; отдельного UI automation теста очереди нет.
+
+Локально `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **64 passed**, `.venv/bin/ruff check .` — успешно, Xcode Release с `CODE_SIGNING_ALLOWED=NO` — успешно. Полный `pytest -q` по-прежнему аварийно завершает Python в Qt Cocoa fixture `tests/test_switch.py`, поэтому успех полного локального набора не заявляется. GitHub Actions проверяется отдельно для обновлённого коммита PR.
+
+## SA-04 — native indexing UI
+
+- Xcode Debug и Release сборки с `CODE_SIGNING_ALLOWED=NO` прошли для текущих изменений на macOS 27 SDK и deployment target macOS 14.
+- `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py`: **70 passed**. Полный локальный pytest аварийно завершился в `tests/test_switch.py` при создании Cocoa `QApplication`; это известное ограничение Qt platform plugin, полный локальный набор не считается прошедшим.
+- `.venv/bin/ruff check .`: успешно.
+- `swiftc` harness `tests/macos_client/model_queue.swift` прошёл: проверены декодирование page/heading/chunk metadata, разные IDs нескольких фрагментов одного PDF и повтор неудачной операции библиотеки. Swift compiler повторяет существующее предупреждение о `BackendProcessControl` без `Sendable`.
+- Ручная CUA-проверка отдельной копии `.app` с изолированным bundle ID и синтетическим bridge подтвердила пустую библиотеку, строку источника (2 документа/3 фрагмента), локальный ответ, два использованных фрагмента и отображение PDF-страниц 17/18. Progress-команды проверены Swift harness; длительный экранный прогресс и отмена в живом окне не подтверждались. VoiceOver, macOS 14, отключение диска во время синхронизации и реальный переход PDF viewer на страницу не проверялись.
+- CUA показал настоящие окна, однако screenshot tool не предоставляет способ сохранить полученные изображения в рабочий каталог; вместо скриншотов зафиксированы сценарии и это ограничение в [QA README](../artifacts/sa-04-swiftui-qa/README.md). Не добавлялись сгенерированные или подменённые скриншоты.
+
+### Финальное ревью SA-04
+
+- Production `mac_bridge.dispatch` с настоящими `DocumentIndexer`, extractors и отдельной временной SQLite обработал синтетическую временную папку TXT/PDF/DOCX: первично 3 документа; после изменения TXT и PDF и удаления DOCX — 2 повторно обработанных, 1 удалённый. Поиск подтвердил новые/удалённые совпадения и вернул страницу PDF 1 и заголовок раздела DOCX. PDF имел текстовый слой выше порога OCR, веса не загружались и OCR inference не выполнялся.
+- Python tests проверяют восстановление сохранённой ошибки при новом `index_status`; Swift harness проверяет issue DTO, технический code отдельно от отображаемого описания и запрет смены состояния после `.cancelling`/`.cancelled`.
+- В изолированной копии приложения визуально осмотрены Settings в светлой и тёмной теме; обе отображаются. В Library показана строка источника с восстановленным предупреждением из `index_status.issues`. Пользовательские настройки основного приложения не менялись.
+- Проверку малого окна и запуск живой backend error/cancel из меню не удалось закончить: CUA перестал доставлять клики в окно (`noWindowsAvailable`/ScreenCaptureKit `-3811`). VoiceOver и macOS 14 не проверялись.
+- `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `ruff check .` — успешно; полный `pytest -q` аварийно завершился при создании Cocoa `QApplication` в `tests/test_switch.py`. Xcode Debug/Release и Swift queue harness прошли; сборки сохраняют предупреждение о `BackendProcessControl` без `Sendable`.
+
+## Проверка выпуска v1 Beta 4 — 2026-10-25
+
+- Версии проверены в упакованном Info.plist: `CFBundleShortVersionString=1.0.0`, `CFBundleVersion=4`. Swift-приложение и PyInstaller backend содержат arm64.
+- `scripts/build_macos_dmg.sh --mode development --suffix beta.4` завершился успешно. DMG содержит `Study Agent.app`, `Applications → /Applications` и `.DS_Store`; размер **233,938,263 байта**. `hdiutil verify` вернул `VALID`.
+- После копирования приложения из образа удалены FinderInfo extended attributes; `codesign --verify --deep --strict` прошёл. Это ad-hoc подпись без Developer ID и нотариализации.
+- Упакованный backend ответил на `diagnose_backend`: backend и PDF runtime доступны, Chandra runtime присутствует. Весов и OCR inference в составе выпуска нет.
+- SHA-256 `StudyAgent-v1.0.0-beta.4-macos-arm64.dmg`: `90a2108d804d5b8da8f5fc6168100ee2e9023781def9d85b6303ef5f71c143f5`.
+- `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `.venv/bin/ruff check .` — успешно; Xcode Release arm64 build завершился в составе сборки DMG. Полный локальный pytest не запускался повторно: известен abort на Cocoa `QApplication` в `tests/test_switch.py`; CI PR #12 прошёл для Python 3.12/3.13 и macOS client.
