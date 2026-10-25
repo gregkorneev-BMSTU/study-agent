@@ -2,6 +2,8 @@
 
 Снимок на 2026-10-25. Последний опубликованный выпуск — **Study Agent v1 Beta 3** (`v1.0.0-beta.3`, версия 1.0.0, build 3), macOS arm64. [Release](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.3) содержит DMG и файл SHA-256. Приложение требует macOS 14+ на Apple Silicon; сборка подписана ad-hoc и не нотариализована.
 
+Эта страница описывает опубликованную Beta 3 и `main`, а не все незамерженные разработки. На дату снимка `origin/feature/sa-05-windows` содержит WinUI 3 frontend и интеграцию общего Python helper, но ветка не влита в `main`, а Windows-сборка не прошла здесь проверку. Детали и расхождения протокола: [Backend bridge protocol](backend-protocol.md).
+
 Собственный исходный код Study Agent распространяется под MIT License. Третьи стороны, модельные веса и графические материалы сохраняют собственные условия; см. [LICENSE](../LICENSE) и [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md). macOS-сборка копирует лицензионные уведомления build-окружения в приложение. Windows-дистрибутив и происхождение части графики ещё требуют отдельной проверки.
 
 ## Возможности Beta 3
