@@ -31,3 +31,9 @@ jobs:
         run: |
           swiftc -o /tmp/study-agent-saved-folders macOS/StudyAgent/SavedFolder.swift tests/macos_client/main.swift
           /tmp/study-agent-saved-folders
+      - name: Check failed library operations can be retried
+        run: |
+          swiftc -D DEBUG -parse-as-library -o /tmp/study-agent-model-queue macOS/StudyAgent/{SavedFolder,Localization,StudyAgentModel}.swift tests/macos_client/model_queue.swift
+          /tmp/study-agent-model-queue
+      - name: Build macOS client
+        run: xcodebuild -project macOS/StudyAgent.xcodeproj -scheme 'Study Agent' -configuration Debug CODE_SIGNING_ALLOWED=NO build

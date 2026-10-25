@@ -47,9 +47,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from study_agent.indexer import DocumentIndexer
 from study_agent.ollama import answer, list_models
 from study_agent.search import SearchHit, SearchWarning, search_sources
 from study_agent.sources import LocalFolderSource
+from study_agent.storage import IndexStorage
 from study_agent.switch import AppleSwitch
 from study_agent.theme import ThemeTokens, build_stylesheet, tokens_for
 
@@ -83,6 +85,16 @@ def set_status(label: QLabel, text: str, state: str) -> None:
     label.setProperty("state", state)
     label.style().unpolish(label)
     label.style().polish(label)
+
+
+def _index_and_search(paths: list[Path], query: str) -> tuple[list[SearchHit], list[SearchWarning]]:
+    storage = IndexStorage()
+    indexer = DocumentIndexer(storage)
+    sources = [LocalFolderSource(path) for path in paths]
+    for source in sources:
+        indexer.sync_source(source)
+    warnings: list[SearchWarning] = []
+    return search_sources(sources, query, warnings=warnings, storage=storage), warnings
 
 
 def _tinted_symbol_icon(name: str, color: str) -> QIcon:
@@ -755,15 +767,11 @@ class MainWindow(QMainWindow):
         self.question.clear()
         self.ask_button.setEnabled(False)
         self._search_warning_text = ""
-        set_status(self.search_state, "Ищу фрагменты в выбранных папках…", "progress")
+        set_status(self.search_state, "Индексирую материалы и ищу фрагменты…", "progress")
         self._clear_results()
 
         def retrieve() -> tuple[list[SearchHit], list[SearchWarning]]:
-            warnings: list[SearchWarning] = []
-            hits = search_sources(
-                [LocalFolderSource(path) for path in self.sources], query, warnings=warnings
-            )
-            return hits, warnings
+            return _index_and_search(self.sources, query)
 
         worker = Worker(retrieve)
         worker.succeeded.connect(lambda result: self._retrieved(query, *result))

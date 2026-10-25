@@ -158,7 +158,7 @@ final class StudyAgentModel: ObservableObject {
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
         failedRemovalRoots = defaults.stringArray(forKey: Keys.pendingRemovals) ?? []
         updateFailedLibraryOperations()
-        for index in folders.indices where folders[index].path == nil {
+        for index in folders.indices {
             folders[index].path = SavedFolder.path(of: folders[index])
         }
         saveFolders()
@@ -239,7 +239,7 @@ final class StudyAgentModel: ObservableObject {
                 }
                 let folder = SavedFolder(
                     id: UUID(), name: url.lastPathComponent, bookmark: bookmark,
-                    path: url.standardizedFileURL.path
+                    path: SavedFolder.canonicalPath(url.path)
                 )
                 folders.append(folder)
                 addedFolders.append(folder)
@@ -547,8 +547,9 @@ final class StudyAgentModel: ObservableObject {
             let hasAccess = url.startAccessingSecurityScopedResource()
             urls.append(url)
             opened.append(hasAccess)
-            if folder.path != url.standardizedFileURL.path {
-                updatePath(url.standardizedFileURL.path, for: folder.id)
+            let canonicalPath = SavedFolder.canonicalPath(url.path)
+            if folder.path != canonicalPath {
+                updatePath(canonicalPath, for: folder.id)
             }
             if stale, let updated = try? url.bookmarkData(options: []) {
                 updateBookmark(updated, for: folder.id)
@@ -753,6 +754,11 @@ private struct MacBackendClient {
     }
 
     private static func executableURL() throws -> URL {
+        #if DEBUG
+        if let path = ProcessInfo.processInfo.environment["STUDY_AGENT_BACKEND_EXECUTABLE"] {
+            return URL(fileURLWithPath: path)
+        }
+        #endif
         let url = Bundle.main.bundleURL
             .appending(path: "Contents/Resources/Backend/StudyAgentBackend/StudyAgentBackend")
         guard FileManager.default.isExecutableFile(atPath: url.path) else {
