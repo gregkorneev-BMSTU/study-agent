@@ -21,10 +21,9 @@ def test_local_source_lists_supported_files(tmp_path: Path) -> None:
     ]
 
 
-def test_pdf_ocr_runs_only_for_pages_without_enough_text(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_pdf_ocr_runs_only_for_pages_without_enough_text(tmp_path: Path, monkeypatch) -> None:
     """Проверяет разбиение PDF по страницам и ленивый вызов OCR."""
+
     class TextPage:
         def __init__(self, text: str) -> None:
             self.text = text
@@ -65,8 +64,9 @@ def test_pdf_ocr_runs_only_for_pages_without_enough_text(
         "pypdfium2",
         SimpleNamespace(PdfDocument=PdfDocument),
     )
-    
+
     ocr_calls: list[str] = []
+
     def fake_ocr(image: str) -> str:
         ocr_calls.append(image)
         return "OCR text"
@@ -77,7 +77,7 @@ def test_pdf_ocr_runs_only_for_pages_without_enough_text(
 
     # Проверяем строго по новому контракту DTO блоков
     assert len(result) == 2
-    
+
     assert result[0] == ExtractedBlock(
         text="A" * 80, source_type="pdf", extraction_type="digital", page_number=1
     )
@@ -92,7 +92,7 @@ def test_ocr_result_is_cached_as_json_outside_source_folder(tmp_path: Path, monk
     image = tmp_path / "scan.png"
     image.write_bytes(b"synthetic image")
     cache_root = tmp_path / "application-cache"
-    
+
     # Мокаем кэш-путь с новым расширением .json
     monkeypatch.setattr(extractors, "_cache_path", lambda path: cache_root / "result.json")
     calls = 0
@@ -100,8 +100,11 @@ def test_ocr_result_is_cached_as_json_outside_source_folder(tmp_path: Path, monk
     def fake_extract(path: Path) -> list[ExtractedBlock]:
         nonlocal calls
         calls += 1
-        return [ExtractedBlock(text="Recognized study notes", source_type="image", 
-                               extraction_type="ocr")]
+        return [
+            ExtractedBlock(
+                text="Recognized study notes", source_type="image", extraction_type="ocr"
+            )
+        ]
 
     monkeypatch.setattr(extractors, "_extract_image", fake_extract)
     source = LocalFolderSource(tmp_path)
@@ -117,62 +120,54 @@ def test_ocr_result_is_cached_as_json_outside_source_folder(tmp_path: Path, monk
     assert (cache_root / "result.json").is_file()
 
 
-def test_extract_docx_paragraphs_and_tables(tmp_path: Path, monkeypatch) -> None:
-    """Тестирует извлечение DOCX: проверку структуры заголовков и таблиц."""
-    class FakeParagraph:
-        def __init__(self, text: str, style_name: str) -> None:
-            self.text = text
-            self.style = SimpleNamespace(name=style_name)
+def test_extract_docx_paragraphs_and_tables(tmp_path: Path) -> None:
+    """Real DOCX XML order, nested heading context and searchable table text."""
+    import docx
 
-    class FakeRow:
-        def __init__(self, cells_text: list[str]) -> None:
-            self.cells = [SimpleNamespace(text=t) for t in cells_text]
+    document = docx.Document()
+    document.add_heading("Chapter A", level=1)
+    document.add_paragraph("paragraph A")
+    document.add_table(rows=1, cols=2).rows[0].cells[0].text = "table A"
+    document.add_heading("Section B", level=2)
+    document.add_paragraph("paragraph B")
+    document.add_table(rows=1, cols=2).rows[0].cells[0].text = "table B"
+    document.add_heading("Chapter C", level=1)
+    document.add_paragraph("paragraph C")
+    path = tmp_path / "document.docx"
+    document.save(path)
 
-    class FakeTable:
-        def __init__(self, rows_data: list[list[str]]) -> None:
-            self.rows = [FakeRow(r) for r in rows_data]
+    result = extractors.extract_document(path)
+    assert [block.text for block in result] == [
+        "Chapter A",
+        "paragraph A",
+        "table A",
+        "Section B",
+        "paragraph B",
+        "table B",
+        "Chapter C",
+        "paragraph C",
+    ]
+    assert [block.heading for block in result] == [
+        "Chapter A",
+        "Chapter A",
+        "Chapter A",
+        "Chapter A › Section B",
+        "Chapter A › Section B",
+        "Chapter A › Section B",
+        "Chapter C",
+        "Chapter C",
+    ]
+    assert len({block.marker for block in result}) == len(result)
+    from study_agent.search import search_sources
 
-    class FakeDocument:
-        def __init__(self, path: Path) -> None:
-            self.paragraphs = [
-                FakeParagraph("Заголовок 1", "Heading 1"),
-                FakeParagraph("Обычный текст с Юникодом (Привет, мир!)", "Normal"),
-                FakeParagraph("   ", "Normal"),  # Пустая строка — должна игнорироваться
-            ]
-            self.tables = [
-                FakeTable([["Ячейка 1", "Ячейка 2"], ["Ячейка 3", ""]])
-            ]
-
-    monkeypatch.setitem(
-        __import__("sys").modules,
-        "docx",
-        SimpleNamespace(Document=FakeDocument),
-    )
-
-    result = extractors._extract_docx(tmp_path / "document.docx")
-
-    assert len(result) == 3
-
-    # Проверяем заголовок
-    assert result[0] == ExtractedBlock(
-        text="Заголовок 1", source_type="docx", extraction_type="digital",
-        page_number=None, heading="Заголовок 1", marker="heading_0"
-    )
-    # Проверяем обычный текст, привязавшийся к заголовку, и поддержку кириллицы (Unicode)
-    assert result[1] == ExtractedBlock(
-        text="Обычный текст с Юникодом (Привет, мир!)", source_type="docx", 
-        extraction_type="digital", page_number=None, heading="Заголовок 1", 
-        marker="paragraph_1"
-    )
-    # Проверяем таблицу, которая тоже переняла контекст заголовка
-    assert result[2] == ExtractedBlock(
-        text="Ячейка 1 | Ячейка 2\nЯчейка 3", source_type="docx", extraction_type="digital",
-        page_number=None, heading="Заголовок 1", marker="table_0"
+    assert (
+        search_sources([LocalFolderSource(tmp_path)], "table B")[0].document_id == "document.docx"
     )
 
 
 def test_corrupted_or_empty_docx_does_not_block(tmp_path: Path, monkeypatch) -> None:
     """Проверяет, что битый DOCX возвращает варнинг и не рушит пайплайн."""
+
     def fake_corrupted_document(path: Path):
         raise Exception("ZipBomb or Corrupted XML")
 
@@ -183,7 +178,86 @@ def test_corrupted_or_empty_docx_does_not_block(tmp_path: Path, monkeypatch) -> 
     )
 
     result = extractors._extract_docx(tmp_path / "broken.docx")
-    
+
     assert len(result) == 1
     assert result[0].text == ""
     assert "Failed to open DOCX file" in result[0].warnings[0]
+
+
+def test_plain_text_does_not_use_ocr_cache(tmp_path: Path, monkeypatch) -> None:
+    def unexpected_cache(path: Path) -> Path:
+        raise AssertionError(f"cache requested for {path}")
+
+    monkeypatch.setattr(extractors, "_cache_path", unexpected_cache)
+    for suffix in ("txt", "md"):
+        path = tmp_path / f"notes.{suffix}"
+        path.write_text("same content", encoding="utf-8")
+        first = extractors.extract_document(path)
+        assert first == extractors.extract_document(path)
+        assert first[0].text == "same content"
+
+
+def test_cache_write_failure_keeps_result_and_cleans_temp(tmp_path: Path, monkeypatch) -> None:
+    image = tmp_path / "scan.png"
+    image.write_bytes(b"first")
+    cache = tmp_path / "cache" / "scan.json"
+    monkeypatch.setattr(extractors, "_cache_path", lambda path: cache)
+    monkeypatch.setattr(
+        extractors,
+        "_extract_image",
+        lambda path: [
+            ExtractedBlock(text="recognized", source_type="image", extraction_type="ocr")
+        ],
+    )
+    original_replace = Path.replace
+
+    def failed_replace(path: Path, target: Path) -> Path:
+        if path.suffix == ".tmp":
+            raise OSError("disk unavailable")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", failed_replace)
+    assert extractors.extract_document(image)[0].text == "recognized"
+    assert list(cache.parent.glob("*.tmp")) == []
+
+
+def test_image_cache_invalidates_on_content_change(tmp_path: Path, monkeypatch) -> None:
+    image = tmp_path / "scan.png"
+    image.write_bytes(b"first")
+    cache_dir = tmp_path / "cache"
+    original_cache_path = extractors._cache_path
+    monkeypatch.setattr(
+        extractors, "_cache_path", lambda path: cache_dir / original_cache_path(path).name
+    )
+    calls: list[str] = []
+
+    def fake_extract(path: Path) -> list[ExtractedBlock]:
+        calls.append(path.read_bytes().decode())
+        return [ExtractedBlock(text=calls[-1], source_type="image", extraction_type="ocr")]
+
+    monkeypatch.setattr(extractors, "_extract_image", fake_extract)
+    assert extractors.extract_document(image) == extractors.extract_document(image)
+    image.write_bytes(b"second")
+    assert extractors.extract_document(image)[0].text == "second"
+    assert calls == ["first", "second"]
+
+
+def test_pdf_cache_invalidates_on_content_change(tmp_path: Path, monkeypatch) -> None:
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"first")
+    cache_dir = tmp_path / "cache"
+    original_cache_path = extractors._cache_path
+    monkeypatch.setattr(
+        extractors, "_cache_path", lambda path: cache_dir / original_cache_path(path).name
+    )
+    calls: list[str] = []
+
+    def fake_extract(path: Path) -> list[ExtractedBlock]:
+        calls.append(path.read_bytes().decode())
+        return [ExtractedBlock(text=calls[-1], source_type="pdf", extraction_type="digital")]
+
+    monkeypatch.setattr(extractors, "_extract_pdf", fake_extract)
+    assert extractors.extract_document(pdf) == extractors.extract_document(pdf)
+    pdf.write_bytes(b"second")
+    assert extractors.extract_document(pdf)[0].text == "second"
+    assert calls == ["first", "second"]

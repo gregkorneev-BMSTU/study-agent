@@ -48,7 +48,7 @@ from PySide6.QtWidgets import (
 )
 
 from study_agent.ollama import answer, list_models
-from study_agent.search import SearchHit, search_sources
+from study_agent.search import SearchHit, SearchWarning, search_sources
 from study_agent.sources import LocalFolderSource
 from study_agent.switch import AppleSwitch
 from study_agent.theme import ThemeTokens, build_stylesheet, tokens_for
@@ -227,15 +227,11 @@ class MainWindow(QMainWindow):
         for command, label, shortcut in edit_commands:
             action = QAction(label, self)
             action.setShortcut(shortcut)
-            action.triggered.connect(
-                lambda _checked=False, name=command: self._edit_command(name)
-            )
+            action.triggered.connect(lambda _checked=False, name=command: self._edit_command(name))
             edit_menu.addAction(action)
             self.edit_actions[command] = action
         edit_menu.aboutToShow.connect(self._update_edit_actions)
-        QApplication.instance().focusChanged.connect(
-            lambda _old, _new: self._update_edit_actions()
-        )
+        QApplication.instance().focusChanged.connect(lambda _old, _new: self._update_edit_actions())
         for line_edit in self.findChildren(QLineEdit):
             line_edit.selectionChanged.connect(self._update_edit_actions)
             line_edit.textChanged.connect(self._update_edit_actions)
@@ -247,9 +243,7 @@ class MainWindow(QMainWindow):
             action = QAction(label, self)
             action.setCheckable(True)
             action.setChecked(index == 0)
-            action.triggered.connect(
-                lambda _checked=False, page=index: self._navigate(page)
-            )
+            action.triggered.connect(lambda _checked=False, page=index: self._navigate(page))
             view_menu.addAction(action)
             self.view_actions[index] = action
         view_menu.addSeparator()
@@ -283,9 +277,7 @@ class MainWindow(QMainWindow):
 
         window_menu = add_menu("Окно")
         minimize = QAction("Свернуть", self)
-        minimize.setShortcut(
-            QKeySequence("Meta+M" if sys.platform == "darwin" else "Ctrl+M")
-        )
+        minimize.setShortcut(QKeySequence("Meta+M" if sys.platform == "darwin" else "Ctrl+M"))
         minimize.triggered.connect(self.showMinimized)
         window_menu.addAction(minimize)
         close = QAction("Закрыть окно", self)
@@ -315,23 +307,15 @@ class MainWindow(QMainWindow):
                 action.setEnabled(False)
             return
         is_line_edit = isinstance(target, QLineEdit)
-        has_selection = (
-            isinstance(target, (QLineEdit, QLabel)) and target.hasSelectedText()
-        )
-        self.edit_actions["undo"].setEnabled(
-            is_line_edit and target.isUndoAvailable()
-        )
-        self.edit_actions["redo"].setEnabled(
-            is_line_edit and target.isRedoAvailable()
-        )
+        has_selection = isinstance(target, (QLineEdit, QLabel)) and target.hasSelectedText()
+        self.edit_actions["undo"].setEnabled(is_line_edit and target.isUndoAvailable())
+        self.edit_actions["redo"].setEnabled(is_line_edit and target.isRedoAvailable())
         self.edit_actions["cut"].setEnabled(is_line_edit and has_selection)
         self.edit_actions["copy"].setEnabled(has_selection)
         self.edit_actions["paste"].setEnabled(
             is_line_edit and bool(QApplication.clipboard().text())
         )
-        self.edit_actions["select_all"].setEnabled(
-            is_line_edit and bool(target.text())
-        )
+        self.edit_actions["select_all"].setEnabled(is_line_edit and bool(target.text()))
 
     def _edit_command(self, command: str) -> None:
         target = self._edit_target()
@@ -569,16 +553,12 @@ class MainWindow(QMainWindow):
         )
         self.reduce_transparency.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.reduce_transparency)
-        self.high_contrast = AppleSwitch(
-            "Повышенный контраст", reduce_motion=reduce_motion_enabled
-        )
+        self.high_contrast = AppleSwitch("Повышенный контраст", reduce_motion=reduce_motion_enabled)
         self.high_contrast.setChecked(SETTINGS.value("appearance/high_contrast", False, type=bool))
         self.high_contrast.setToolTip("Усилить контраст текста, границ и клавиатурного фокуса.")
         self.high_contrast.toggled.connect(self._appearance_changed)
         appearance_layout.addWidget(self.high_contrast)
-        self.reduce_motion = AppleSwitch(
-            "Уменьшить движение", reduce_motion=reduce_motion_enabled
-        )
+        self.reduce_motion = AppleSwitch("Уменьшить движение", reduce_motion=reduce_motion_enabled)
         self.setting_switches = (
             self.reduce_transparency,
             self.high_contrast,
@@ -774,27 +754,39 @@ class MainWindow(QMainWindow):
             return
         self.question.clear()
         self.ask_button.setEnabled(False)
+        self._search_warning_text = ""
         set_status(self.search_state, "Ищу фрагменты в выбранных папках…", "progress")
         self._clear_results()
-        worker = Worker(
-            lambda: search_sources([LocalFolderSource(path) for path in self.sources], query)
-        )
-        worker.succeeded.connect(lambda hits: self._retrieved(query, hits))
+
+        def retrieve() -> tuple[list[SearchHit], list[SearchWarning]]:
+            warnings: list[SearchWarning] = []
+            hits = search_sources(
+                [LocalFolderSource(path) for path in self.sources], query, warnings=warnings
+            )
+            return hits, warnings
+
+        worker = Worker(retrieve)
+        worker.succeeded.connect(lambda result: self._retrieved(query, *result))
         worker.failed.connect(self._search_failed)
         self._run(worker)
 
-    def _retrieved(self, query: str, hits: list[SearchHit]) -> None:
+    def _retrieved(self, query: str, hits: list[SearchHit], warnings: list[SearchWarning]) -> None:
+        warning_text = ""
+        if warnings:
+            names = ", ".join(sorted({warning.document_id for warning in warnings}))
+            warning_text = f" Не удалось прочитать {len(warnings)} фрагм.: {names}."
+        self._search_warning_text = warning_text
         if not hits:
             set_status(
                 self.search_state,
-                "В выбранных материалах не нашёл фрагментов по этому запросу.",
+                "В выбранных материалах не нашёл фрагментов по этому запросу." + warning_text,
                 "warning",
             )
             self.ask_button.setEnabled(True)
             return
         set_status(
             self.search_state,
-            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…",
+            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…{warning_text}",
             "progress",
         )
         for number, hit in enumerate(hits, start=1):
@@ -814,9 +806,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 12, 16, 12)
         title_text = f"[{number}]  {hit.title}  ·  {hit.source_root.name}/{hit.document_id}"
-        title = named(
-            QPushButton(title_text), "link"
-        )
+        title = named(QPushButton(title_text), "link")
         title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
@@ -838,13 +828,14 @@ class MainWindow(QMainWindow):
         self.results_layout.addWidget(card)
         set_status(
             self.search_state,
-            f"Ответ подготовлен локально по {min(len(hits), 5)} источникам.",
+            f"Ответ подготовлен локально по {min(len(hits), 5)} источникам."
+            + self._search_warning_text,
             "success",
         )
         self.ask_button.setEnabled(True)
 
     def _search_failed(self, message: str) -> None:
-        set_status(self.search_state, message, "error")
+        set_status(self.search_state, message + getattr(self, "_search_warning_text", ""), "error")
         self.ask_button.setEnabled(True)
 
     def _clear_results(self) -> None:

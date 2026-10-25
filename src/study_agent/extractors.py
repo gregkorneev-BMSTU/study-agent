@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import sys
 import uuid
 from pathlib import Path
@@ -22,7 +23,16 @@ def extract_document(path: Path) -> list[ExtractedBlock]:
     """Extract document blocks; use local Chandra only when a page needs OCR."""
     suffix = path.suffix.lower()
 
-    cache_path = _cache_path(path)  # Check whether cache exists
+    if suffix in {".txt", ".md"}:
+        return [
+            ExtractedBlock(
+                text=path.read_text(encoding="utf-8"), source_type="text", extraction_type="digital"
+            )
+        ]
+    if suffix == ".docx":
+        return _extract_docx(path)
+
+    cache_path = _cache_path(path)
     if cache_path.is_file():
         try:
             cached_data = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -34,14 +44,11 @@ def extract_document(path: Path) -> list[ExtractedBlock]:
 
     if suffix == ".pdf":
         blocks = _extract_pdf(path)
-    elif suffix == ".docx":
-        blocks = _extract_docx(path)
     elif suffix in IMAGE_SUFFIXES:
         blocks = _extract_image(path)
-    else:
-        text = path.read_text(encoding="utf-8")
-        blocks = [ExtractedBlock(text=text, source_type="text", extraction_type="digital")]
-
+    if any(block.warnings for block in blocks):
+        return blocks
+    temporary: Path | None = None
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = cache_path.with_name(f"{cache_path.stem}.{uuid.uuid4().hex}.tmp")
@@ -51,8 +58,14 @@ def extract_document(path: Path) -> list[ExtractedBlock]:
         json_data = json.dumps(serialized_blocks, ensure_ascii=False, indent=2)
         temporary.write_text(json_data, encoding="utf-8")
         temporary.replace(cache_path)
-    except Exception:
+    except OSError:
         pass
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     return blocks
 
@@ -127,64 +140,50 @@ def _extract_docx(path: Path) -> list[ExtractedBlock]:
             )
         ]
 
-    current_heading: str | None = None
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
 
-    # 1. Парсим абзацы текста и отслеживаем заголовки
-    for idx, paragraph in enumerate(document.paragraphs):
-        text = paragraph.text.strip()
-        if not text:
+    headings: dict[int, str] = {}
+    paragraph_index = 0
+    table_index = 0
+    for item in document.iter_inner_content():
+        if isinstance(item, Paragraph):
+            index = paragraph_index
+            paragraph_index += 1
+            text = item.text.strip()
+            if not text:
+                continue
+            style_name = item.style.name if item.style else ""
+            match = re.fullmatch(r"Heading ([1-9][0-9]*)", style_name)
+            if match:
+                level = int(match.group(1))
+                headings = {key: value for key, value in headings.items() if key < level}
+                headings[level] = text
+            marker = f"heading_{index}" if match else f"paragraph_{index}"
+        elif isinstance(item, Table):
+            index = table_index
+            table_index += 1
+            rows = []
+            for row in item.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    rows.append(" | ".join(cells))
+            text = "\n".join(rows)
+            if not text:
+                continue
+            marker = f"table_{index}"
+        else:
             continue
-
-        # Проверяем, является ли абзац заголовком (эвристика по стилям Word)
-        style_name = paragraph.style.name if paragraph.style else ""
-        if style_name.startswith("Heading"):
-            current_heading = text
-            # Сам заголовок тоже добавляем как отдельный блок
-            blocks.append(
-                ExtractedBlock(
-                    text=text,
-                    source_type="docx",
-                    extraction_type="digital",
-                    page_number=None,
-                    heading=current_heading,
-                    marker=f"heading_{idx}",
-                )
-            )
-            continue
-
-        # Обычный абзац текста
+        heading = " › ".join(headings[level] for level in sorted(headings)) or None
         blocks.append(
             ExtractedBlock(
                 text=text,
                 source_type="docx",
                 extraction_type="digital",
-                page_number=None,
-                heading=current_heading,  # Привязываем последний заголовок
-                marker=f"paragraph_{idx}",
+                heading=heading,
+                marker=marker,
             )
         )
-
-    # 2. Парсим таблицы
-    for t_idx, table in enumerate(document.tables):
-        table_rows: list[str] = []
-        for row in table.rows:
-            # Собираем непустые ячейки строки через разделитель
-            cells_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-            if cells_text:
-                table_rows.append(" | ".join(cells_text))
-
-        if table_rows:
-            table_content = "\n".join(table_rows)
-            blocks.append(
-                ExtractedBlock(
-                    text=table_content,
-                    source_type="docx",
-                    extraction_type="digital",
-                    page_number=None,
-                    heading=current_heading,  # Таблица тоже относится к текущему разделу
-                    marker=f"table_{t_idx}",
-                )
-            )
 
     return blocks
 
@@ -201,9 +200,7 @@ def _extract_image(path: Path) -> list[ExtractedBlock]:
             return [ExtractedBlock(text=text, source_type="image", extraction_type="ocr")]
     except Exception as e:
         return [
-            ExtractedBlock(
-                text="", source_type="image", extraction_type="ocr", warnings=[str(e)]
-            )
+            ExtractedBlock(text="", source_type="image", extraction_type="ocr", warnings=[str(e)])
         ]
 
 
