@@ -121,17 +121,24 @@ struct IndexStatus: Decodable {
     let failed: Int
     let chunks: Int
     let lastIndexedAt: String?
+    let issues: [IndexingIssue]?
 
     enum CodingKeys: String, CodingKey {
         case documents, ready, partial, failed, chunks
         case sourceID = "source_id"
         case lastIndexedAt = "last_indexed_at"
+        case issues
     }
 }
 
-enum IndexingState {
+enum IndexingState: Equatable {
     case notIndexed, queued, scanning, indexing, completed, completedWithWarnings
     case cancelling, cancelled, failed, unavailable
+
+    func state(afterProgressPhase phase: String) -> IndexingState? {
+        guard self != .cancelling, self != .cancelled else { return nil }
+        return phase == "scanning" ? .scanning : .indexing
+    }
 }
 
 struct IndexingProgress {
@@ -145,18 +152,21 @@ struct IndexingProgress {
 }
 
 struct IndexingIssue: Decodable, Identifiable {
-    var id: String { "\(documentID):\(code)" }
+    var id: String { "\(documentID):\(code):\(pageNumber ?? 0)" }
     let documentID: String
     let code: String
+    let pageNumber: Int?
 
     enum CodingKeys: String, CodingKey {
         case code
         case documentID = "document_id"
+        case pageNumber = "page_number"
     }
 
-    init(documentID: String, code: String) {
+    init(documentID: String, code: String, pageNumber: Int? = nil) {
         self.documentID = documentID
         self.code = code
+        self.pageNumber = pageNumber
     }
 }
 
@@ -483,6 +493,12 @@ final class StudyAgentModel: ObservableObject {
         case "document_disappeared": return text("Файл исчез во время обработки. Проверьте папку и повторите синхронизацию.")
         case "permission_denied": return text("Нет доступа к файлу. Проверьте права доступа к папке.")
         case "document_stat_failed": return text("Не удалось проверить файл. Проверьте доступность файла.")
+        case "backend_missing": return text("Не найден встроенный локальный backend. Переустановите приложение.")
+        case "backend_invalid_response": return text("Локальный backend вернул некорректный ответ. Повторите операцию.")
+        case "backend_error": return text("Локальный backend не смог выполнить операцию. Повторите попытку.")
+        case "index_busy": return text("Индексация занята. Дождитесь завершения другой операции.")
+        case "source_unavailable": return text("Папка недоступна. Подключите её снова и повторите синхронизацию.")
+        case "indexing_failed": return text("Не удалось завершить индексацию. Проверьте папку и повторите попытку.")
         default: return text("Не удалось обработать документ. Проверьте файл и повторите синхронизацию.")
         }
     }
@@ -504,6 +520,9 @@ final class StudyAgentModel: ObservableObject {
                     let data = try JSONSerialization.data(withJSONObject: response, options: [.fragmentsAllowed])
                     let status = try JSONDecoder().decode(IndexStatus.self, from: data)
                     sourceIndexStatuses[root] = status
+                    if !isIndexingStateActive(indexingStates[root]), let issues = status.issues {
+                        indexingIssues[root] = issues
+                    }
                     if indexingStates[root] == nil || [.completed, .completedWithWarnings, .notIndexed, .unavailable].contains(where: { sameState($0, indexingStates[root]) }) {
                         indexingStates[root] = stateFromBackend(source)
                     }
@@ -520,6 +539,11 @@ final class StudyAgentModel: ObservableObject {
         case (.completed, .completed), (.completedWithWarnings, .completedWithWarnings), (.notIndexed, .notIndexed), (.unavailable, .unavailable): return true
         default: return false
         }
+    }
+
+    private func isIndexingStateActive(_ state: IndexingState?) -> Bool {
+        guard let state else { return false }
+        return [.queued, .scanning, .indexing, .cancelling].contains(state)
     }
 
     private func removeIndexedSource(_ root: String) {
@@ -604,9 +628,10 @@ final class StudyAgentModel: ObservableObject {
                             guard self.activeIndexFolderID == folder.id,
                                   self.activeIndexOperationID == operationID,
                                   let phase = update["phase"] as? String else { return }
+                            guard let state = self.indexingStates[rootPath]?.state(afterProgressPhase: phase) else { return }
                             let current = update["current"] as? Int ?? 0
                             let total = update["total"] as? Int ?? 0
-                            self.indexingStates[rootPath] = phase == "scanning" ? .scanning : .indexing
+                            self.indexingStates[rootPath] = state
                             self.indexingProgress[rootPath] = IndexingProgress(
                                 phase: phase,
                                 current: current,
@@ -660,7 +685,7 @@ final class StudyAgentModel: ObservableObject {
                         failedIndexFolders.append(folder)
                     }
                     updateFailedLibraryOperations()
-                    indexingIssues[rootPath] = [IndexingIssue(documentID: folder.name, code: error.localizedDescription)]
+                    indexingIssues[rootPath] = [IndexingIssue(documentID: folder.name, code: issueCode(for: error))]
                 }
                 activeIndexFolderID = nil
                 activeIndexOperationID = nil
@@ -672,6 +697,17 @@ final class StudyAgentModel: ObservableObject {
 
     private func removingFolder(_ id: UUID) -> Bool {
         !folders.contains(where: { $0.id == id })
+    }
+
+    private func issueCode(for error: Error) -> String {
+        if let backendError = error as? BackendClientError { return backendError.code }
+        if let cocoaError = error as? CocoaError, cocoaError.code == .fileReadNoPermission {
+            return "permission_denied"
+        }
+        if let cocoaError = error as? CocoaError, cocoaError.code == .fileNoSuchFile {
+            return "source_unavailable"
+        }
+        return "indexing_failed"
     }
 
     func refreshModels() {
@@ -950,7 +986,7 @@ private struct MacBackendClient {
                         if error?["code"] as? String == "index_busy" {
                             throw BackendClientError.indexBusy
                         }
-                        throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
+                        throw BackendClientError.backend(code: error?["code"] as? String ?? "backend_error")
                     }
                     continuation.resume(returning: result)
                 } catch {
@@ -1022,7 +1058,7 @@ private struct MacBackendClient {
                             if error?["code"] as? String == "index_busy" {
                                 throw BackendClientError.indexBusy
                             }
-                            throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
+                            throw BackendClientError.backend(code: error?["code"] as? String ?? "backend_error")
                         }
                         continuation.resume(returning: result)
                     } catch {
@@ -1086,14 +1122,23 @@ private enum BackendClientError: LocalizedError {
     case missingBackend
     case invalidResponse
     case indexBusy
-    case message(String)
+    case backend(code: String)
+
+    var code: String {
+        switch self {
+        case .missingBackend: "backend_missing"
+        case .invalidResponse: "backend_invalid_response"
+        case .indexBusy: "index_busy"
+        case .backend(let code): code
+        }
+    }
 
     var errorDescription: String? {
         switch self {
         case .missingBackend: "Не найден встроенный локальный backend. Соберите приложение скриптом scripts/build_macos_native_app.sh."
         case .invalidResponse: "Локальный backend вернул некорректный ответ."
         case .indexBusy: "Индексация занята другим процессом. Повторяем запрос."
-        case .message(let message): message
+        case .backend: "Локальный backend не смог выполнить операцию. Повторите попытку."
         }
     }
 }

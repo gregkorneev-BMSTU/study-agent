@@ -27,7 +27,7 @@ Backend запускается локально как отдельный про
 
 ### `index_status`
 
-Запрос: `{"command":"index_status","root":"/path/to/folder"}`. Результат содержит `source_id`, `documents`, `ready`, `partial`, `failed`, `chunks` и `last_indexed_at` (SQLite datetime либо `null`). Время берётся из `sources.indexed_at` и устанавливается после полного прохода; после отменённого прохода не обновляется. Для статуса доступность самой папки не требуется: данные читаются из SQLite. Старые клиенты могут игнорировать новое поле.
+Запрос: `{"command":"index_status","root":"/path/to/folder"}`. Результат содержит `source_id`, `documents`, `ready`, `partial`, `failed`, `chunks`, `last_indexed_at` (SQLite datetime либо `null`) и `issues` — сохранённые `{document_id,title,code,page_number}` из ошибок и предупреждений SQLite. Это позволяет восстановить проблемы документов после перезапуска без отдельной схемы хранения. Время берётся из `sources.indexed_at` и устанавливается после полного прохода; после отменённого прохода не обновляется. Для статуса доступность самой папки не требуется: данные читаются из SQLite. Клиенты игнорируют неизвестное поле; клиенты macOS, требующие совместимости со старыми backend, декодируют `issues` как необязательное.
 
 ### `remove_index_source`
 

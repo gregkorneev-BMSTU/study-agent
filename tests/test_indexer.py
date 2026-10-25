@@ -101,6 +101,14 @@ def test_failed_document_does_not_stop_others_or_erase_old_text(
     assert storage.search([source_id(root)], "durable")
     assert storage.search([source_id(root)], "success")
     assert storage.list_warnings([source_id(root)])
+    reopened = IndexStorage(tmp_path / "index.sqlite3")
+    issues = DocumentIndexer(reopened).get_index_status(source_id(root))["issues"]
+    assert issues == [{
+        "document_id": "bad.txt",
+        "title": "bad",
+        "code": "document_extraction_failed",
+        "page_number": None,
+    }]
 
 
 def test_cancel_preserves_index_and_resume(tmp_path: Path) -> None:

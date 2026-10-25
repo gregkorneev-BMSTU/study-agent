@@ -69,6 +69,43 @@ def test_dispatch_index_status_exposes_last_completed_sync(tmp_path: Path, monke
     assert response["ok"] is True
     assert response["result"]["documents"] == 1
     assert response["result"]["last_indexed_at"]
+    assert response["result"]["issues"] == []
+
+
+def test_dispatch_index_status_restores_persisted_document_errors(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "materials"
+    root.mkdir()
+    (root / "broken.txt").write_text("broken content", encoding="utf-8")
+    index = storage.IndexStorage()
+    from study_agent.indexer import INDEX_VERSION, document_id, source_id
+
+    key = source_id(root)
+    index.register_source(key, str(root))
+    index.record_error(
+        key,
+        document_id(key, "broken.txt"),
+        "broken.txt",
+        "broken",
+        ".txt",
+        14,
+        1,
+        INDEX_VERSION,
+        "document_extraction_failed",
+    )
+
+    response = mac_bridge.dispatch({"command": "index_status", "root": str(root)})
+
+    assert response["ok"] is True
+    assert response["result"]["failed"] == 1
+    assert response["result"]["issues"] == [{
+        "document_id": "broken.txt",
+        "title": "broken",
+        "code": "document_extraction_failed",
+        "page_number": None,
+    }]
 
 
 def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:

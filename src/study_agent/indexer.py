@@ -283,4 +283,5 @@ class DocumentIndexer:
             "failed": row["failed"] or 0,
             "chunks": chunks,
             "last_indexed_at": source["indexed_at"] if source is not None else None,
+            "issues": self.storage.list_warnings([key]),
         }
