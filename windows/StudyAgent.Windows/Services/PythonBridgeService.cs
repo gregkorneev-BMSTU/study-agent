@@ -68,24 +68,49 @@ public sealed class PythonBridgeService
     private static async Task<JsonDocument> SendAsync(
         object request, int timeoutSeconds = 30)
     {
-        string root = FindRepositoryRoot();
+        string bundledPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "Backend",
+            "StudyAgentBackend.exe");
 
-        string packagedPath = Path.Combine(
-            root,
-            "build", "windows-backend", "dist",
-            "StudyAgentBackend", "StudyAgentBackend.exe");
+        string? root = null;
+        string backendPath;
 
-        bool usePackagedBackend = File.Exists(packagedPath);
+        System.Diagnostics.Debug.WriteLine(
+            "StudyAgent application directory: " +
+            AppContext.BaseDirectory);
+        bool usePackagedBackend;
 
-        string backendPath = usePackagedBackend
-            ? packagedPath
-            : Path.Combine(root, ".venv", "Scripts", "python.exe");
+        if (File.Exists(bundledPath))
+        {
+            backendPath = bundledPath;
+            usePackagedBackend = true;
+        }
+        else
+        {
+            root = FindRepositoryRoot();
+
+            string packagedPath = Path.Combine(
+                root,
+                "build", "windows-backend", "dist",
+                "StudyAgentBackend", "StudyAgentBackend.exe");
+
+            usePackagedBackend = File.Exists(packagedPath);
+
+            backendPath = usePackagedBackend
+                ? packagedPath
+                : Path.Combine(root, ".venv", "Scripts", "python.exe");
+        }
+
+
+        System.Diagnostics.Debug.WriteLine(
+            "StudyAgent backend path: " + backendPath);
 
         var info = new ProcessStartInfo
         {
             FileName = backendPath,
             Arguments = usePackagedBackend ? "" : "-X utf8 -m study_agent.mac_bridge",
-            WorkingDirectory = root,
+            WorkingDirectory = usePackagedBackend ? Path.GetDirectoryName(backendPath)! : root!,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = true,
@@ -216,6 +241,5 @@ info.Environment["PYTHONUTF8"] = "1";
             "Python-backend Study Agent РЅРµ РЅР°Р№РґРµРЅ.");
     }
 }
-
 
 
