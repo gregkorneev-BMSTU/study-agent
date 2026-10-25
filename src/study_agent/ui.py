@@ -47,7 +47,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from study_agent.indexer import DocumentIndexer
+from study_agent.indexer import DocumentIndexer, source_id
 from study_agent.ollama import answer, list_models
 from study_agent.search import SearchHit, SearchWarning, search_sources
 from study_agent.sources import LocalFolderSource
@@ -155,6 +155,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(760, 560)
         self.sources: list[Path] = self._saved_sources()
         self.workers: list[Worker] = []
+        self.library_workers: list[Worker] = []
         self.installed_models: list[str] = []
         self.current_page = 0
         self.canvas = named(Canvas(), "canvas")
@@ -179,6 +180,8 @@ class MainWindow(QMainWindow):
         self._apply_appearance()
         self._show_sources()
         self.refresh_models()
+        for path in self.sources:
+            self._schedule_index(path)
 
     def _build_menu_bar(self) -> None:
         menu_bar: QMenuBar = self.menuBar()
@@ -698,15 +701,41 @@ class MainWindow(QMainWindow):
                 self.sources.append(path)
                 self._save_sources()
                 self._show_sources()
+                self._schedule_index(path)
+
+    def _schedule_index(self, path: Path) -> None:
+        set_status(self.search_state, f"Индексирую «{path.name}»…", "progress")
+        worker = Worker(
+            lambda: DocumentIndexer(IndexStorage()).sync_source(LocalFolderSource(path))
+        )
+        worker.succeeded.connect(
+            lambda _report: set_status(
+                self.search_state, f"Индексация «{path.name}» завершена.", "success"
+            )
+        )
+        worker.failed.connect(lambda message: set_status(self.search_state, message, "error"))
+        self._queue_library(worker)
 
     def remove_source(self) -> None:
         item = self.source_list.currentItem()
         if item is None:
             return
         path = Path(item.data(Qt.ItemDataRole.UserRole))
+        set_status(self.search_state, f"Удаляю «{path.name}» из индекса…", "progress")
+        worker = Worker(lambda: DocumentIndexer(IndexStorage()).remove_source(source_id(path)))
+        worker.succeeded.connect(lambda _result: self._removal_finished(path))
+        worker.failed.connect(
+            lambda message: set_status(
+                self.search_state, f"Не удалось удалить «{path.name}»: {message}", "error"
+            )
+        )
+        self._queue_library(worker)
+
+    def _removal_finished(self, path: Path) -> None:
         self.sources = [source for source in self.sources if source != path]
         self._save_sources()
         self._show_sources()
+        set_status(self.search_state, f"«{path.name}» удалён из индекса.", "success")
 
     def refresh_models(self) -> None:
         set_status(self.sidebar_status, "Ollama: проверка…", "progress")
@@ -776,7 +805,7 @@ class MainWindow(QMainWindow):
         worker = Worker(retrieve)
         worker.succeeded.connect(lambda result: self._retrieved(query, *result))
         worker.failed.connect(self._search_failed)
-        self._run(worker)
+        self._queue_library(worker)
 
     def _retrieved(self, query: str, hits: list[SearchHit], warnings: list[SearchWarning]) -> None:
         warning_text = ""
@@ -864,6 +893,17 @@ class MainWindow(QMainWindow):
             lambda: self.workers.remove(worker) if worker in self.workers else None
         )
         worker.start()
+
+    def _queue_library(self, worker: Worker) -> None:
+        self.library_workers.append(worker)
+        worker.finished.connect(lambda: self._library_worker_finished(worker))
+        if len(self.library_workers) == 1:
+            self._run(worker)
+
+    def _library_worker_finished(self, worker: Worker) -> None:
+        self.library_workers.remove(worker)
+        if self.library_workers:
+            self._run(self.library_workers[0])
 
 
 def main() -> int:
