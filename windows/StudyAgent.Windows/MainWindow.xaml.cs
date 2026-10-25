@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -14,6 +14,20 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         ActiveWindow = this;
+
+        string savedTheme =
+            Windows.Storage.ApplicationData.Current.LocalSettings
+                .Values["AppTheme"] as string ?? "System";
+
+        if (Content is FrameworkElement root)
+        {
+            root.RequestedTheme = savedTheme switch
+            {
+                "Light" => ElementTheme.Light,
+                "Dark" => ElementTheme.Dark,
+                _ => ElementTheme.Default
+            };
+        }
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);

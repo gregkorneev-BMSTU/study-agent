@@ -1,19 +1,118 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<Page
+﻿<Page
     x:Class="StudyAgent_Windows.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:StudyAgent_Windows.Pages"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid Padding="24,16,24,16" RowSpacing="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
-        <TextBlock Grid.Row="1" Text="This is the Settings page" />
-    </Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="32" Spacing="24">
+
+            <StackPanel Spacing="8">
+                <TextBlock
+                    Text="Настройки"
+                    Style="{StaticResource TitleTextBlockStyle}"/>
+
+                <TextBlock
+                    Text="Настройте Study Agent под свои предпочтения."
+                    TextWrapping="Wrap"
+                    Opacity="0.7"/>
+            </StackPanel>
+
+            <StackPanel Spacing="12">
+                <TextBlock
+                    Text="Внешний вид и доступность"
+                    FontSize="18"
+                    FontWeight="SemiBold"/>
+
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="16">
+
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="200"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock
+                                Text="Цветовая тема"
+                                FontWeight="SemiBold"/>
+
+                            <TextBlock
+                                Text="Выберите оформление приложения."
+                                TextWrapping="Wrap"
+                                Opacity="0.7"/>
+                        </StackPanel>
+
+                        <ComboBox
+                            x:Name="ThemeCombo"
+                            Grid.Column="1"
+                            HorizontalAlignment="Stretch"
+                            SelectionChanged="ThemeCombo_SelectionChanged">
+
+                            <ComboBoxItem Content="Системная"/>
+                            <ComboBoxItem Content="Светлая"/>
+                            <ComboBoxItem Content="Тёмная"/>
+                        </ComboBox>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="12">
+                <TextBlock
+                    Text="Локальная языковая модель"
+                    FontSize="18"
+                    FontWeight="SemiBold"/>
+
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="16">
+
+                    <StackPanel Spacing="6">
+                        <TextBlock
+                            Text="Ollama"
+                            FontWeight="SemiBold"/>
+
+                        <TextBlock
+                            Text="Для генерации ответов используется локальная Ollama. Выбрать установленную модель пока можно на странице поиска."
+                            TextWrapping="Wrap"
+                            Opacity="0.7"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="12">
+                <TextBlock
+                    Text="Конфиденциальность"
+                    FontSize="18"
+                    FontWeight="SemiBold"/>
+
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="16">
+
+                    <StackPanel Spacing="6">
+                        <TextBlock
+                            Text="Локальная обработка"
+                            FontWeight="SemiBold"/>
+
+                        <TextBlock
+                            Text="Study Agent обрабатывает выбранные учебные материалы на компьютере. Для генерации ответа вопрос и найденные выдержки передаются локальному серверу Ollama."
+                            TextWrapping="Wrap"
+                            Opacity="0.7"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
 </Page>
