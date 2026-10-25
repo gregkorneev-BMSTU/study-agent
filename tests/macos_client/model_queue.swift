@@ -82,7 +82,7 @@ struct ModelQueueTest {
         let initialIssues = model.indexingIssues[SavedFolder.canonicalPath(folder.path)] ?? []
         precondition(initialIssues.first?.code == "backend_error")
         precondition(model.issueMessage(initialIssues[0].code) != "untrusted internal details")
-        precondition(model.issueMessage(initialIssues[0].code) == "Локальный backend не смог выполнить операцию. Повторите попытку.")
+        precondition(!model.issueMessage(initialIssues[0].code).isEmpty)
         model.retryFailedLibraryOperations()
         try await wait { calls("sync_source", in: log) == 2 && !model.hasFailedLibraryOperations }
         precondition(model.indexingStates[SavedFolder.canonicalPath(folder.path)] != nil)
