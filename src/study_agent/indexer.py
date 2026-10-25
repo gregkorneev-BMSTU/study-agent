@@ -102,10 +102,25 @@ class DocumentIndexer:
             # A failed or inaccessible traversal must never erase the saved library.
             if not source.root.is_dir():
                 raise FileNotFoundError("Source folder is unavailable")
-            documents = source.list_documents()
-            report.total = len(documents)
+            scan_errors: list[tuple[str, str]] = []
+            documents = source.list_documents(scan_errors)
+            report.total = len(documents) + len(scan_errors)
             self.storage.register_source(key, str(source.root))
-            seen = {doc.path for doc in documents}
+            seen = {doc.path for doc in documents} | {path for path, _ in scan_errors}
+            for path, code in scan_errors:
+                report.failed += 1
+                report.errors.append({"document_id": path, "code": code})
+                self.storage.record_error(
+                    key,
+                    document_id(key, path),
+                    path,
+                    Path(path).stem,
+                    Path(path).suffix.lower(),
+                    0,
+                    0,
+                    INDEX_VERSION,
+                    code,
+                )
             self._progress(report, progress_callback, "scanning")
             for doc in documents:
                 if cancel_token is not None and cancel_token.is_set():
@@ -118,6 +133,7 @@ class DocumentIndexer:
                 if not source.root.is_dir():
                     raise FileNotFoundError("Source folder became unavailable")
                 report.removed = self.storage.delete_missing(key, seen)
+                self.storage.mark_source_indexed(key)
             self._progress(
                 report, progress_callback, "cancelled" if report.cancelled else "complete"
             )

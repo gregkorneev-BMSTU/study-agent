@@ -144,6 +144,10 @@ final class StudyAgentModel: ObservableObject {
     private var didPromptSetupThisLaunch = false
     private var welcomeLeadsToSetup = false
     private var didScheduleInitialIndex = false
+    private var pendingIndexFolders: [SavedFolder] = []
+    private var pendingRemovalRoots: [String] = []
+    private var activeIndexFolderID: UUID?
+    private var isIndexingFolders = false
 
     init() {
         Self.migrateLegacyPreferences(into: .standard)
@@ -254,6 +258,7 @@ final class StudyAgentModel: ObservableObject {
     func removeFolder(_ folder: SavedFolder) {
         let root = Self.path(of: folder)
         folders.removeAll { $0.id == folder.id }
+        pendingIndexFolders.removeAll { $0.id == folder.id }
         saveFolders()
         if let root { removeIndexedSource(root) }
         refreshSources()
@@ -261,6 +266,7 @@ final class StudyAgentModel: ObservableObject {
 
     func removeFolder(at path: String) {
         folders.removeAll { Self.path(of: $0) == path }
+        pendingIndexFolders.removeAll { Self.path(of: $0) == path }
         saveFolders()
         removeIndexedSource(path)
         refreshSources()
@@ -290,13 +296,44 @@ final class StudyAgentModel: ObservableObject {
     }
 
     private func indexFolders(_ selected: [SavedFolder]) {
-        guard !selected.isEmpty else { return }
+        for folder in selected where folders.contains(where: { $0.id == folder.id }) {
+            if activeIndexFolderID != folder.id && !pendingIndexFolders.contains(where: { $0.id == folder.id }) {
+                pendingIndexFolders.append(folder)
+            }
+        }
+        drainIndexQueue()
+    }
+
+    private func removeIndexedSource(_ root: String) {
+        if !pendingRemovalRoots.contains(root) { pendingRemovalRoots.append(root) }
+        drainIndexQueue()
+    }
+
+    private func drainIndexQueue() {
+        guard !isIndexingFolders else { return }
+        isIndexingFolders = true
         Task {
-            for folder in selected {
+            while !pendingRemovalRoots.isEmpty || !pendingIndexFolders.isEmpty {
+                if !pendingRemovalRoots.isEmpty {
+                    let root = pendingRemovalRoots.removeFirst()
+                    if folders.contains(where: { Self.path(of: $0) == root }) { continue }
+                    do {
+                        _ = try await bridge.request(command: "remove_index_source", fields: ["root": root])
+                    } catch BackendClientError.indexBusy {
+                        if !pendingRemovalRoots.contains(root) { pendingRemovalRoots.append(root) }
+                        try? await Task.sleep(for: .seconds(2))
+                    } catch {
+                        searchStatus = localizedError(error)
+                    }
+                    continue
+                }
+                let folder = pendingIndexFolders.removeFirst()
+                guard folders.contains(where: { $0.id == folder.id }) else { continue }
+                activeIndexFolderID = folder.id
                 do {
                     let (urls, opened) = try openFolderURLs(for: [folder])
                     defer { closeFolderURLs(urls, opened: opened) }
-                    guard let root = urls.first else { continue }
+                    guard let root = urls.first else { activeIndexFolderID = nil; continue }
                     _ = try await bridge.requestStreaming(
                         command: "index_source",
                         fields: ["root": root.path],
@@ -309,23 +346,20 @@ final class StudyAgentModel: ObservableObject {
                         }
                     )
                     if !folders.contains(where: { $0.id == folder.id }) {
-                        _ = try await bridge.request(command: "remove_index_source", fields: ["root": root.path])
+                        removeIndexedSource(root.path)
                     }
+                } catch BackendClientError.indexBusy {
+                    if folders.contains(where: { $0.id == folder.id }) {
+                        pendingIndexFolders.append(folder)
+                    }
+                    try? await Task.sleep(for: .seconds(2))
                 } catch {
                     searchStatus = localizedError(error)
                 }
+                activeIndexFolderID = nil
             }
+            isIndexingFolders = false
             refreshSources()
-        }
-    }
-
-    private func removeIndexedSource(_ root: String) {
-        Task {
-            do {
-                _ = try await bridge.request(command: "remove_index_source", fields: ["root": root])
-            } catch {
-                searchStatus = localizedError(error)
-            }
         }
     }
 
@@ -388,7 +422,10 @@ final class StudyAgentModel: ObservableObject {
                 searchWarnings = (try? searchResponse.decode("warnings", as: [SearchWarning].self)) ?? []
                 hits = found
                 guard !found.isEmpty else {
-                    searchStatus = text("В выбранных материалах не нашёл фрагментов по этому запросу.")
+                    let backendIndexing = (try? searchResponse.decode("indexing", as: Bool.self)) ?? false
+                    searchStatus = backendIndexing || isIndexingFolders
+                        ? text("Материалы ещё индексируются. Повторите поиск после завершения обработки.")
+                        : text("В выбранных материалах не нашёл фрагментов по этому запросу.")
                     isSearching = false
                     return
                 }
@@ -578,6 +615,9 @@ private struct MacBackendClient {
                     guard envelope["ok"] as? Bool == true,
                           let result = envelope["result"] as? [String: Any] else {
                         let error = envelope["error"] as? [String: Any]
+                        if error?["code"] as? String == "index_busy" {
+                            throw BackendClientError.indexBusy
+                        }
                         throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
                     }
                     continuation.resume(returning: result)
@@ -643,6 +683,9 @@ private struct MacBackendClient {
                         guard envelope["ok"] as? Bool == true,
                               let result = envelope["result"] as? [String: Any] else {
                             let error = envelope["error"] as? [String: Any]
+                            if error?["code"] as? String == "index_busy" {
+                                throw BackendClientError.indexBusy
+                            }
                             throw BackendClientError.message(error?["message"] as? String ?? "Ошибка локального backend.")
                         }
                         continuation.resume(returning: result)
@@ -701,12 +744,14 @@ private final class BackendProcessControl {
 private enum BackendClientError: LocalizedError {
     case missingBackend
     case invalidResponse
+    case indexBusy
     case message(String)
 
     var errorDescription: String? {
         switch self {
         case .missingBackend: "Не найден встроенный локальный backend. Соберите приложение скриптом scripts/build_macos_native_app.sh."
         case .invalidResponse: "Локальный backend вернул некорректный ответ."
+        case .indexBusy: "Индексация занята другим процессом. Повторяем запрос."
         case .message(let message): message
         }
     }

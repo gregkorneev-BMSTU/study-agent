@@ -9,7 +9,7 @@ from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
-from study_agent.indexer import DocumentIndexer, source_id
+from study_agent.indexer import DocumentIndexer, IndexBusyError, source_id
 from study_agent.ocr_model import download_model, model_is_installed
 from study_agent.ollama import OllamaError, answer, list_models
 from study_agent.sources import LocalFolderSource
@@ -68,6 +68,7 @@ def dispatch(
                 for row in rows
             ]
             result = {
+                "indexing": index.pending_sources(keys),
                 "warnings": [
                     {
                         "document_id": warning.document_id,
@@ -124,7 +125,10 @@ def dispatch(
         return {
             "request_id": request_id,
             "ok": False,
-            "error": {"message": str(error)},
+            "error": {
+                "message": str(error),
+                "code": "index_busy" if isinstance(error, IndexBusyError) else "backend_error",
+            },
         }
 
 

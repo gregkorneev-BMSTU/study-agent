@@ -162,3 +162,44 @@ time.sleep(30)
     assert IndexStorage(path).search(["a"], "durable")
     with storage.connect() as db:
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+
+def test_fts5_restoration_rebuilds_stale_index_and_triggers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "index.sqlite3"
+    storage = IndexStorage(path)
+    assert storage.fts
+    storage.register_source("a", str(tmp_path / "a"))
+    _put(storage, "a", "a-doc", "старый термин")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(IndexStorage, "_fts_available", staticmethod(lambda _: False))
+        fallback = IndexStorage(path)
+        assert not fallback.fts
+        _put(fallback, "a", "a-doc", "новый термин")
+        assert fallback.search(["a"], "новый")
+
+    restored = IndexStorage(path)
+    assert restored.fts
+    assert restored.search(["a"], "новый")
+    assert not restored.search(["a"], "старый")
+    _put(restored, "a", "a-doc", "финальный термин")
+    assert restored.search(["a"], "финальный")
+    assert not restored.search(["a"], "новый")
+    with restored.connect() as db:
+        count = db.execute(
+            "SELECT count(*) FROM sqlite_master WHERE type='trigger' "
+            "AND name IN ('chunks_ai','chunks_ad','chunks_au')"
+        ).fetchone()[0]
+        assert count == 3
+
+
+def test_new_source_pending_until_first_sync_completion(tmp_path: Path) -> None:
+    storage = IndexStorage(tmp_path / "index.sqlite3")
+    assert storage.pending_sources(["a"])
+    storage.register_source("a", str(tmp_path / "a"))
+    assert storage.pending_sources(["a"])
+    storage.mark_source_indexed("a")
+    assert not storage.pending_sources(["a"])
+    assert storage.pending_sources(["a", "b"])

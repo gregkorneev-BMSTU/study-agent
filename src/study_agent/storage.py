@@ -40,21 +40,22 @@ class IndexStorage:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='chunks_fts'"
             ).fetchone()
             if version == SCHEMA_VERSION and existing_fts:
-                try:
-                    db.execute("SELECT count(*) FROM chunks_fts").fetchone()
-                except sqlite3.OperationalError as error:
-                    if "no such module" not in str(error).lower():
-                        raise
-                    # This SQLite build cannot maintain the virtual table. Keep
-                    # ordinary chunks searchable and disable FTS triggers here.
+                if not self._fts_available(db):
+                    # The ordinary chunks remain authoritative while FTS5 is absent.
                     db.execute("BEGIN IMMEDIATE")
                     for trigger in ("chunks_ai", "chunks_ad", "chunks_au"):
                         db.execute(f"DROP TRIGGER IF EXISTS {trigger}")
                     db.commit()
                     self.fts = False
-                else:
+                    return
+                triggers = db.execute(
+                    "SELECT count(*) FROM sqlite_master WHERE type='trigger' "
+                    "AND name IN ('chunks_ai','chunks_ad','chunks_au')"
+                ).fetchone()[0]
+                if triggers == 3:
                     self.fts = True
-                return
+                    return
+                # FTS5 has returned: recreate triggers and rebuild stale postings.
             db.execute("BEGIN IMMEDIATE")
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if version == 0:
@@ -99,6 +100,16 @@ class IndexStorage:
         finally:
             db.close()
 
+    @staticmethod
+    def _fts_available(db: sqlite3.Connection) -> bool:
+        try:
+            db.execute("SELECT count(*) FROM chunks_fts").fetchone()
+            return True
+        except sqlite3.OperationalError as error:
+            if "no such module" not in str(error).lower():
+                raise
+            return False
+
     def _ensure_fts(self, db: sqlite3.Connection) -> bool:
         try:
             db.execute(
@@ -141,6 +152,25 @@ class IndexStorage:
             if "no such module" not in str(error).lower() and "fts5" not in str(error).lower():
                 raise
             return False
+
+    def pending_sources(self, source_ids: list[str]) -> bool:
+        """Report roots whose first full indexing pass has not completed."""
+        if not source_ids:
+            return False
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            ready = db.execute(
+                f"SELECT count(*) FROM sources WHERE id IN ({placeholders}) "
+                "AND indexed_at IS NOT NULL",
+                source_ids,
+            ).fetchone()[0]
+        return ready < len(set(source_ids))
+
+    def mark_source_indexed(self, source_id: str) -> None:
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("UPDATE sources SET indexed_at=datetime('now') WHERE id=?", (source_id,))
+            db.commit()
 
     def list_sources(self) -> list[sqlite3.Row]:
         with self.connect() as db:

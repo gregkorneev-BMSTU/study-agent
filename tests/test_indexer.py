@@ -160,3 +160,29 @@ def test_structured_pdf_page_and_ocr_warning(
     row = storage.search([source_id(root)], "alpha")[0]
     assert row["page_number"] == 2
     assert storage.list_warnings([source_id(root)])[0]["page_number"] == 1
+
+
+@pytest.mark.parametrize("error_type", [FileNotFoundError, PermissionError])
+def test_file_stat_failure_does_not_stop_scan_or_delete_saved_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error_type: type[OSError]
+) -> None:
+    root, source, storage, indexer = _setup(tmp_path)
+    bad = root / "bad.txt"
+    bad.write_text("durable original", encoding="utf-8")
+    indexer.sync_source(source)
+    (root / "good.txt").write_text("new searchable", encoding="utf-8")
+    actual_stat = Path.stat
+
+    def failing_stat(path: Path, *args: object, **kwargs: object):
+        if path == bad:
+            raise error_type("file unavailable")
+        return actual_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", failing_stat)
+    assert [doc.path for doc in source.list_documents()] == ["good.txt"]
+    report = indexer.sync_source(source)
+    assert report.failed == 1 and report.indexed == 1
+    assert report.errors[0]["document_id"] == "bad.txt"
+    assert storage.search([source_id(root)], "durable")
+    assert storage.search([source_id(root)], "searchable")
+    assert storage.list_warnings([source_id(root)])[0]["code"] == report.errors[0]["code"]

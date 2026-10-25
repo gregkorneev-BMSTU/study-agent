@@ -241,3 +241,48 @@ def test_failed_pdf_page_does_not_hide_later_page_or_other_document(
         }
     ]
     assert "/tmp/secret" not in str(result)
+
+
+def test_search_reports_primary_indexing_until_source_is_ready(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "materials"
+    root.mkdir()
+    (root / "notes.txt").write_text("квантовая механика", encoding="utf-8")
+    request = {"command": "search", "roots": [str(root)], "query": "квантовая"}
+    assert mac_bridge.dispatch(request)["result"]["indexing"] is True
+    observed: list[dict] = []
+
+    def progress(event: dict) -> None:
+        if event["phase"] == "scanning":
+            observed.append(mac_bridge.dispatch(request)["result"])
+
+    result = mac_bridge.dispatch(
+        {"command": "index_source", "root": str(root)}, progress_callback=progress
+    )
+    assert result["ok"] is True
+    assert observed[0]["indexing"] is True
+    assert observed[0]["hits"] == []
+    ready = mac_bridge.dispatch(request)["result"]
+    assert ready["indexing"] is False
+    assert ready["hits"][0]["document_id"] == "notes.txt"
+
+
+def test_busy_index_request_can_be_retried_after_lock_release(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.indexer import _WriterLock
+    from study_agent.storage import IndexStorage
+
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "materials"
+    root.mkdir()
+    (root / "lesson.txt").write_text("retry token", encoding="utf-8")
+    storage = IndexStorage(tmp_path / "index.sqlite3")
+    request = {"command": "index_source", "root": str(root)}
+    with _WriterLock(storage.path.with_suffix(".lock")):
+        busy = mac_bridge.dispatch(request)
+    assert busy["ok"] is False
+    assert busy["error"]["code"] == "index_busy"
+    assert mac_bridge.dispatch(request)["result"]["indexed"] == 1
+    search = mac_bridge.dispatch(
+        {"command": "search", "roots": [str(root)], "query": "retry"}
+    )
+    assert search["result"]["hits"]

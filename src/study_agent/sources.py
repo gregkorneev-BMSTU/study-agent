@@ -1,6 +1,7 @@
 """Read-only access to documents in an explicitly selected local folder."""
 
 import os
+import stat as stat_module
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,7 +32,7 @@ class LocalFolderSource:
         if not self.root.is_dir():
             raise NotADirectoryError(self.root)
 
-    def list_documents(self) -> list[DocumentRef]:
+    def list_documents(self, errors: list[tuple[str, str]] | None = None) -> list[DocumentRef]:
         documents = []
 
         def raise_walk_error(error: OSError) -> None:
@@ -41,12 +42,26 @@ class LocalFolderSource:
             subdirs[:] = [name for name in subdirs if not (Path(directory) / name).is_symlink()]
             for name in files:
                 path = Path(directory) / name
-                if path.is_symlink() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
-                    continue
-                stat = path.stat()
-                if not path.is_file():
+                if path.suffix.lower() not in SUPPORTED_SUFFIXES:
                     continue
                 relative_path = path.relative_to(self.root).as_posix()
+                try:
+                    if path.is_symlink():
+                        continue
+                    stat = path.stat()
+                except OSError as error:
+                    if errors is not None:
+                        code = (
+                            "document_disappeared"
+                            if isinstance(error, FileNotFoundError)
+                            else "permission_denied"
+                            if isinstance(error, PermissionError)
+                            else "document_stat_failed"
+                        )
+                        errors.append((relative_path, code))
+                    continue
+                if not stat_module.S_ISREG(stat.st_mode):
+                    continue
                 documents.append(
                     DocumentRef(
                         document_id=relative_path,
