@@ -1,12 +1,12 @@
 # Текущее состояние
 
-## SA-01 в исходном коде
+## Текущий опубликованный выпуск
 
-После объединения [PR #11](https://github.com/gregkorneev-BMSTU/study-agent/pull/11) `main` содержит постоянный SQLite-индекс, инкрементальную обработку по `st_mtime_ns` и размеру, фрагменты с метаданными происхождения, лексический поиск и команды управления индексом в backend bridge. Опубликованная Beta 3 собрана раньше и этих изменений не содержит. Описание реализации и ограничений: [индексация документов](document-indexing.md). Семантический поиск и эмбеддинги остаются задачей SA-03.
+Снимок на 2026-10-25. Последний выпуск — **Study Agent v1 Beta 4** (`v1.0.0-beta.4`, версия 1.0.0, build 4), macOS arm64. [Release](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.4) содержит DMG и SHA-256. Выпуск включает изменения, вошедшие в `main` после Beta 3: DOCX, постоянный SQLite-индекс, OCR packaging fix и нативный интерфейс индексации с прогрессом и восстановлением ошибок. Приложение требует macOS 14+ на Apple Silicon; DMG ad-hoc подписан и не нотариализован. SHA-256 DMG: `90a2108d804d5b8da8f5fc6168100ee2e9023781def9d85b6303ef5f71c143f5`.
 
-Снимок на 2026-10-25. Последний опубликованный выпуск — **Study Agent v1 Beta 3** (`v1.0.0-beta.3`, версия 1.0.0, build 3), macOS arm64. [Release](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.3) содержит DMG и файл SHA-256. Приложение требует macOS 14+ на Apple Silicon; сборка подписана ad-hoc и не нотариализована.
+Текущая Beta 4 и история Beta 3 описаны ниже; незамерженные ветки не входят в этот выпуск. На дату снимка `origin/feature/sa-05-windows` содержит WinUI 3 frontend, но он не является частью macOS Beta 4. Поддержка Windows и её проверенная сборка не входят в текущий выпуск.
 
-Эта страница описывает опубликованную Beta 3 и `main`, а не все незамерженные разработки. На дату снимка `origin/feature/sa-05-windows` содержит WinUI 3 frontend и интеграцию общего Python helper, но ветка не влита в `main`, а Windows-сборка не прошла здесь проверку. Детали и расхождения протокола: [Backend bridge protocol](backend-protocol.md).
+Семантические embeddings и полноценный RAG не входят в Beta 4. OCR runtime включён, веса загружаются отдельно; OCR inference с установленными весами в этом выпуске не подтверждён. Для PDF показывается страница найденного фрагмента, но автоматического перехода к странице нет. Детали и расхождения протокола: [Backend bridge protocol](backend-protocol.md).
 
 Собственный исходный код Study Agent распространяется под MIT License. Третьи стороны, модельные веса и графические материалы сохраняют собственные условия; см. [LICENSE](../LICENSE) и [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md). macOS-сборка копирует лицензионные уведомления build-окружения в приложение. Windows-дистрибутив и происхождение части графики ещё требуют отдельной проверки.
 
@@ -46,7 +46,7 @@
 - В Liquid Glass настройках удалена бесполезная информационная плашка и управление прозрачностью всего окна. Sidebar и toolbar используют системный `regular` материал по умолчанию; приложение не подменяет системный регулятор и не задаёт отдельную интенсивность.
 - Полный diff изменений после Beta 2 доступен в истории Git: [release tag](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.3).
 
-См. [архитектуру](architecture.md), [дорожную карту](roadmap.md), [дизайн-систему](design-system.md), [инструкцию выпуска](macos-release.md) и [план проверок](testing.md).
+См. [release notes Beta 4](releases/v1.0.0-beta.4.md), [архитектуру](architecture.md), [дорожную карту](roadmap.md), [дизайн-систему](design-system.md), [инструкцию выпуска](macos-release.md) и [план проверок](testing.md).
 
 ## Проверка SA-01
 

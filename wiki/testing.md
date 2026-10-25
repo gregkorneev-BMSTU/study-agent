@@ -138,3 +138,12 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 - В изолированной копии приложения визуально осмотрены Settings в светлой и тёмной теме; обе отображаются. В Library показана строка источника с восстановленным предупреждением из `index_status.issues`. Пользовательские настройки основного приложения не менялись.
 - Проверку малого окна и запуск живой backend error/cancel из меню не удалось закончить: CUA перестал доставлять клики в окно (`noWindowsAvailable`/ScreenCaptureKit `-3811`). VoiceOver и macOS 14 не проверялись.
 - `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `ruff check .` — успешно; полный `pytest -q` аварийно завершился при создании Cocoa `QApplication` в `tests/test_switch.py`. Xcode Debug/Release и Swift queue harness прошли; сборки сохраняют предупреждение о `BackendProcessControl` без `Sendable`.
+
+## Проверка выпуска v1 Beta 4 — 2026-10-25
+
+- Версии проверены в упакованном Info.plist: `CFBundleShortVersionString=1.0.0`, `CFBundleVersion=4`. Swift-приложение и PyInstaller backend содержат arm64.
+- `scripts/build_macos_dmg.sh --mode development --suffix beta.4` завершился успешно. DMG содержит `Study Agent.app`, `Applications → /Applications` и `.DS_Store`; размер **233,938,263 байта**. `hdiutil verify` вернул `VALID`.
+- После копирования приложения из образа удалены FinderInfo extended attributes; `codesign --verify --deep --strict` прошёл. Это ad-hoc подпись без Developer ID и нотариализации.
+- Упакованный backend ответил на `diagnose_backend`: backend и PDF runtime доступны, Chandra runtime присутствует. Весов и OCR inference в составе выпуска нет.
+- SHA-256 `StudyAgent-v1.0.0-beta.4-macos-arm64.dmg`: `90a2108d804d5b8da8f5fc6168100ee2e9023781def9d85b6303ef5f71c143f5`.
+- `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `.venv/bin/ruff check .` — успешно; Xcode Release arm64 build завершился в составе сборки DMG. Полный локальный pytest не запускался повторно: известен abort на Cocoa `QApplication` в `tests/test_switch.py`; CI PR #12 прошёл для Python 3.12/3.13 и macOS client.
