@@ -29,6 +29,7 @@ try {
         --workpath (Join-Path $build "work") `
         --specpath $build `
         --exclude-module PySide6 `
+        --runtime-hook (Join-Path $root "scripts\windows_utf8_hook.py") `
         $entry
 
     if ($LASTEXITCODE -ne 0) {
@@ -48,3 +49,4 @@ try {
 finally {
     Pop-Location
 }
+
