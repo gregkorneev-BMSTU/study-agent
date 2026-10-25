@@ -125,6 +125,19 @@ public sealed partial class HomePage : Page
                 return;
             }
 
+            SearchStatus.Text =
+                T("????????? ????????? ??????...",
+                  "Updating the search index...");
+
+            foreach (string root in roots)
+            {
+                using var syncResponse =
+                    await _bridge.SyncSourceAsync(root);
+            }
+
+            SearchStatus.Text =
+                T("???? ?????????...", "Searching documents...");
+
             using var response =
                 await _bridge.SearchAsync(roots, query);
 

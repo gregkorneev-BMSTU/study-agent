@@ -30,6 +30,16 @@ public sealed class PythonBridgeService
         });
     }
 
+    public Task<JsonDocument> SyncSourceAsync(string root)
+    {
+        return SendAsync(new
+        {
+            request_id = Guid.NewGuid().ToString(),
+            command = "sync_source",
+            root
+        }, 600);
+    }
+
     public Task<JsonDocument> SearchAsync(
         string[] roots, string query)
     {
@@ -156,9 +166,23 @@ info.Environment["PYTHONUTF8"] = "1";
             await process.StandardInput.FlushAsync();
             process.StandardInput.Close();
 
-            string? response = await process
-                .StandardOutput
-                .ReadLineAsync(timeout.Token);
+            string? response = null;
+            string? line;
+
+            while ((line = await process.StandardOutput
+                .ReadLineAsync(timeout.Token)) != null)
+            {
+                using var message = JsonDocument.Parse(line);
+
+                if (message.RootElement.TryGetProperty(
+                    "event", out var eventElement) &&
+                    eventElement.GetString() == "progress")
+                {
+                    continue;
+                }
+
+                response = line;
+            }
 
             await process.WaitForExitAsync(timeout.Token);
 
