@@ -38,6 +38,25 @@ def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path, monkeypa
     assert search["result"]["hits"][0]["source_root"] == str(root.resolve())
 
 
+def test_dispatch_searches_saved_index_when_source_is_offline(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "offline notes"
+    root.mkdir()
+    (root / "lecture.md").write_text("Графы и алгоритмы поиска", encoding="utf-8")
+    _index(root)
+    root.rename(tmp_path / "disconnected notes")
+
+    response = mac_bridge.dispatch(
+        {"command": "search", "roots": [str(root)], "query": "алгоритмы"}
+    )
+
+    assert response["ok"] is True
+    assert response["result"]["hits"][0]["document_id"] == "lecture.md"
+    assert response["result"]["hits"][0]["source_root"] == str(root)
+
+
 def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
     captured: dict[str, str | None] = {}
 

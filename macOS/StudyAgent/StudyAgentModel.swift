@@ -59,6 +59,7 @@ struct SavedFolder: Codable, Identifiable, Hashable {
     var id: UUID
     var name: String
     var bookmark: Data
+    var path: String? = nil
 }
 
 struct SourceSummary: Identifiable, Decodable {
@@ -159,6 +160,10 @@ final class StudyAgentModel: ObservableObject {
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
+        for index in folders.indices where folders[index].path == nil {
+            folders[index].path = Self.path(of: folders[index])
+        }
+        saveFolders()
     }
 
     func text(_ source: String) -> String {
@@ -234,7 +239,10 @@ final class StudyAgentModel: ObservableObject {
                 guard !folders.contains(where: { $0.name == url.lastPathComponent && Self.sameFolder($0, url) }) else {
                     continue
                 }
-                let folder = SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark)
+                let folder = SavedFolder(
+                    id: UUID(), name: url.lastPathComponent, bookmark: bookmark,
+                    path: url.standardizedFileURL.path
+                )
                 folders.append(folder)
                 addedFolders.append(folder)
                 added += 1
@@ -279,10 +287,8 @@ final class StudyAgentModel: ObservableObject {
         }
         Task {
             do {
-                let (urls, opened) = try openFolderURLs()
-                defer { closeFolderURLs(urls, opened: opened) }
                 let response = try await bridge.request(command: "list_sources", fields: [
-                    "roots": urls.map(\.path)
+                    "roots": folders.compactMap(Self.path)
                 ])
                 sourceSummaries = try response.decode("sources", as: [SourceSummary].self)
                 searchStatus = sourceSummaries.isEmpty
@@ -412,10 +418,8 @@ final class StudyAgentModel: ObservableObject {
         searchStatus = text("Ищу в подключённых материалах…")
         Task {
             do {
-                let (urls, opened) = try openFolderURLs()
-                defer { closeFolderURLs(urls, opened: opened) }
                 let searchResponse = try await bridge.request(command: "search", fields: [
-                    "roots": urls.map(\.path),
+                    "roots": folders.compactMap(Self.path),
                     "query": searchText
                 ])
                 let found = try searchResponse.decode("hits", as: [SearchHit].self)
@@ -501,6 +505,9 @@ final class StudyAgentModel: ObservableObject {
             let hasAccess = url.startAccessingSecurityScopedResource()
             urls.append(url)
             opened.append(hasAccess)
+            if folder.path != url.standardizedFileURL.path {
+                updatePath(url.standardizedFileURL.path, for: folder.id)
+            }
             if stale, let updated = try? url.bookmarkData(options: []) {
                 updateBookmark(updated, for: folder.id)
             }
@@ -520,6 +527,12 @@ final class StudyAgentModel: ObservableObject {
         saveFolders()
     }
 
+    private func updatePath(_ path: String, for id: UUID) {
+        guard let index = folders.firstIndex(where: { $0.id == id }) else { return }
+        folders[index].path = path
+        saveFolders()
+    }
+
     private static func sameFolder(_ folder: SavedFolder, _ url: URL) -> Bool {
         var stale = false
         guard let existing = try? URL(
@@ -532,6 +545,7 @@ final class StudyAgentModel: ObservableObject {
     }
 
     private static func path(of folder: SavedFolder) -> String? {
+        if let path = folder.path { return path }
         var stale = false
         return try? URL(
             resolvingBookmarkData: folder.bookmark,
@@ -565,7 +579,10 @@ final class StudyAgentModel: ObservableObject {
                 guard url.hasDirectoryPath, let bookmark = try? url.bookmarkData(options: []) else {
                     return nil
                 }
-                return SavedFolder(id: UUID(), name: url.lastPathComponent, bookmark: bookmark)
+                return SavedFolder(
+                    id: UUID(), name: url.lastPathComponent, bookmark: bookmark,
+                    path: url.standardizedFileURL.path
+                )
             }
             if let data = try? JSONEncoder().encode(folders) {
                 defaults.set(data, forKey: Keys.folders)
