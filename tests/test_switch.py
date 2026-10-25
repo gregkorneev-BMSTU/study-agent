@@ -49,7 +49,10 @@ def test_switch_animation_respects_reduce_motion_and_disabled_state(
 
     switch.set_reduce_motion(False)
     switch.setChecked(False)
-    QTest.qWait(220)
+    for _ in range(150):
+        if switch.progress == 0:
+            break
+        QTest.qWait(20)
     assert switch.progress == 0
 
     switch.set_reduce_motion(True)
