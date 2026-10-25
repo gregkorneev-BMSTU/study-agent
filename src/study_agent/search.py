@@ -27,7 +27,20 @@ def search_sources(sources: list[LocalFolderSource], query: str, limit: int = 8)
     hits: list[SearchHit] = []
     for source in sources:
         for document in source.list_documents():
-            text = source.read(document.document_id)
+            extracted = source.read(document.document_id)
+
+            # АДАПТЕР МИГРАЦИИ: Склеиваем блоки обратно в текст для обратной совместимости
+            if isinstance(extracted, list):
+                text_parts = []
+                for block in extracted:
+                    if block.source_type == "pdf" and block.page_number:
+                        text_parts.append(f"## Page {block.page_number}\n\n{block.text}")
+                    else:
+                        text_parts.append(block.text)
+                text = "\n\n".join(text_parts)
+            else:
+                text = extracted
+
             folded = text.casefold()
             score = sum(folded.count(term) for term in terms)
             if not score:

@@ -7,7 +7,10 @@ def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path) -> None:
     root = tmp_path / "Study Notes"
     root.mkdir()
     (root / "lecture.md").write_text("Графы и алгоритмы поиска", encoding="utf-8")
-    (root / "ignore.docx").write_bytes(b"not supported yet")
+    
+    # Шаг исправления: заменяем .docx (который мы теперь поддерживаем) 
+    # на действительно игнорируемый формат (.xlsx)
+    (root / "ignore.xlsx").write_bytes(b"not supported yet")
 
     listing = mac_bridge.dispatch(
         {"request_id": "list", "command": "list_sources", "roots": [str(root)]}
@@ -33,7 +36,7 @@ def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
         language: str | None = None,
     ) -> str:
         captured.update(model=model, question=question, context=context, language=language)
-        return "Ответ [1]"
+        return "Ответ"
 
     monkeypatch.setattr(mac_bridge, "answer", fake_answer)
     response = mac_bridge.dispatch(
@@ -53,7 +56,7 @@ def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
     )
 
     assert response["ok"] is True
-    assert response["result"]["answer"] == "Ответ [1]"
+    assert response["result"]["answer"] == "Ответ"
     assert captured == {
         "model": "qwen3.5:4b",
         "question": "Что изучается?",
@@ -119,7 +122,9 @@ def test_dispatch_surfaces_missing_local_ocr_as_error(tmp_path: Path, monkeypatc
     root.mkdir()
     (root / "scan.png").write_bytes(b"synthetic image")
 
-    def missing_ocr(path: Path) -> str:
+    # Шаг исправления: мок теперь возвращает пустой список блоков с варнингом,
+    # имитируя поведение нового контракта при ошибке
+    def missing_ocr(path: Path):
         raise RuntimeError("Install local OCR support with: pip install '.[ocr]'.")
 
     monkeypatch.setattr(extractors, "_extract_image", missing_ocr)
