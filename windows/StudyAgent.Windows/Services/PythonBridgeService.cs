@@ -19,9 +19,11 @@ public sealed class PythonBridgeService
         string archive = Path.Combine(AppContext.BaseDirectory, "Backend.zip");
         using var stream = File.OpenRead(archive);
         string digest = Convert.ToHexString(SHA256.HashData(stream))[..16];
+        // Packaged apps can virtualize Environment.SpecialFolder.LocalApplicationData.
+        // Use the package's physical writable LocalState path for child processes too.
         string cacheRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "StudyAgent", "backend-cache");
+            Windows.Storage.ApplicationData.Current.LocalFolder.Path,
+            "backend-cache");
         string destination = Path.Combine(cacheRoot, digest);
         string executable = Path.Combine(destination, "StudyAgentBackend.exe");
 
