@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
 
 from study_agent.indexer import DocumentIndexer, source_id
 from study_agent.mac_bridge import dispatch
+from study_agent.math_display import has_math, readable_math
 from study_agent.ollama import list_models
 from study_agent.search import SearchHit, SearchWarning, search_sources
 from study_agent.sources import LocalFolderSource
@@ -82,6 +83,7 @@ def named(widget: QWidget, name: str) -> QWidget:
 
 def set_status(label: QLabel, text: str, state: str) -> None:
     """Update an existing status label's semantic visual state."""
+    label.setTextFormat(Qt.TextFormat.PlainText)
     label.setText(text)
     label.setProperty("state", state)
     label.style().unpolish(label)
@@ -124,6 +126,7 @@ def _retrieve_request(request: dict, generate_answer: bool, model: str) -> dict:
             result["response"] = response["result"]
         else:
             result["answer_error"] = response["error"]["message"]
+            result["answer_error_details"] = response["error"]
     return result
 
 
@@ -965,7 +968,18 @@ class MainWindow(QMainWindow):
                        f"Найдено фрагментов: {len(hits)}." + self._search_warning_text,
                        "success" if hits else "warning")
         if result.get("answer_error"):
-            self._search_failed(result["answer_error"])
+            error = result.get("answer_error_details", {})
+            details = error.get("details", {})
+            diagnostic = ["Поиск завершён; ответ не показан.", result["answer_error"]]
+            if error.get("reason"):
+                diagnostic.append(f"Причина: {error['reason']}.")
+            if details.get("source_count") is not None:
+                diagnostic.append(f"Источников в контексте: {details['source_count']}.")
+            if error.get("model"):
+                diagnostic.append(f"Модель: {error['model']}.")
+            if error.get("action"):
+                diagnostic.append(error["action"])
+            set_status(self.search_state, " ".join(diagnostic), "warning")
 
     def _add_hit(self, number: int | None, hit: SearchHit) -> None:
         card = named(QFrame(), "card")
@@ -977,21 +991,44 @@ class MainWindow(QMainWindow):
         title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
-        excerpt = QLabel(hit.excerpt)
-        excerpt.setWordWrap(True)
-        excerpt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(excerpt)
+        self._add_material_text(layout, hit.excerpt)
+        if hit.related_count:
+            layout.addWidget(QLabel(f"Ещё {hit.related_count} совпадений в этом разделе"))
+        if "formula_suspect" in hit.quality_warnings:
+            warning = QLabel("В исходной формуле обнаружена подозрительная запись. "
+                             "Сверьте её с оригиналом документа.")
+            warning.setWordWrap(True)
+            layout.addWidget(warning)
         self.results_layout.addWidget(card)
+
+    def _add_material_text(self, layout: QVBoxLayout, text: str) -> None:
+        label = QLabel(readable_math(text))
+        label.setTextFormat(Qt.TextFormat.PlainText)
+        label.setWordWrap(True)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(label)
+        if has_math(text):
+            note = QLabel("Упрощённое отображение формул. "
+                          "Математическая корректность автоматически не проверена.")
+            note.setWordWrap(True)
+            layout.addWidget(named(note, "muted"))
+            raw = QLabel(text)
+            raw.setTextFormat(Qt.TextFormat.PlainText)
+            raw.setWordWrap(True)
+            raw.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            raw.setVisible(False)
+            toggle = QPushButton("Исходный текст / LaTeX")
+            toggle.setCheckable(True)
+            toggle.toggled.connect(raw.setVisible)
+            layout.addWidget(toggle)
+            layout.addWidget(raw)
 
     def _answer_loaded(self, response: str, hits: list[SearchHit]) -> None:
         card = named(QFrame(), "card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.addWidget(named(QLabel("Ответ модели"), "eyebrow"))
-        answer_label = QLabel(response)
-        answer_label.setWordWrap(True)
-        answer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(answer_label)
+        self._add_material_text(layout, response)
         self.results_layout.addWidget(card)
         set_status(
             self.search_state,

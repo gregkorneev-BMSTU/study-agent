@@ -1,10 +1,10 @@
 # SA-03 local QA — 2026-10-26
 
-Все документы — синтетические из `tests/fixtures/rag_corpus.json`. Пользовательские папки и основная SQLite не использовались. Модель `qwen3-embedding:0.6b` загружена с явного разрешения пользователя; `gemma4:e2b` уже была установлена. Публикации в GitHub нет.
+Все документы в автоматических прогонах — синтетические из `tests/fixtures/rag_corpus.json` или отдельной тестовой таблицы интегралов. Пользовательские папки и основная SQLite не использовались. Модель `qwen3-embedding:0.6b` загружена с явного разрешения пользователя; `gemma4:e2b` уже была установлена. Публикации в GitHub нет.
 
 ## Проверки
 
-- Полный `.venv/bin/python -m pytest -q`: **137 passed**, Ruff и `git diff --check` прошли. Веса не нужны для pytest; реальные прогоны ниже — отдельные opt-in проверки.
+- Полный `.venv/bin/python -m pytest -q`: **203 passed**, Ruff и `git diff --check` прошли. Веса не нужны для pytest; реальные прогоны ниже — отдельные opt-in проверки.
 - Swift `model_queue` harness прошёл: серверные sources, настройка embedding-профиля, подготовка через очередь, инвалидация устаревшего ответа. Xcode Debug/Release и штатный `build_macos_native_app.sh` прошли. Остаётся существующее предупреждение Swift о non-Sendable `BackendProcessControl`.
 - Нативная сборка содержит PyInstaller helper; отдельный JSONL-запрос к упакованному helper с изолированной SQLite вернул реальный grounded answer и только `matrix.md` как процитированный источник: [packaged-answer.json](packaged-answer.json).
 - Реальные запросы backend: определение матрицы получило ответ со ссылкой; вопрос о текущей цене биткоина дал `grounded=false`, без sources: [live-answer.json](live-answer.json). Финальная версия возвращает только процитированные источники.
@@ -26,3 +26,13 @@
 Полные результаты: [default prefix](benchmark-default-prefix.json), [instruction prefix](benchmark.json). Индексация без префикса — 0.56 s; повтор после открытия SQLite — 0.0017 s и 16 skipped. `/api/ps` сообщил размер resident embedding-модели около **1.24 GB** (`size` и `size_vram`), это не полный RSS приложения/ОС и не минимальные системные требования. Вторая модель не загружалась/не сравнивалась. Времена зависят от прогрева/runtime/машины; нельзя переносить их на произвольные учебники или Windows.
 
 Не проверены Windows, большой корпус, реальный OCR, VoiceOver, чистая установка и Gatekeeper. Разработческая сборка ad-hoc, без нотариализации. В этой сессии локальный `.venv` не включает optional OCR runtime; для сканов нужна сборка с `.[ocr]`.
+
+## Регрессия математического поиска
+
+Тот же сценарий повторён через JSON Lines helper из финальной пересобранной app, с отдельным `STUDY_AGENT_DATA_DIR`: [packaged-math-regression.json](packaged-math-regression.json). Получены одна подходящая формула и grounded-ответ с одним источником. `codesign --verify --deep --strict` прошёл; офлайн ресурсы и лицензии находятся в app.
+
+[math-regression.json](math-regression.json): отдельная временная SQLite и синтетическая таблица с правильным интегралом корня из x, обратным корнем, посторонними sin/cos и двумя повреждёнными формулами. Реальные qwen3-embedding:0.6b и gemma4:e2b вернули одну подходящую формулу, один скрытый соседний кандидат и ответ с одним источником. Пользовательский лекционный MD не изменялся и не использовался в этом прогоне.
+
+Swift WKWebView harness проверяет фактический офлайн рендеринг, MathML, HTML injection, fenced/inline code, недоверенные ссылки, лимит макросов и тёмную схему. Команда: `swiftc -parse-as-library -o /tmp/sa03-math-render macOS/StudyAgent/Localization.swift macOS/StudyAgent/MathContentView.swift tests/macos_client/math_render.swift && /tmp/sa03-math-render`. Это проверка компонента, а не полный визуальный прогон приложения.
+
+Новые диагностические регрессии различают отсутствие ссылок, несуществующий номер, абзац без ссылки, сгенерированные URL и подозрительные источники. Фрагменты сохраняются после ошибки ответа. Эвристики качества ограничены известными признаками повреждения; произвольные математические ошибки они не обнаруживают.

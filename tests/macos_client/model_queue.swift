@@ -10,9 +10,27 @@ struct ModelQueueTest {
     @MainActor
     static func main() async throws {
         let searchHits = try JSONDecoder().decode([SearchHit].self, from: Data("""
-        [{"title":"lecture","document_id":"physics.pdf","excerpt":"text","score":1,"source_root":"/library","page_number":17,"heading":null,"marker":"p17","extraction_type":"pdf_text","chunk_id":"chunk-1"},
+        [{"title":"lecture","document_id":"physics.pdf","excerpt":"text","score":1,"source_root":"/library","page_number":17,"heading":null,"marker":"p17","extraction_type":"pdf_text","chunk_id":"chunk-1","related_count":2,"quality_warnings":["formula_suspect"]},
          {"title":"lecture","document_id":"physics.pdf","excerpt":"other text","score":1,"source_root":"/library","page_number":18,"heading":null,"marker":"p18","extraction_type":"pdf_text","chunk_id":"chunk-2"}]
         """.utf8))
+        precondition(searchHits[0].relatedCount == 2)
+        precondition(searchHits[0].qualityWarnings == ["formula_suspect"])
+        precondition(searchHits[1].relatedCount == nil)
+        let citationError = BackendClientError.fromEnvelope([
+            "code": "invalid_citations", "reason": "unknown_source", "stage": "answer",
+            "details": ["source_count": 2, "invalid_sources": [9]],
+            "message": "untrusted internal details"
+        ])
+        precondition(citationError.code == "invalid_citations")
+        precondition(citationError.technicalDetails.contains("reason: unknown_source"))
+        precondition(citationError.technicalDetails.contains("invalid_sources: [9]"))
+        precondition(!citationError.technicalDetails.contains("untrusted"))
+        precondition(citationError.citationReasonMessage.contains("которого нет"))
+        precondition(L10n.text(citationError.citationReasonMessage, language: .english).contains("not in the supplied context"))
+        for reason in ["missing_citations", "unknown_source", "uncited_paragraph", "generated_links", "source_quality"] {
+            let failure = BackendClientError.fromEnvelope(["code": "invalid_citations", "reason": reason])
+            precondition(failure.citationReasonMessage != "Ответ не прошёл проверку ссылок на источники.")
+        }
         precondition(searchHits[0].pageNumber == 17)
         precondition(searchHits[0].chunkID == "chunk-1")
         precondition(searchHits[0].id != searchHits[1].id)

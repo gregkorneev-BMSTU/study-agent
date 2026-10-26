@@ -110,3 +110,113 @@ def test_short_definition_is_not_discarded_as_insufficient() -> None:
         generator=lambda *a, **k: "TCP — протокол [1].",
     )
     assert result.grounded and result.sources[0].excerpt == "TCP — протокол."
+
+
+@pytest.mark.parametrize(
+    ("response", "reason", "extra"),
+    [
+        ("Ответ без ссылок", "missing_citations", {}),
+        ("Ответ [9]", "unknown_source", {"invalid_sources": [9]}),
+        (
+            "Факт [1].\n\nОтдельный содержательный абзац без указания проверяемого источника.",
+            "uncited_paragraph",
+            {"paragraph_index": 2},
+        ),
+        ("См. [1](https://invalid.example)", "generated_links", {}),
+    ],
+)
+def test_error_has_safe_specific_reason_and_details(response, reason, extra) -> None:
+    with pytest.raises(CitationError) as failure:
+        generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: response)
+    error = failure.value
+    assert error.reason == reason
+    assert error.details == {"source_count": 1, **extra}
+    assert response not in error.message("ru")
+    assert response not in str(error.details)
+    assert error.message("en") != error.message("ru")
+    assert error.action("ru")
+
+
+def test_display_equation_inherits_adjacent_explanation_citation() -> None:
+    text = "Интеграл из источника записывается следующим образом [1]:\n\n" + (
+        r"\[\int\sqrt{x}\,dx=\frac{2}{3}x^{3/2}+C\]"
+    )
+    result = generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: text)
+    assert result.grounded and result.answer == text
+
+
+def test_mathematical_brackets_are_not_source_numbers() -> None:
+    text = r"Значение $x[99]$ используется в записи [1]."
+    result = generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: text)
+    assert result.grounded and "$x[99]$" in result.answer
+
+
+def test_citation_groups_are_valid_and_renumber_with_metadata() -> None:
+    from dataclasses import replace
+
+    first = hit()
+    second = replace(first, chunk_id="doc:1", document_id="second.pdf")
+    result = generate_answer(
+        "local",
+        "Вопрос?",
+        [first, second],
+        generator=lambda *a, **k: "Данные из двух источников [2, 1].",
+    )
+    assert result.answer == "Данные из двух источников [1], [2]."
+    assert [source.document_id for source in result.sources] == ["second.pdf", "algebra.pdf"]
+
+
+def test_suspect_source_is_not_forwarded_to_model() -> None:
+    damaged = hit(r"$$\int \sqrt{dx}=x+C$$")
+    with pytest.raises(CitationError) as failure:
+        generate_answer(
+            "local",
+            "Вопрос?",
+            [damaged],
+            generator=lambda *a, **k: pytest.fail("damaged formula must not be sent"),
+        )
+    assert failure.value.reason == "source_quality"
+    assert failure.value.details == {"source_count": 0, "warning_codes": ["formula_suspect"]}
+
+
+def test_bad_formula_does_not_block_other_usable_sources() -> None:
+    damaged = hit(r"$$\int \sqrt{dx}=x+C$$")
+    seen = {}
+
+    def generator(model, query, context, **kwargs):
+        seen["context"] = context
+        return "Матрица — таблица [1]."
+
+    result = generate_answer("local", "Вопрос?", [damaged, hit()], generator=generator)
+    assert result.grounded and len(result.sources) == 1
+    assert r"\sqrt{dx}" not in seen["context"]
+
+
+def test_budget_never_sends_half_a_display_formula() -> None:
+    context, sources = build_context([hit(r"$$\int " + "x+" * 1000 + r"dx=F(x)$$")], max_bytes=200)
+    assert context == "" and sources == []
+
+
+@pytest.mark.parametrize("code", ["``arr[99]``", "`arr[99]`", "``arr[99]`x``"])
+def test_inline_code_numbers_are_never_citations(code) -> None:
+    text = f"Код {code} имеет ссылку [1]."
+    result = generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: text)
+    assert result.answer == text
+
+
+def test_multiline_code_inherits_adjacent_citation_and_is_not_renumbered() -> None:
+    text = "Пример алгоритма из материала [1]:\n\n```python\n" + (
+        "values = [99]  # a long code example requiring its surrounding explanation\n\n"
+        "other = [98]   # another line in the same code block\n```"
+    )
+    result = generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: text)
+    assert result.answer == text
+
+
+def test_indented_code_numbers_do_not_become_source_ids() -> None:
+    text = (
+        "Пример из материала [1]:\n\n"
+        "    values = [99]  # an indented code example with a long comment"
+    )
+    result = generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: text)
+    assert result.answer == text

@@ -371,3 +371,33 @@ def test_embedding_failure_keeps_text_index_searchable(tmp_path: Path, monkeypat
     assert not result["ok"] and result["error"]["code"] == "embedding_error"
     result = mac_bridge.dispatch({"command": "search", "roots": [str(root)], "query": "Матрица"})
     assert result["ok"] and result["result"]["hits"][0]["document_id"] == "note.txt"
+
+
+def test_answer_failure_envelope_explains_cause_without_raw_text(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from study_agent.retrieval import RetrievalResult
+    from study_agent.search import SearchHit
+
+    raw_response = "PRIVATE GENERATED TEXT [19]"
+    sample = SearchHit(
+        "Synthetic",
+        "note.txt",
+        "A synthetic paragraph with enough context.",
+        1,
+        tmp_path,
+        chunk_id="doc:0",
+    )
+    monkeypatch.setattr(mac_bridge, "_retrieve", lambda _: (None, [], RetrievalResult([sample])))
+    monkeypatch.setattr(mac_bridge, "ensure_local_model", lambda *a: "synthetic")
+    monkeypatch.setattr(mac_bridge, "answer", lambda *a, **k: raw_response)
+    result = mac_bridge.dispatch(
+        {"command": "answer", "query": "Question?", "model": "synthetic-llm", "language": "ru"}
+    )
+    assert not result["ok"]
+    error = result["error"]
+    assert error["code"] == "invalid_citations" and error["reason"] == "unknown_source"
+    assert error["details"] == {"source_count": 1, "invalid_sources": [19]}
+    assert error["stage"] == "answer" and error["model"] == "synthetic-llm"
+    assert error["action"] and "Модель сослалась" in error["message"]
+    assert raw_response not in str(error)

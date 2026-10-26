@@ -6,6 +6,7 @@ import re
 
 from study_agent.models import ExtractedBlock
 
+MARKDOWN_VERSION = 2
 _ATX = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?)|[ \t]*)$")
 _SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
@@ -22,9 +23,16 @@ def markdown_units(text: str) -> list[str]:
     units: list[str] = []
     pending: list[str] = []
     fence: str | None = None
+    math_end: str | None = None
     for line in text.splitlines(keepends=True):
         match = _FENCE.match(line.rstrip("\r\n"))
-        if fence is not None:
+        if math_end is not None:
+            pending.append(line)
+            if math_end in line:
+                math_end = None
+                units.append("".join(pending))
+                pending = []
+        elif fence is not None:
             pending.append(line)
             if _fence_end(line.rstrip("\r\n"), fence):
                 units.append("".join(pending))
@@ -35,6 +43,18 @@ def markdown_units(text: str) -> list[str]:
                 units.append("".join(pending))
             pending = [line]
             fence = match[1]
+        elif line.lstrip().startswith(("$$", r"\[")):
+            if pending:
+                units.append("".join(pending))
+            pending = [line]
+            closing = "$$" if line.lstrip().startswith("$$") else r"\]"
+            opening = "$$" if closing == "$$" else r"\["
+            tail = line.lstrip()[len(opening) :]
+            if closing in tail:
+                units.append("".join(pending))
+                pending = []
+            else:
+                math_end = closing
         elif not line.strip():
             if pending:
                 units.append("".join(pending))

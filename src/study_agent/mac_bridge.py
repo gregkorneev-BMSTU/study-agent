@@ -125,11 +125,24 @@ def dispatch(
             raise ValueError("Unknown backend command")
         return {"request_id": request_id, "ok": True, "result": result}
     except (OSError, OllamaError, RuntimeError, TypeError, ValueError, sqlite3.Error) as error:
+        diagnostic: dict[str, Any] = {}
+        if isinstance(error, CitationError):
+            language = request.get("language")
+            diagnostic = {
+                "reason": error.reason,
+                "details": error.details,
+                "action": error.action(language),
+                "stage": "answer",
+                "model": request.get("model"),
+            }
         return {
             "request_id": request_id,
             "ok": False,
             "error": {
-                "message": str(error),
+                "message": error.message(request.get("language"))
+                if isinstance(error, CitationError)
+                else str(error),
+                **diagnostic,
                 "code": (
                     "index_busy"
                     if isinstance(error, IndexBusyError)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import re
 import sqlite3
 import struct
 from dataclasses import asdict, dataclass, replace
@@ -11,6 +10,14 @@ from pathlib import Path
 from typing import Literal
 
 from study_agent.embeddings import Embedder, EmbeddingError, input_hash, validate_vector
+from study_agent.math_content import (
+    focus_excerpt,
+    formula_warnings,
+    is_math_query,
+    math_relevance,
+    math_signature_matches,
+    supports_math_query,
+)
 from study_agent.search import SearchHit
 from study_agent.storage import IndexStorage
 
@@ -42,26 +49,43 @@ def _hit(row: sqlite3.Row, score: int) -> SearchHit:
     )
 
 
-def _unique(hits: list[SearchHit], limit: int) -> list[SearchHit]:
-    selected: list[SearchHit] = []
-    for hit in hits:
-        words = set(re.findall(r"\w+", hit.excerpt.casefold()))
-        duplicate = False
-        for other in selected:
-            if (hit.source_root, hit.document_id) != (other.source_root, other.document_id):
-                continue
-            other_words = set(re.findall(r"\w+", other.excerpt.casefold()))
-            if hit.excerpt == other.excerpt or (
-                min(len(words), len(other_words)) >= 20
-                and len(words & other_words) / min(len(words), len(other_words)) >= 0.85
-            ):
-                duplicate = True
-                break
-        if not duplicate:
-            selected.append(hit)
-        if len(selected) == limit:
-            break
-    return selected
+def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHit]:
+    """Focus math and group candidates by source section, retaining provenance.
+
+    A heading identifies its whole section even when split into adjacent chunks;
+    without one, distinct pages or source markers remain independent results.
+    """
+    focused = [replace(hit, excerpt=focus_excerpt(hit.excerpt, query)) for hit in hits]
+    if is_math_query(query):
+        # Stable sorting retains retrieval order for equal lexical math intent.
+        focused.sort(key=lambda hit: -math_relevance(hit.excerpt, query))
+    grouped: dict[tuple[object, ...], SearchHit] = {}
+    for hit in focused:
+        location = (
+            ("heading", hit.heading)
+            if hit.heading
+            else (
+                ("page", hit.page_number) if hit.page_number is not None else ("marker", hit.marker)
+            )
+        )
+        key = (hit.source_root, hit.document_id, *location)
+        if key in grouped:
+            representative = grouped[key]
+            # Corrupt OCR in one sibling must not hide usable material from its section.
+            if representative.quality_warnings and not formula_warnings(hit.excerpt):
+                grouped[key] = replace(
+                    hit, related_count=representative.related_count + 1, quality_warnings=[]
+                )
+            else:
+                grouped[key] = replace(
+                    representative, related_count=representative.related_count + 1
+                )
+        else:
+            grouped[key] = replace(hit, quality_warnings=formula_warnings(hit.excerpt))
+    selected = list(grouped.values())
+    if is_math_query(query) and any(math_signature_matches(hit.excerpt, query) for hit in selected):
+        selected = [hit for hit in selected if supports_math_query(hit.excerpt, query)]
+    return selected[:limit]
 
 
 def retrieve(
@@ -91,7 +115,7 @@ def retrieve(
         ]
     )
     if mode == "lexical":
-        return RetrievalResult(_unique(lexical, limit))
+        return RetrievalResult(_unique(lexical, limit, query))
     if embedder is None:
         raise EmbeddingError("Choose a local embedding model before semantic search")
     profile = embedder.profile
@@ -115,7 +139,7 @@ def retrieve(
         semantic.sort(key=lambda hit: (-hit.score, str(hit.source_root), hit.chunk_id))
         semantic = semantic[:candidate_limit]
     if mode == "semantic":
-        return RetrievalResult(_unique(semantic, limit), pending)
+        return RetrievalResult(_unique(semantic, limit, query), pending)
     # RRF combines ranks instead of adding incompatible BM25 and cosine scales.
     scores: dict[str, float] = {}
     values: dict[str, SearchHit] = {}
@@ -129,4 +153,4 @@ def retrieve(
             scores[key] = scores.get(key, 0.0) + weight / (60 + rank)
     ranked = sorted(values, key=lambda key: (-scores[key], key))
     combined = [replace(values[key], score=round(scores[key] * 1_000_000)) for key in ranked]
-    return RetrievalResult(_unique(combined, limit), pending)
+    return RetrievalResult(_unique(combined, limit, query), pending)

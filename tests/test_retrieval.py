@@ -91,3 +91,204 @@ def test_stale_vectors_are_not_used_after_update(tmp_path: Path) -> None:
 def test_invalid_mode_is_explicit(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="mode"):
         retrieve(IndexStorage(tmp_path / "index.sqlite3"), [], "query", mode="unknown")
+
+
+def test_groups_same_section_but_keeps_other_sections_pages_and_documents() -> None:
+    from study_agent.retrieval import _unique
+    from study_agent.search import SearchHit
+
+    root = Path("/synthetic")
+    hits = [
+        SearchHit("A", "a.md", "Первый фрагмент", 9, root, heading="Таблица", chunk_id="1"),
+        SearchHit("A", "a.md", "Второй фрагмент", 8, root, heading="Таблица", chunk_id="2"),
+        SearchHit("A", "a.md", "Другой раздел", 7, root, heading="Примеры", chunk_id="3"),
+        SearchHit("B", "b.md", "Первый фрагмент", 6, root, heading="Таблица", chunk_id="4"),
+        SearchHit("PDF", "a.pdf", "Страница один", 5, root, page_number=1, chunk_id="5"),
+        SearchHit("PDF", "a.pdf", "Страница два", 4, root, page_number=2, chunk_id="6"),
+    ]
+    found = _unique(hits, 8)
+    assert [hit.chunk_id for hit in found] == ["1", "3", "4", "5", "6"]
+    assert found[0].related_count == 1
+    assert all(hit.related_count == 0 for hit in found[1:])
+
+
+def test_math_group_keeps_precise_formula_with_original_provenance() -> None:
+    from study_agent.retrieval import _unique
+    from study_agent.search import SearchHit
+
+    root = Path("/synthetic")
+    original = r"Заголовок: $$\int \sqrt{x} dx = F(x)+C$$" + "\nИсточник /invented/file"
+    hits = [
+        SearchHit(
+            "A",
+            "notes.md",
+            r"$$\int \sqrt{dx} = x+C$$",
+            10,
+            root,
+            heading="Интегралы",
+            marker="line:8",
+            chunk_id="bad",
+        ),
+        SearchHit(
+            "A",
+            "notes.md",
+            original,
+            8,
+            root,
+            heading="Интегралы",
+            marker="line:12",
+            chunk_id="good",
+        ),
+        SearchHit(
+            "A",
+            "notes.md",
+            r"$$\int \sin x dx = F(x)$$",
+            6,
+            root,
+            heading="Интегралы",
+            marker="line:15",
+            chunk_id="sin",
+        ),
+    ]
+    found = _unique(hits, 8, "интеграл корня из x")
+    assert len(found) == 1
+    hit = found[0]
+    assert hit.excerpt == r"$$\int \sqrt{x} dx = F(x)+C$$"
+    assert hit.excerpt in original
+    assert hit.related_count == 2 and hit.quality_warnings == []
+    assert (hit.document_id, hit.marker, hit.chunk_id) == ("notes.md", "line:12", "good")
+
+
+def test_suspect_only_source_is_retained_with_warning() -> None:
+    from study_agent.retrieval import _unique
+    from study_agent.search import SearchHit
+
+    hit = SearchHit("OCR", "a.md", r"$$\int \sqrt{dx} = x$$", 1, Path("/synthetic"))
+    found = _unique([hit], 8, "интеграл корня из x")
+    assert len(found) == 1
+    assert found[0].quality_warnings == ["formula_suspect"]
+
+
+def test_semantic_math_table_uses_saved_text_and_keeps_other_document(tmp_path: Path) -> None:
+    root = tmp_path / "notes"
+    root.mkdir()
+    expected = r"$$\int \sqrt{x} dx = \frac{2}{3}x^{3/2}+C$$"
+    (root / "table.md").write_text(
+        "# Интегралы\n" + r"$$\int \sqrt{x^n} dx = F(x)$$" + "\n\n" + expected,
+        encoding="utf-8",
+    )
+    (root / "other.md").write_text(
+        "# Метод\nИнтеграл корня из x объясняется степенным правилом", encoding="utf-8"
+    )
+    storage = IndexStorage(tmp_path / "index.sqlite3")
+    DocumentIndexer(storage).sync_source(LocalFolderSource(root))
+
+    class MathEmbedder(SemanticEmbedder):
+        def embed_documents(self, inputs: list[str]) -> list[list[float]]:
+            return [[1, 0, 0] for _ in inputs]
+
+    embedder = MathEmbedder()
+    key = source_id(root)
+    EmbeddingIndexer(storage, embedder).sync_sources([key])
+    # Search relies exclusively on the saved index, not live source extraction.
+    (root / "table.md").unlink()
+    result = retrieve(storage, [key], "интеграл корня из x", mode="semantic", embedder=embedder)
+    assert result.hits[0].excerpt == expected
+    assert {hit.document_id for hit in result.hits} == {"table.md", "other.md"}
+
+
+def test_math_signature_filters_conflicting_sections_with_equal_vectors(tmp_path: Path) -> None:
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "table.md").write_text(
+        "# Корень\n"
+        + r"$$\int \sqrt{x} dx=F(x)$$"
+        + "\n\n"
+        + "# Синус\n"
+        + r"$$\int \sin x dx=G(x)$$"
+        + "\n\n"
+        + "# Обратный корень\n"
+        + r"$$\int \frac{dx}{\sqrt{x}}=H(x)$$"
+        + "\n\n"
+        + "# Корень степени\n"
+        + r"$$\int \sqrt{x^n} dx=K(x)$$",
+        encoding="utf-8",
+    )
+    storage = IndexStorage(tmp_path / "index.sqlite3")
+    DocumentIndexer(storage).sync_source(LocalFolderSource(root))
+
+    class EqualEmbedder(SemanticEmbedder):
+        def embed_documents(self, inputs: list[str]) -> list[list[float]]:
+            return [[1, 0, 0] for _ in inputs]
+
+    embedder = EqualEmbedder()
+    key = source_id(root)
+    EmbeddingIndexer(storage, embedder).sync_sources([key])
+    result = retrieve(storage, [key], "интеграл корня из x", mode="semantic", embedder=embedder)
+    assert [hit.heading for hit in result.hits] == ["Корень"]
+    general = retrieve(
+        storage, [key], "таблица основных интегралов", mode="semantic", embedder=embedder
+    )
+    assert len(general.hits) == 4
+
+
+def test_precise_math_gate_retains_supporting_prose_but_drops_unrelated_document() -> None:
+    from study_agent.retrieval import _unique
+    from study_agent.search import SearchHit
+
+    root = Path("/synthetic")
+    hits = [
+        SearchHit("Matrix", "matrix.md", "Матрица: независимый документ", 10, root),
+        SearchHit(
+            "Guide", "guide.md", "Интеграл корня из x объясняется степенным правилом", 9, root
+        ),
+        SearchHit("Formula", "formula.md", r"$$\int \sqrt{x} dx=F(x)$$", 8, root),
+        SearchHit(
+            "Wrong",
+            "code.md",
+            "Неверный пример:\n```latex\n" + r"$$\int \sqrt{x} dx=123$$" + "\n```",
+            7,
+            root,
+        ),
+    ]
+    found = _unique(hits, 8, "интеграл корня из x")
+    assert [hit.document_id for hit in found] == ["formula.md", "guide.md"]
+    # The narrow gate is only enabled after a strong formula match.
+    assert [hit.document_id for hit in _unique(hits[:2], 8, "интеграл корня из x")] == [
+        "matrix.md",
+        "guide.md",
+    ]
+
+
+def test_clean_sibling_replaces_corrupt_representative_without_reordering_groups() -> None:
+    from study_agent.retrieval import _unique
+    from study_agent.search import SearchHit
+
+    root = Path("/synthetic")
+    hits = [
+        SearchHit("Bad", "a.md", r"\frac{x}{y", 10, root, heading="Матрицы", chunk_id="bad"),
+        SearchHit("Other", "b.md", "Другой материал", 9, root, heading="Иное"),
+        SearchHit(
+            "Good",
+            "a.md",
+            "Матрица — прямоугольная таблица",
+            8,
+            root,
+            heading="Матрицы",
+            chunk_id="good",
+        ),
+        SearchHit(
+            "Sibling",
+            "a.md",
+            "Матрица: ещё один хороший фрагмент",
+            7,
+            root,
+            heading="Матрицы",
+            chunk_id="sibling",
+        ),
+    ]
+    found = _unique(hits, 8, "матрица")
+    assert [hit.document_id for hit in found] == ["a.md", "b.md"]
+    assert found[0].chunk_id == "good"
+    assert found[0].related_count == 2
+    assert found[0].quality_warnings == []

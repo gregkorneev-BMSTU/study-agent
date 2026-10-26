@@ -99,6 +99,8 @@ struct SearchHit: Identifiable, Decodable {
     let marker: String?
     let extractionType: String?
     let chunkID: String?
+    let relatedCount: Int?
+    let qualityWarnings: [String]?
 
     enum CodingKeys: String, CodingKey {
         case title, excerpt, score
@@ -107,6 +109,8 @@ struct SearchHit: Identifiable, Decodable {
         case pageNumber = "page_number"
         case heading, marker
         case extractionType = "extraction_type"
+        case relatedCount = "related_count"
+        case qualityWarnings = "quality_warnings"
         case chunkID = "chunk_id"
     }
 
@@ -122,6 +126,8 @@ struct SearchHit: Identifiable, Decodable {
         marker = try values.decodeIfPresent(String.self, forKey: .marker)
         extractionType = try values.decodeIfPresent(String.self, forKey: .extractionType)
         chunkID = try values.decodeIfPresent(String.self, forKey: .chunkID)
+        relatedCount = try values.decodeIfPresent(Int.self, forKey: .relatedCount)
+        qualityWarnings = try values.decodeIfPresent([String].self, forKey: .qualityWarnings)
     }
 
     func locationDescription(language: AppLanguage) -> String? {
@@ -214,6 +220,7 @@ final class StudyAgentModel: ObservableObject {
     @Published var isSearching = false
     @Published var searchStatus = "Выберите папку в разделе «Библиотека», чтобы начать поиск."
     @Published var hits: [SearchHit] = []
+    @Published private(set) var searchErrorDetails: String?
     @Published var searchWarnings: [SearchWarning] = []
     @Published var answerText: String?
     @Published private(set) var answerSources: [SearchHit] = []
@@ -270,6 +277,7 @@ final class StudyAgentModel: ObservableObject {
         searchRequestID = UUID()
         isSearching = false
         hits = []
+        searchErrorDetails = nil
         searchWarnings = []
         answerText = nil
         answerSources = []
@@ -906,6 +914,7 @@ final class StudyAgentModel: ObservableObject {
         }
         isSearching = true
         hits = []
+        searchErrorDetails = nil
         searchWarnings = []
         answerText = nil
         answerSources = []
@@ -953,7 +962,10 @@ final class StudyAgentModel: ObservableObject {
                     answerSources.count
                 ) : text("В материалах недостаточно данных для ответа.")
             } catch {
-                if requestID == searchRequestID { searchStatus = localizedError(error) }
+                if requestID == searchRequestID {
+                    searchStatus = localizedError(error)
+                    searchErrorDetails = (error as? BackendClientError)?.technicalDetails
+                }
             }
             if requestID == searchRequestID { isSearching = false }
         }
@@ -984,7 +996,14 @@ final class StudyAgentModel: ObservableObject {
     }
 
     private func localizedError(_ error: Error) -> String {
-        if let backend = error as? BackendClientError { return issueMessage(backend.code) }
+        if let backend = error as? BackendClientError {
+            if backend.code == "invalid_citations" {
+                return text("Поиск выполнен, ответ модели не показан.") + "\n"
+                    + text(backend.citationReasonMessage) + "\n"
+                    + text("Найденные фрагменты доступны ниже. Сверьте их с оригиналом или повторите ответ с другой локальной моделью.")
+            }
+            return issueMessage(backend.code)
+        }
         return L10n.text(error.localizedDescription, language: language)
     }
 
@@ -1133,7 +1152,7 @@ private struct MacBackendClient {
                         if error?["code"] as? String == "index_busy" {
                             throw BackendClientError.indexBusy
                         }
-                        throw BackendClientError.backend(code: error?["code"] as? String ?? "backend_error")
+                        throw BackendClientError.fromEnvelope(error)
                     }
                     continuation.resume(returning: result)
                 } catch {
@@ -1205,7 +1224,7 @@ private struct MacBackendClient {
                             if error?["code"] as? String == "index_busy" {
                                 throw BackendClientError.indexBusy
                             }
-                            throw BackendClientError.backend(code: error?["code"] as? String ?? "backend_error")
+                            throw BackendClientError.fromEnvelope(error)
                         }
                         continuation.resume(returning: result)
                     } catch {
@@ -1265,18 +1284,55 @@ private final class BackendProcessControl {
     }
 }
 
-private enum BackendClientError: LocalizedError {
+enum BackendClientError: LocalizedError {
     case missingBackend
     case invalidResponse
     case indexBusy
-    case backend(code: String)
+    case backend(code: String, reason: String? = nil, sourceCount: Int? = nil,
+                 invalidSources: [Int]? = nil, paragraphIndex: Int? = nil,
+                 warningCodes: [String]? = nil, stage: String? = nil, model: String? = nil)
+
+    static func fromEnvelope(_ payload: [String: Any]?) -> BackendClientError {
+        let details = payload?["details"] as? [String: Any]
+        return .backend(code: payload?["code"] as? String ?? "backend_error",
+            reason: payload?["reason"] as? String, sourceCount: details?["source_count"] as? Int,
+            invalidSources: details?["invalid_sources"] as? [Int],
+            paragraphIndex: details?["paragraph_index"] as? Int,
+            warningCodes: details?["warning_codes"] as? [String],
+            stage: payload?["stage"] as? String, model: payload?["model"] as? String)
+    }
+
+    var citationReasonMessage: String {
+        guard case .backend(_, let reason, _, _, _, _, _, _) = self else { return "" }
+        switch reason {
+        case "missing_citations": return "Модель не указала ссылки на найденные источники."
+        case "unknown_source": return "Модель сослалась на источник, которого нет в переданном контексте."
+        case "uncited_paragraph": return "В ответе есть содержательный абзац без ссылки на источник."
+        case "generated_links": return "Модель добавила внешнюю или Markdown-ссылку вместо проверяемого номера источника."
+        case "source_quality": return "В найденном материале обнаружены признаки ошибки распознавания формулы; достоверность ответа не подтверждена."
+        default: return "Ответ не прошёл проверку ссылок на источники."
+        }
+    }
+
+    var technicalDetails: String {
+        guard case .backend(let code, let reason, let count, let invalid, let paragraph, let warnings, let stage, let model) = self else { return code }
+        var fields = ["code: \(code)"]
+        if let reason { fields.append("reason: \(reason)") }
+        if let stage { fields.append("stage: \(stage)") }
+        if let model { fields.append("model: \(model)") }
+        if let count { fields.append("source_count: \(count)") }
+        if let invalid { fields.append("invalid_sources: \(invalid)") }
+        if let paragraph { fields.append("paragraph_index: \(paragraph)") }
+        if let warnings { fields.append("warning_codes: \(warnings.joined(separator: ", "))") }
+        return fields.joined(separator: "\n")
+    }
 
     var code: String {
         switch self {
         case .missingBackend: "backend_missing"
         case .invalidResponse: "backend_invalid_response"
         case .indexBusy: "index_busy"
-        case .backend(let code): code
+        case .backend(let code, _, _, _, _, _, _, _): code
         }
     }
 

@@ -1,0 +1,8 @@
+:root { color-scheme: light dark; }
+html,body { margin:0; padding:0; overflow:hidden; background:transparent; }
+body { font:13px -apple-system,BlinkMacSystemFont,sans-serif; color:CanvasText; user-select:text; overflow-wrap:anywhere; }
+#content > div { white-space:pre-wrap; }
+pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
+.katex-display { margin:0.7em 0; overflow-x:auto; overflow-y:hidden; white-space:normal; }
+.katex { font-size:1.12em; }
+code { font-family:ui-monospace,monospace; font-size:0.95em; white-space:pre-wrap; }

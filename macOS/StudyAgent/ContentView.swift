@@ -197,12 +197,19 @@ private struct SearchPanel: View {
                         }
                         .accessibilityElement(children: .combine)
                     }
+                    if let details = model.searchErrorDetails {
+                        DisclosureGroup(model.text("Технические подробности")) {
+                            Text(verbatim: details).font(.caption.monospaced()).textSelection(.enabled)
+                        }
+                    }
+                    if model.hits.contains(where: { MathContentView.containsMath($0.excerpt) }) {
+                        Text(model.text("Фрагменты из источников; математическая корректность автоматически не проверена."))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if let answer = model.answerText {
                         GroupBox(model.text("Ответ")) {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(answer)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .textSelection(.enabled)
+                                MathContentView(text: answer, language: model.language)
                                 if !model.answerSources.isEmpty {
                                     Divider()
                                     Text(model.text("Использованные источники"))
@@ -237,11 +244,15 @@ private struct SearchPanel: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Text(hit.excerpt)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            MathContentView(text: hit.excerpt, language: model.language)
+                            if hit.qualityWarnings?.contains("formula_suspect") == true {
+                                Label(model.text("В формуле возможна ошибка распознавания. Сверьте с оригиналом."), systemImage: "exclamationmark.triangle")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            if let related = hit.relatedCount, related > 0 {
+                                Text(L10n.format("Ещё %d совпадений в этом разделе", language: model.language, related))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                             Button(model.text("Открыть источник"), systemImage: "arrow.up.forward.square") {
                                 model.open(hit)
                             }

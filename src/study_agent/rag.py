@@ -6,11 +6,123 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
+from study_agent.math_content import formula_warnings, mask_markdown_code
 from study_agent.search import SearchHit
+
+_ERROR_MESSAGES = {
+    "missing_citations": (
+        "Модель не указала ссылки [1], [2] на переданные источники.",
+        "The model did not cite the supplied sources using [1], [2].",
+    ),
+    "unknown_source": (
+        "Модель сослалась на источник, которого нет в переданном контексте.",
+        "The model cited a source that was not supplied in its context.",
+    ),
+    "uncited_paragraph": (
+        "В ответе есть содержательный абзац без ссылки на источник.",
+        "A substantive paragraph in the answer has no source citation.",
+    ),
+    "generated_links": (
+        "Модель добавила внешнюю или Markdown-ссылку вместо номера источника.",
+        "Model-generated links are not allowed; open indexed sources instead.",
+    ),
+    "source_quality": (
+        "В найденных формулах есть признаки повреждения. Сверьте их с оригиналом.",
+        "The retrieved formulas may be damaged. Check the original document.",
+    ),
+}
 
 
 class CitationError(RuntimeError):
-    """A model response references sources outside the supplied context."""
+    """Safe structured diagnostics: never retain model output or source text."""
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        source_count: int = 0,
+        invalid_sources: list[int] | None = None,
+        paragraph_index: int | None = None,
+        warning_codes: list[str] | None = None,
+    ) -> None:
+        self.reason = reason
+        self.details: dict[str, object] = {"source_count": source_count}
+        if invalid_sources is not None:
+            self.details["invalid_sources"] = invalid_sources
+        if paragraph_index is not None:
+            self.details["paragraph_index"] = paragraph_index
+        if warning_codes is not None:
+            self.details["warning_codes"] = warning_codes
+        super().__init__(self.message("en"))
+
+    def message(self, language: str | None) -> str:
+        return _ERROR_MESSAGES[self.reason][1 if language == "en" else 0]
+
+    def action(self, language: str | None) -> str:
+        if self.reason == "source_quality":
+            return (
+                "Check the original and correct the local extraction before reindexing."
+                if language == "en"
+                else "Сверьте формулы с оригиналом, исправьте локальную копию "
+                "и проверьте изменения."
+            )
+        return (
+            "Retrieved excerpts remain available. Retry with another installed local model."
+            if language == "en"
+            else "Найденные фрагменты доступны. Повторите ответ с другой локальной моделью."
+        )
+
+
+_MATH_BLOCK = re.compile(
+    r"\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)"
+    r"|(?<!\\)\$(?!\$)[^\n$]+(?<!\\)\$(?!\$)"
+)
+_CITATION = re.compile(r"(?<!\\)\[(\d+(?:\s*[,;]\s*\d+)*)\]")
+
+
+def _citation_matches(content: str) -> list[re.Match[str]]:
+    # Numeric brackets in math/code are data rather than source references.
+    masked = _MATH_BLOCK.sub(lambda match: " " * len(match[0]), mask_markdown_code(content))
+    return list(_CITATION.finditer(masked))
+
+
+def _numbers(match: re.Match[str]) -> list[int]:
+    return [int(value.strip()) for value in re.split(r"[,;]", match[1])]
+
+
+def _uncited_paragraph(content: str, matches: list[re.Match[str]]) -> int | None:
+    # Global masking matters for blank lines inside fenced code/display equations.
+    visible = _MATH_BLOCK.sub(lambda match: " " * len(match[0]), mask_markdown_code(content))
+    paragraphs = []
+    offset = 0
+    for paragraph in re.split(r"\n\s*\n", content):
+        start = content.find(paragraph, offset)
+        end = start + len(paragraph)
+        offset = end
+        if not paragraph.strip():
+            continue
+        cited = any(start <= match.start() < end for match in matches)
+        structured_only = not visible[start:end].strip(" \n\t:;.,*_")
+        paragraphs.append((paragraph, cited, structured_only))
+    for index, (paragraph, cited, structured_only) in enumerate(paragraphs):
+        if len(paragraph.strip()) <= 30 or cited:
+            continue
+        if structured_only:
+            adjacent_citation = False
+            for direction in (-1, 1):
+                neighbor = index + direction
+                while 0 <= neighbor < len(paragraphs):
+                    _, neighbor_cited, neighbor_structured = paragraphs[neighbor]
+                    if neighbor_cited:
+                        adjacent_citation = True
+                        break
+                    if not neighbor_structured:
+                        break
+                    neighbor += direction
+            if adjacent_citation:
+                continue
+        return index + 1
+    return None
 
 
 @dataclass(frozen=True)
@@ -40,6 +152,8 @@ def build_context(
     sources: list[SearchHit] = []
     remaining = max_bytes
     for hit in hits:
+        if hit.quality_warnings or formula_warnings(hit.excerpt):
+            continue
         if len(sources) >= max_sources:
             break
         location = f"; page {hit.page_number}" if hit.page_number else ""
@@ -50,6 +164,17 @@ def build_context(
         if room < 80:
             break
         text = hit.excerpt.encode("utf-8")[:room].decode("utf-8", errors="ignore").strip()
+        # Never send half a display formula because the context budget ended inside it.
+        for match in _MATH_BLOCK.finditer(hit.excerpt):
+            if (
+                len(hit.excerpt[: match.start()].encode("utf-8"))
+                < room
+                < len(hit.excerpt[: match.end()].encode("utf-8"))
+            ):
+                text = hit.excerpt[: match.start()].strip()
+                break
+        if not text:
+            continue
         meaningful = (
             re.sub(r"(?m)^ {0,3}#{1,6}(?:\s.*)?$", "", text).strip()
             if hit.document_id.lower().endswith(".md")
@@ -76,24 +201,37 @@ def generate_answer(
         raise ValueError("Question is too long; limit is 1024 UTF-8 bytes")
     context, sources = build_context(hits)
     if not sources:
+        warnings = sorted(
+            {
+                code
+                for hit in hits
+                for code in [*hit.quality_warnings, *formula_warnings(hit.excerpt)]
+            }
+        )
+        if warnings:
+            raise CitationError("source_quality", source_count=0, warning_codes=warnings)
         return AnswerResult(refusal(language), [], False)
     content = generator(model, question, context, language=language).strip()
     if content == "INSUFFICIENT_CONTEXT":
         return AnswerResult(refusal(language), [], False)
     if re.search(r"\b[a-z][a-z0-9+.-]*://|mailto:|\[[^\]]+\]\([^)]*\)", content, re.I):
-        raise CitationError("Model-generated links are not allowed; open indexed sources instead")
-    numbers = [int(value) for value in re.findall(r"\[(\d+)\]", content)]
-    if not numbers or any(number < 1 or number > len(sources) for number in numbers):
-        raise CitationError("The local model returned missing or invalid source citations")
-    # Every substantive paragraph must carry a supplied source reference.
-    if any(
-        len(paragraph.strip()) > 30 and not re.search(r"\[\d+\]", paragraph)
-        for paragraph in re.split(r"\n\s*\n", content)
-        if paragraph.strip()
-    ):
-        raise CitationError("The local model returned an uncited paragraph")
-    # Expose only cited sources and renumber them together with the displayed text.
+        raise CitationError("generated_links", source_count=len(sources))
+    matches = _citation_matches(content)
+    numbers = [number for match in matches for number in _numbers(match)]
+    if not numbers:
+        raise CitationError("missing_citations", source_count=len(sources))
+    invalid = sorted({number for number in numbers if not 1 <= number <= len(sources)})
+    if invalid:
+        raise CitationError("unknown_source", source_count=len(sources), invalid_sources=invalid)
+    paragraph_index = _uncited_paragraph(content, matches)
+    if paragraph_index is not None:
+        raise CitationError(
+            "uncited_paragraph", source_count=len(sources), paragraph_index=paragraph_index
+        )
     cited = list(dict.fromkeys(numbers))
     mapping = {number: index for index, number in enumerate(cited, 1)}
-    content = re.sub(r"\[(\d+)\]", lambda match: f"[{mapping[int(match[1])]}]", content)
+    # Replace only actual citation spans, preserving numeric brackets inside math/code.
+    for match in reversed(matches):
+        replacement = ", ".join(f"[{mapping[number]}]" for number in _numbers(match))
+        content = content[: match.start()] + replacement + content[match.end() :]
     return AnswerResult(content, [sources[number - 1] for number in cited], True)

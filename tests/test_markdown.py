@@ -78,3 +78,11 @@ def test_indented_code_keeps_leading_spaces_in_saved_chunk() -> None:
     assert len(chunks) == 1
     assert chunks[0].text == "    print('code')\n    # still code"
     assert chunks[0].heading is None
+
+
+def test_multiline_display_math_keeps_inner_blank_lines_in_one_unit() -> None:
+    formula = "$$\n\\int \\sqrt{x}\\,dx\n\n= \\frac{2}{3}x^{3/2}+C\n$$"
+    text = "# Формулы\n\n" + "описание " * 15 + "\n\n" + formula
+    chunks = chunk_blocks(extract_markdown(text), max_chars=100, overlap=5)
+    assert sum(formula in chunk.text for chunk in chunks) == 1
+    assert all(len(chunk.text) <= 100 for chunk in chunks)

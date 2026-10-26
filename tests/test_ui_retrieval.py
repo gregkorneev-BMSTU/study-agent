@@ -62,6 +62,65 @@ def test_answer_failure_preserves_search_results(monkeypatch) -> None:
     assert result["answer_error"] == "No local LLM"
 
 
+def test_answer_failure_preserves_diagnostic_fields(monkeypatch) -> None:
+    error = {"message": "Нет ссылки на источник.", "stage": "answer",
+             "code": "invalid_citations", "reason": "missing_citations",
+             "details": {"source_count": 2}, "model": "local-llm"}
+    monkeypatch.setattr(ui, "dispatch", lambda request: (
+        {"ok": False, "error": error} if request["command"] == "answer" else
+        {"ok": True, "result": {"hits": []}}
+    ))
+    result = ui._retrieve_request({"roots": [], "query": "integral"}, True, "local-llm")
+    assert result["answer_error_details"] == error
+
+
+def test_answer_failure_is_not_reported_as_search_failure(monkeypatch) -> None:
+    statuses = []
+    monkeypatch.setattr(ui, "set_status",
+                        lambda _label, text, state: statuses.append((text, state)))
+
+    class Button:
+        def setEnabled(self, _enabled):
+            pass
+
+    class Window:
+        _search_generation = 1
+        ask_button = Button()
+        find_button = Button()
+        search_state = object()
+
+    result = {"hits": [], "answer_error": "Нет ссылки.", "answer_error_details": {
+        "reason": "missing_citations", "details": {"source_count": 3}, "model": "local-llm",
+    }}
+    ui.MainWindow._retrieved_result(Window(), 1, result)
+    assert statuses[-1][1] == "warning"
+    assert "Поиск завершён; ответ не показан" in statuses[-1][0]
+    assert "missing_citations" in statuses[-1][0]
+    assert "Источников в контексте: 3" in statuses[-1][0]
+
+
+def test_material_text_uses_plain_text_and_offers_original(monkeypatch) -> None:
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
+
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    app = QApplication.instance() or QApplication([])
+    card = QWidget()
+    layout = QVBoxLayout(card)
+    source = r'<img src="https://example.com"> $$\int \sqrt{x}$$'
+    ui.MainWindow._add_material_text(object(), layout, source)
+    labels = card.findChildren(QLabel)
+    assert "∫ √(x)" in labels[0].text()
+    assert labels[0].textFormat() == Qt.TextFormat.PlainText
+    raw = next(label for label in labels if label.text() == source)
+    assert raw.textFormat() == Qt.TextFormat.PlainText
+    assert raw.isHidden()
+    card.findChild(QPushButton).setChecked(True)
+    assert not raw.isHidden()
+    card.deleteLater()
+    app.processEvents()
+
+
 def test_bridge_hit_decodes_source_path() -> None:
     hit = ui._decode_hits([{
         "title": "Notes", "document_id": "notes.md", "excerpt": "text", "score": 1,
