@@ -71,11 +71,19 @@
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">False</PublishTrimmed>
   </PropertyGroup>
-  <!-- Include the packaged Python backend in Windows builds. -->
-  <ItemGroup Condition="Exists('..\..\build\windows-backend\dist\StudyAgentBackend\StudyAgentBackend.exe')">
+  <!-- Debug uses the live PyInstaller directory. Release keeps the complete backend
+       in an archive, because loose .rels files conflict with MSIX packaging. -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' and Exists('..\..\build\windows-backend\dist\StudyAgentBackend\StudyAgentBackend.exe')">
     <None
       Include="..\..\build\windows-backend\dist\StudyAgentBackend\**\*"
       Link="Backend\%(RecursiveDir)%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest"
+      CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <None
+      Include="..\..\build\windows-backend\StudyAgentBackend.zip"
+      Link="Backend.zip"
       CopyToOutputDirectory="PreserveNewest"
       CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
