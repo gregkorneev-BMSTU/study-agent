@@ -107,6 +107,9 @@ public sealed partial class HomePage : Page
         _lastHits = Array.Empty<JsonElement>();
         _lastQuery = "";
         ResultsPanel.Children.Clear();
+        ResultsExpander.IsExpanded = false;
+        ResultsExpander.Visibility = Visibility.Collapsed;
+        SearchStatus.Visibility = Visibility.Visible;
         AnswerText.Text = T("Ожидание результатов поиска...", "Waiting for search results...");
         SearchStatus.Text = T("Ищем документы...", "Searching documents...");
 
@@ -159,8 +162,10 @@ public sealed partial class HomePage : Page
                 return;
             }
 
-            SearchStatus.Text =
+            ResultsHeading.Text =
                 $"{T("Найдено результатов", "Results found")}: {_lastHits.Length}";
+            SearchStatus.Visibility = Visibility.Collapsed;
+            ResultsExpander.Visibility = Visibility.Visible;
 
             foreach (JsonElement hit in _lastHits)
             {
