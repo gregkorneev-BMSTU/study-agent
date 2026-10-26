@@ -147,3 +147,11 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 - Упакованный backend ответил на `diagnose_backend`: backend и PDF runtime доступны, Chandra runtime присутствует. Весов и OCR inference в составе выпуска нет.
 - SHA-256 `StudyAgent-v1.0.0-beta.4-macos-arm64.dmg`: `90a2108d804d5b8da8f5fc6168100ee2e9023781def9d85b6303ef5f71c143f5`.
 - `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `.venv/bin/ruff check .` — успешно; Xcode Release arm64 build завершился в составе сборки DMG. Полный локальный pytest не запускался повторно: известен abort на Cocoa `QApplication` в `tests/test_switch.py`; CI PR #12 прошёл для Python 3.12/3.13 и macOS client.
+
+## Локальная сборка v1 Beta 5 — 2026-10-26
+
+- На `main` после merge `feature/changing_ocr` выставлены `pyproject.toml = 1.0.0b5`, Xcode `MARKETING_VERSION=1.0.0`, `CURRENT_PROJECT_VERSION=5`.
+- `.venv/bin/ruff check .` прошёл. `scripts/build_macos_dmg.sh --mode development --suffix beta.5` успешно собрал Xcode Release и PyInstaller backend для arm64.
+- DMG `dist/StudyAgent-v1.0.0-beta.5-macos-arm64.dmg`: **233,833,529 байт**; `hdiutil verify` вернул `VALID`. SHA-256: `0609b1ba71663763655d5c193360e5e004ac67fce0e47953a74514366b1303b6`.
+- В Info.plist указаны версия `1.0.0` и build `5`; Swift-приложение и backend — arm64. Корень образа содержит `Study Agent.app`, `Applications → /Applications` и `.DS_Store`. После копирования приложения из образа `codesign --verify --deep --strict` прошёл.
+- Упакованный helper ответил на `diagnose_backend`: backend healthy, PDF и Chandra runtime доступны; локальная модель обнаружена. Сам inference через упакованный helper и запуск SwiftUI-приложения не выполнялись. DMG ad-hoc подписан, не нотариализован; GitHub Release не публиковался. `pytest` не запускался.
