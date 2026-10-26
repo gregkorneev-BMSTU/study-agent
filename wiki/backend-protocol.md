@@ -1,6 +1,6 @@
 # Python backend bridge: черновик контракта
 
-**Статус:** рабочий контракт SA-01 поверх существующего JSON Lines. Поле `search.result.warnings` добавлено SA-02. Клиенты, не использующие новые команды, продолжают получать прежний envelope.
+**Статус:** базовый контракт SA-01; расширения локальной SA-03 перечислены ниже. Поле `search.result.warnings` добавлено SA-02. Клиенты, не использующие новые команды, продолжают получать прежний envelope.
 
 Backend запускается локально как отдельный процесс, а клиент обменивается с ним сообщениями JSON Lines через stdin/stdout. Документы и обработка остаются на машине пользователя. Транспорт не является сетевым API.
 
@@ -13,7 +13,20 @@ Backend запускается локально как отдельный про
 - Во время команды могут приходить промежуточные события: `{"event":"progress","result":{"current":N,"total":N}}`. Новые события содержат `request_id`; клиент должен распознавать их по `event` и совпадающему `request_id`, продолжая читать поток до финального envelope с тем же идентификатором.
 - Неизвестные поля и команды сейчас не имеют закреплённой гарантии совместимости. Клиенты должны проверять `ok`, требуемые поля результата и корректно показывать `error.message`.
 
-## Команды в `main`
+## Расширения SA-03 в `feature/sa-03-rag`
+
+- `list_embedding_models` возвращает `models:[{name,dimensions}]`, отбирая установленные локальные модели с capability embedding по `/api/show`.
+- `embedding:{model,dimensions,document_prefix?,query_prefix?}` — необязательный профиль для `index_source`, `sync_source`, `index_status`, `search`, `answer`. Runtime проверяет digest и remote metadata; автоматической загрузки нет.
+- `index_source`/`sync_source` сначала фиксируют текстовую индексацию, затем считают недостающие embeddings. При ошибке второй фазы текст остаётся доступен. Есть progress `phase=embedding` и финальный необязательный `embeddings:{embedded,skipped,stale,cancelled}`.
+- `index_status` с профилем дополнительно возвращает `embedding_total`, `embedding_ready`; при недоступном runtime — `embedding_error=true`, не теряя текстовых счётчиков.
+- `search` принимает `search_mode:lexical|semantic|hybrid` (default lexical). Возвращает прежние hits/warnings/indexing плюс `search_mode` и `embedding_pending`. score остаётся Int; численные шкалы между режимами несопоставимы.
+- **`answer` теперь требует `roots` и получает контекст повторным retrieval из SQLite.** Переданные клиентом `hits` игнорируются; старым клиентам, присылающим только hits, возвращается ошибка валидации. Это намеренное изменение для отказа от доверия UI-контексту; оба локальных клиента обновлены, Windows-ветке нужна адаптация.
+- Ответ `answer`: `{answer,sources:[SearchHit],grounded:Bool}`. Sources — только процитированные фрагменты, номера в ответе и sources согласованы. При отсутствии данных/отказе: локализованный answer, пустые sources, grounded=false. При ошибке модели прежняя поисковая выдача сохраняется клиентом.
+- Новые коды ошибок: `embedding_required`, `embedding_error`, `model_unavailable`, `invalid_citations`; прочие прежние коды сохраняются. Клиент локализует по code.
+
+Актуальная реализация и ограничения: [SA-03 поиск](sa-03-search.md). Описания `answer` и прочих команд ниже фиксируют прежний контракт выпущенной Beta 4; изменения ветки SA-03 имеют приоритет.
+
+## Команды выпущенной Beta 4
 
 ### `index_source` / `sync_source`
 

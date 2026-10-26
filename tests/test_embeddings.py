@@ -44,6 +44,14 @@ def fake_ollama(monkeypatch, vectors=None, **metadata):
         calls.append((path, payload))
         if path == "/api/tags":
             return {"models": [{"name": "synthetic:latest", "digest": "v1", **metadata}]}
+        if path == "/api/show":
+            return {
+                "capabilities": ["embedding"],
+                "model_info": {
+                    "general.architecture": "synthetic",
+                    "synthetic.embedding_length": 3,
+                },
+            }
         assert path == "/api/embed"
         return {"embeddings": vectors if vectors is not None else [[3, 4, 0]]}
 
@@ -278,3 +286,34 @@ def test_cancellation_during_inference_does_not_commit_batch(tmp_path: Path) -> 
     )
     assert report.cancelled and report.embedded == 0
     assert storage.load_embeddings([source_id(root)], embedder.profile) == []
+
+
+def test_remote_alias_is_rejected_by_show_before_document_text(monkeypatch) -> None:
+    calls = []
+
+    def request(path, payload=None):
+        calls.append(path)
+        if path == "/api/tags":
+            return {"models": [{"name": "local-alias", "digest": "v1"}]}
+        return {"remote_host": "https://cloud.invalid", "capabilities": ["embedding"]}
+
+    monkeypatch.setattr(embeddings, "_request", request)
+    with pytest.raises(EmbeddingError, match="Remote"):
+        OllamaEmbedder("local-alias", 3)
+    assert calls == ["/api/tags", "/api/show"]
+
+
+def test_model_discovery_only_returns_local_embedding_models(monkeypatch) -> None:
+    def request(path, payload=None):
+        if path == "/api/tags":
+            return {"models": [{"name": name} for name in ("chat", "embed", "cloud")]}
+        if payload["model"] == "chat":
+            return {"capabilities": ["completion"]}
+        return {
+            "capabilities": ["embedding"],
+            "remote_host": "https://cloud.invalid" if payload["model"] == "cloud" else "",
+            "model_info": {"general.architecture": "synthetic", "synthetic.embedding_length": 3},
+        }
+
+    monkeypatch.setattr(embeddings, "_request", request)
+    assert embeddings.list_embedding_models() == [{"name": "embed", "dimensions": 3}]

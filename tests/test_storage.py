@@ -223,3 +223,10 @@ def test_schema_one_migration_preserves_chunks_and_fts(tmp_path: Path) -> None:
         assert db.execute("PRAGMA user_version").fetchone()[0] == 2
         assert db.execute("SELECT count(*) FROM chunk_embeddings").fetchone()[0] == 0
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+
+
+def test_explicit_data_directory_can_isolate_packaged_backend(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.storage import default_database_path
+
+    monkeypatch.setenv("STUDY_AGENT_DATA_DIR", str(tmp_path / "isolated"))
+    assert default_database_path() == tmp_path / "isolated/index.sqlite3"

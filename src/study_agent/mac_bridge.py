@@ -5,13 +5,24 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
+from dataclasses import asdict
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
+from study_agent.embeddings import (
+    EmbeddingError,
+    EmbeddingIndexer,
+    OllamaEmbedder,
+    ensure_local_model,
+    input_hash,
+    list_embedding_models,
+)
 from study_agent.indexer import DocumentIndexer, IndexBusyError, source_id
 from study_agent.ocr_model import download_model, model_is_installed
 from study_agent.ollama import OllamaError, answer, list_models
+from study_agent.rag import CitationError, generate_answer
+from study_agent.retrieval import RetrievalResult, hit_value, retrieve
 from study_agent.sources import LocalFolderSource
 from study_agent.storage import IndexStorage
 
@@ -34,81 +45,73 @@ def dispatch(
                 progress_callback=progress_callback,
                 verify_hash=request.get("verify_hash") is True,
             ).to_dict()
+            # Text remains searchable even when the optional embedding runtime fails.
+            embedder = _embedder(request)
+            if embedder is not None and not result["cancelled"]:
+                report = EmbeddingIndexer(indexer.storage, embedder).sync_sources(
+                    [source_id(root)],
+                    progress_callback=progress_callback,
+                )
+                result["embeddings"] = asdict(report)
         elif command == "index_status":
             root = Path(_required_text(request, "root"))
-            result = DocumentIndexer(IndexStorage()).get_index_status(source_id(root))
+            index = IndexStorage()
+            result = DocumentIndexer(index).get_index_status(source_id(root))
+            if request.get("embedding") is not None:
+                try:
+                    embedder = _embedder(request)
+                    rows = index.embedding_chunks([source_id(root)], embedder.profile.fingerprint)
+
+                    result["embedding_total"] = len(rows)
+                    result["embedding_ready"] = sum(
+                        row["input_hash"]
+                        == input_hash(embedder.profile.document_input(row["text"], row["heading"]))
+                        for row in rows
+                    )
+                except EmbeddingError:
+                    result.update(
+                        embedding_total=result["chunks"], embedding_ready=0, embedding_error=True
+                    )
         elif command == "remove_index_source":
             root = Path(_required_text(request, "root"))
             DocumentIndexer(IndexStorage()).remove_source(source_id(root))
             result = {"removed": True}
         elif command == "search":
-            roots = _roots(request)
-            query = _required_text(request, "query")
-            warnings = []
-            # Stored roots can be temporarily offline. Search needs only their IDs.
-            index = IndexStorage()
-            keys = [source_id(root) for root in roots]
-            from study_agent.search import SearchHit, SearchWarning
-
-            warnings = [SearchWarning(**item) for item in index.list_warnings(keys)]
-            rows = index.search(keys, query)
-            hits = [
-                SearchHit(
-                    row["title"],
-                    row["relative_path"],
-                    row["text"],
-                    max(1, round(float(row["rank"]) * 1_000_000)) if "rank" in row.keys() else 1,
-                    Path(row["root"]),
-                    row["page_number"],
-                    row["heading"],
-                    row["marker"],
-                    row["extraction_type"],
-                    row["chunk_id"],
-                )
-                for row in rows
-            ]
+            index, keys, found = _retrieve(request)
             result = {
                 "indexing": index.pending_sources(keys),
-                "warnings": [
-                    {
-                        "document_id": warning.document_id,
-                        "title": warning.title,
-                        "code": warning.code,
-                        "page_number": warning.page_number,
-                    }
-                    for warning in warnings
-                ],
-                "hits": [
-                    {
-                        "title": hit.title,
-                        "document_id": hit.document_id,
-                        "excerpt": hit.excerpt,
-                        "score": hit.score,
-                        "source_root": str(hit.source_root),
-                        "page_number": hit.page_number,
-                        "heading": hit.heading,
-                        "marker": hit.marker,
-                        "extraction_type": hit.extraction_type,
-                        "chunk_id": hit.chunk_id,
-                    }
-                    for hit in hits
-                ],
+                "embedding_pending": found.embedding_pending,
+                "search_mode": request.get("search_mode", "lexical"),
+                "warnings": index.list_warnings(keys),
+                "hits": [hit_value(hit) for hit in found.hits],
             }
         elif command == "answer":
-            context = "\n\n".join(
-                f"[{index}] {hit['source_root'].rstrip('/').split('/')[-1]}/{hit['document_id']}\n"
-                f"{hit['excerpt']}"
-                for index, hit in enumerate(_hit_context(request), start=1)
-            )
+            _, _, found = _retrieve(request)
             language = request.get("language")
+            language = language if language in ("en", "ru") else None
+            model = _required_text(request, "model")
+
+            def local_answer(model: str, question: str, context: str, language: str | None) -> str:
+                try:
+                    ensure_local_model(model, "completion")
+                except EmbeddingError as error:
+                    raise ModelUnavailableError(str(error)) from error
+                return answer(model, question, context, language=language)
+
+            generated = generate_answer(
+                model,
+                _required_text(request, "query"),
+                found.hits,
+                language=language,
+                generator=local_answer,
+            )
             result = {
-                "answer": answer(
-                    _required_text(request, "model"),
-                    _required_text(request, "query"),
-                    context,
-                    language=language if language in ("en", "ru") else None,
-                )
+                "answer": generated.answer,
+                "sources": [hit_value(hit) for hit in generated.sources],
+                "grounded": generated.grounded,
             }
+        elif command == "list_embedding_models":
+            result = {"models": list_embedding_models()}
         elif command == "list_models":
             result = {"models": list_models()}
         elif command == "diagnose_backend":
@@ -127,7 +130,19 @@ def dispatch(
             "ok": False,
             "error": {
                 "message": str(error),
-                "code": "index_busy" if isinstance(error, IndexBusyError) else "backend_error",
+                "code": (
+                    "index_busy"
+                    if isinstance(error, IndexBusyError)
+                    else "embedding_required"
+                    if isinstance(error, EmbeddingRequiredError)
+                    else "embedding_error"
+                    if isinstance(error, EmbeddingError)
+                    else "model_unavailable"
+                    if isinstance(error, ModelUnavailableError)
+                    else "invalid_citations"
+                    if isinstance(error, CitationError)
+                    else "backend_error"
+                ),
             },
         }
 
@@ -160,21 +175,52 @@ def _required_text(request: dict[str, Any], key: str) -> str:
     return value.strip()
 
 
-def _hit_context(request: dict[str, Any]) -> list[dict[str, str]]:
-    hits = request.get("hits")
-    if not isinstance(hits, list):
-        raise ValueError("hits must be a list")
-    context = []
-    for hit in hits[:5]:
-        if not isinstance(hit, dict):
-            raise ValueError("each hit must be an object")
-        source_root = hit.get("source_root")
-        document_id = hit.get("document_id")
-        excerpt = hit.get("excerpt")
-        if not all(isinstance(value, str) for value in (source_root, document_id, excerpt)):
-            raise ValueError("each hit needs source_root, document_id and excerpt strings")
-        context.append({"source_root": source_root, "document_id": document_id, "excerpt": excerpt})
-    return context
+class EmbeddingRequiredError(RuntimeError):
+    pass
+
+
+class ModelUnavailableError(RuntimeError):
+    pass
+
+
+def _embedder(request: dict[str, Any]) -> OllamaEmbedder | None:
+    config = request.get("embedding")
+    if config is None:
+        return None
+    if not isinstance(config, dict):
+        raise ValueError("embedding must be an object")
+    model = _required_text(config, "model")
+    dimensions = config.get("dimensions")
+    if (
+        isinstance(dimensions, bool)
+        or not isinstance(dimensions, int)
+        or not 1 <= dimensions <= 16384
+    ):
+        raise ValueError("embedding dimensions must be between 1 and 16384")
+    document_prefix = config.get("document_prefix", "")
+    query_prefix = config.get("query_prefix", "")
+    if not all(
+        isinstance(value, str) and len(value) <= 1024 for value in (document_prefix, query_prefix)
+    ):
+        raise ValueError("embedding prefixes must be strings of at most 1024 characters")
+    return OllamaEmbedder(
+        model, dimensions, document_prefix=document_prefix, query_prefix=query_prefix
+    )
+
+
+def _retrieve(request: dict[str, Any]) -> tuple[IndexStorage, list[str], RetrievalResult]:
+    roots = _roots(request)
+    query = _required_text(request, "query")
+    mode = request.get("search_mode", "lexical")
+    if mode not in ("lexical", "semantic", "hybrid"):
+        raise ValueError("Unknown search mode")
+    embedder = _embedder(request) if mode != "lexical" else None
+    if mode != "lexical" and embedder is None:
+        raise EmbeddingRequiredError("Choose an installed embedding model in Settings")
+    index = IndexStorage()
+    keys = [source_id(root) for root in roots]
+    found = retrieve(index, keys, query, mode=mode, embedder=embedder)
+    return index, keys, found
 
 
 def _source_summary(root: Path) -> dict[str, Any]:

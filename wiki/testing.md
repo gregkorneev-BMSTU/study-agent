@@ -157,3 +157,9 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 Дополнительный сквозной Python-прогон `extractors → DocumentIndexer → SQLite → EmbeddingIndexer` на временной русскоязычной Markdown-папке с синтетическим эмбеддером: один документ, два фрагмента/вектора; после открытия новым `IndexStorage` — два skipped; `PRAGMA user_version=2`, `integrity_check=ok`, `foreign_key_check` без ошибок.
 
 Веса моделей не скачивались; реальный `/api/embed`, качество/скорость/память embedding-моделей и Windows не проверялись. UI/bridge не менялись, Xcode build для этого backend-изменения не запускался. Векторный/гибридный поиск и новый RAG не входят в эту часть; Issue #3 остаётся открытым.
+
+## SA-03: поиск через приложение — 2026-10-26
+
+После интеграции retrieval/RAG/SwiftUI/PySide6 полный pytest — **137 passed**, Ruff — успешно. Новые проверки покрывают смысловой запрос без совпадающих слов, RRF, source isolation, stale/missing vectors, отсутствие document embedding при поиске, отказ без вызова LLM, поддельные клиентские hits, invalid citations/URL, перенумерацию только процитированных источников, независимость текстового индекса от отсутствующей embedding-модели и сохранение найденных фрагментов при отказе RAG. CI не запускался: по указанию пользователя коммиты только локальные.
+
+С явного разрешения скачана `qwen3-embedding:0.6b`. На синтетическом корпусе 8 документов/10 запросов измерены lexical/semantic/hybrid; проверены повторное открытие SQLite и реальный ответ `gemma4:e2b`, включая запрос вне корпуса. Xcode Debug/Release, Swift harness и PyInstaller app build прошли. CUA подтвердила реальную Library (16/16 vectors) и выдачу с matrix.md первым, но native pipe закрылся до осмотра окончательного ответа. Отдельно финальный упакованный helper вернул grounded answer с единственным источником matrix.md. Полные измерения, ограничения UI-проверки и воспроизводимые JSON: [QA SA-03](../artifacts/sa-03-search-qa/README.md).

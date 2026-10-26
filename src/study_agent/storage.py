@@ -19,6 +19,9 @@ SCHEMA_VERSION = 2
 
 
 def default_database_path() -> Path:
+    # Optional isolation for developer builds and packaged-helper smoke tests.
+    if data_directory := os.environ.get("STUDY_AGENT_DATA_DIR"):
+        return Path(data_directory).expanduser() / "index.sqlite3"
     if os.name == "nt":
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
     elif sys.platform == "darwin":
@@ -367,6 +370,25 @@ class IndexStorage:
             for row in rows
             if row["input_hash"] == input_hash(profile.document_input(row["text"], row["heading"]))
         ]
+
+    def retrieval_chunks(
+        self, source_ids: list[str], profile: EmbeddingProfile,
+    ) -> list[sqlite3.Row]:
+        """Snapshot text, provenance and cached vectors together to avoid inference races."""
+        if not source_ids:
+            return []
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            return db.execute(
+                f"""SELECT c.id AS chunk_id,c.text,c.heading,c.page_number,c.marker,
+                           c.extraction_type,d.title,d.relative_path,d.source_id,s.root,
+                           e.input_hash,e.vector,e.dimensions
+                    FROM chunks c JOIN documents d ON d.id=c.document_id
+                    JOIN sources s ON s.id=d.source_id LEFT JOIN chunk_embeddings e
+                      ON e.chunk_id=c.id AND e.model_fingerprint=?
+                    WHERE d.source_id IN ({placeholders}) ORDER BY c.id""",
+                (profile.fingerprint, *source_ids),
+            ).fetchall()
 
     def record_error(
         self,

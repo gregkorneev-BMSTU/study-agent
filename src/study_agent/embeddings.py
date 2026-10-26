@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from threading import Event
 from typing import TYPE_CHECKING, Protocol
@@ -73,6 +74,18 @@ def _installed_digest(model: str) -> str:
     raise EmbeddingError("Embedding model is not installed; automatic download is disabled")
 
 
+def ensure_local_model(model: str, capability: str) -> str:
+    """Check /show as well: a local tag can be an alias for a remote model."""
+    digest = _installed_digest(model)
+    info = _request("/api/show", {"model": model})
+    if info.get("remote_host") or info.get("remote_model"):
+        raise EmbeddingError("Remote model aliases are not allowed")
+    capabilities = info.get("capabilities")
+    if not isinstance(capabilities, list) or capability not in capabilities:
+        raise EmbeddingError(f"Installed model does not support {capability}")
+    return digest
+
+
 @dataclass(frozen=True)
 class EmbeddingProfile:
     model: str
@@ -128,6 +141,40 @@ class Embedder(Protocol):
         """Embed already prepared inputs, without adding more prefixes."""
         ...
 
+    def embed_query(self, question: str) -> list[float]: ...
+
+
+def list_embedding_models() -> list[dict[str, object]]:
+    """Discover installed embedding-capable models without loading their weights."""
+    models = _request("/api/tags").get("models")
+    if not isinstance(models, list):
+        raise EmbeddingError("Invalid installed-model list")
+    result = []
+    for item in models:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            continue
+        name = item["name"]
+        if (
+            item.get("remote_host")
+            or item.get("remote_model")
+            or name.endswith(("-cloud", ":cloud"))
+        ):
+            continue
+        # Newer runtimes include this metadata in tags; /show supports older ones.
+        details = _request("/api/show", {"model": name})
+        if details.get("remote_host") or details.get("remote_model"):
+            continue
+        if "embedding" not in details.get("capabilities", []):
+            continue
+        info = details.get("model_info", {})
+        if not isinstance(info, dict):
+            continue
+        architecture = info.get("general.architecture")
+        dimensions = info.get(f"{architecture}.embedding_length")
+        if isinstance(dimensions, int) and not isinstance(dimensions, bool) and dimensions > 0:
+            result.append({"name": name, "dimensions": dimensions})
+    return result
+
 
 class OllamaEmbedder:
     def __init__(
@@ -140,7 +187,7 @@ class OllamaEmbedder:
     ) -> None:
         self.profile = EmbeddingProfile(
             model,
-            _installed_digest(model),
+            ensure_local_model(model, "embedding"),
             dimensions,
             document_prefix,
             query_prefix,
@@ -198,6 +245,7 @@ class EmbeddingIndexer:
         *,
         batch_size: int = 32,
         cancel_token: Event | None = None,
+        progress_callback: Callable[[dict[str, object]], None] | None = None,
     ) -> EmbeddingReport:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -213,6 +261,22 @@ class EmbeddingIndexer:
                 report.skipped += 1
             else:
                 pending.append((row["chunk_id"], text))
+
+        def progress() -> None:
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "phase": "embedding",
+                        "current": report.skipped + report.embedded + report.stale,
+                        "total": len(rows),
+                        "indexed": report.embedded,
+                        "partial": 0,
+                        "skipped": report.skipped,
+                        "failed": report.stale,
+                    }
+                )
+
+        progress()
         for start in range(0, len(pending), batch_size):
             if cancel_token is not None and cancel_token.is_set():
                 report.cancelled = True
@@ -231,4 +295,5 @@ class EmbeddingIndexer:
             written = self.storage.put_embeddings(profile, records)
             report.embedded += written
             report.stale += len(records) - written
+            progress()
         return report

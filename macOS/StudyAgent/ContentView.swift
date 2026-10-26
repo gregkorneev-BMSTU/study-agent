@@ -222,15 +222,11 @@ private struct SearchPanel: View {
                             .padding(.top, 4)
                         }
                     }
-                    ForEach(Array(model.hits.enumerated()), id: \.element.id) { index, hit in
+                    ForEach(model.hits) { hit in
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(hit.title)
                                     .font(.headline)
-                                Spacer()
-                                Text("[\(index + 1)]")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
                             }
                             Text("\(URL(filePath: hit.sourceRoot).lastPathComponent)/\(hit.documentID)")
                                 .font(.caption)
@@ -421,6 +417,10 @@ struct SettingsPanel: View {
             Section(model.text("Локальная языковая модель")) {
                 if !model.modelNames.isEmpty {
                     Picker(model.text("Установленная модель"), selection: $model.modelName) {
+                        Text(model.text("Без генерации ответа")).tag("")
+                        if !model.modelName.isEmpty && !model.modelNames.contains(model.modelName) {
+                            Text(model.modelName + " — " + model.text("Недоступен")).tag(model.modelName)
+                        }
                         ForEach(model.modelNames, id: \.self) { name in
                             Text(name).tag(name)
                         }
@@ -439,6 +439,43 @@ struct SettingsPanel: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section(model.text("Поиск по материалам")) {
+                Picker(model.text("Режим поиска"), selection: $model.searchMode) {
+                    ForEach(SearchMode.allCases) { mode in
+                        Text(mode.title(language: model.language)).tag(mode)
+                    }
+                }
+                Picker(model.text("Embedding-модель"), selection: $model.embeddingModelName) {
+                    Text(model.text("Не выбрана")).tag("")
+                    if !model.embeddingModelName.isEmpty && !model.embeddingModels.contains(where: { $0.name == model.embeddingModelName }) {
+                        Text(model.embeddingModelName + " — " + model.text("Недоступен")).tag(model.embeddingModelName)
+                    }
+                    ForEach(model.embeddingModels) { item in
+                        Text("\(item.name) (\(item.dimensions))").tag(item.name)
+                    }
+                }
+                Text(model.embeddingModelStatus)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                DisclosureGroup(model.text("Префиксы embedding-модели")) {
+                    TextField(model.text("Префикс документов"), text: $model.documentPrefix)
+                    TextField(model.text("Префикс запросов"), text: $model.queryPrefix)
+                    Text(model.text("Оставьте пустыми, если модель не требует префиксов. Используйте значения из документации выбранной модели."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Button(model.text("Подготовить семантический индекс"), systemImage: "sparkle.magnifyingglass") {
+                    model.prepareSemanticIndex()
+                }
+                .disabled(!model.hasEmbeddingProfile || model.folders.isEmpty)
+                if model.semanticIndexNeedsPreparation {
+                    Text(model.text("Профиль изменён. Подготовьте индекс для подключённых папок; прогресс отображается в библиотеке."))
+                        .font(.callout).foregroundStyle(.orange)
+                }
+                Text(model.text("Поиск по смыслу и гибридный поиск требуют выбранной embedding-модели. После её выбора подготовьте индекс. Эмбеддинги обновляются при добавлении папки и проверке изменений."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section(model.text("Внешний вид и доступность")) {

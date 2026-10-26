@@ -36,6 +36,7 @@ def test_answer_sends_question_and_material_only_to_local_endpoint(monkeypatch) 
         return {"message": {"content": "Ответ [1]"}}
 
     monkeypatch.setattr(ollama, "_post", fake_post)
+    monkeypatch.setattr(ollama, "ensure_local_model", lambda *_: "synthetic")
 
     result = ollama.answer(
         "qwen3.5:4b", "Что такое алгоритм?", "[1] notes.txt\nАлгоритм — набор шагов."
@@ -56,9 +57,31 @@ def test_answer_uses_selected_interface_language(monkeypatch) -> None:
         return {"message": {"content": "Answer [1]"}}
 
     monkeypatch.setattr(ollama, "_post", fake_post)
+    monkeypatch.setattr(ollama, "ensure_local_model", lambda *_: "synthetic")
 
     ollama.answer("qwen3.5:4b", "Question?", "[1] notes.txt", language="en")
 
     messages = captured["payload"]["messages"]
     assert messages[0]["content"].startswith("Answer in English")
     assert messages[1]["content"].startswith("Question: Question?\n\nMaterials:")
+
+
+def test_generation_picker_excludes_embedding_and_remote_models(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ollama,
+        "urlopen",
+        lambda *a, **k: FakeResponse(
+            {
+                "models": [
+                    {"name": "chat", "capabilities": ["completion"]},
+                    {"name": "embed", "capabilities": ["embedding"]},
+                    {
+                        "name": "remote",
+                        "capabilities": ["completion"],
+                        "remote_host": "cloud.invalid",
+                    },
+                ]
+            }
+        ),
+    )
+    assert ollama.list_models() == ["chat"]
