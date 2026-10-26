@@ -11,7 +11,9 @@
 | `DocumentIndexer` | Первичная и инкрементальная индексация локального источника; отчёт, прогресс и отмена | `sync_source(source, progress_callback=None, cancel_token=None, verify_hash=False) -> IndexReport`; эмбеддер относится к SA-03 |
 | `IndexStorage` | SQLite: источники, документы, фрагменты, предупреждения и лексический поиск | `IndexStorage(path=None)`; хранит пользовательскую базу вне приложения и Git |
 | `chunk_blocks` | Делит `ExtractedBlock` на упорядоченные фрагменты без смешения страниц и метаданных | `chunk_blocks(blocks, max_chars=1000, overlap=120)` |
-| `VectorStore` | Планируемое в SA-03 сохранение эмбеддингов и поиск ближайших кандидатов | Контракт уточняется в SA-03 |
+| `OllamaEmbedder` / `EmbeddingProfile` | Локальные batch-эмбеддинги и профиль модели с digest/размерностью/префиксами; без загрузки моделей | `study_agent.embeddings`; [контракт SA-03](sa-03-embeddings.md) |
+| `EmbeddingIndexer` | Явный второй этап индексации сохранённых chunks; постоянные векторы в SQLite, инвалидация, batch и отмена | `sync_sources(source_ids, batch_size=32, cancel_token=None) -> EmbeddingReport` |
+| `VectorStore` | Сохранение векторов реализовано в `IndexStorage` (схема 2); поиск ближайших кандидатов ещё не реализован | `embedding_chunks`, `put_embeddings`, `load_embeddings`; [контракт SA-03](sa-03-embeddings.md) |
 | `MaterialRetriever` | Поиск документов и фрагментов с источниками | `retrieve(query, filters, limit) -> Sequence[RetrievedChunk]` |
 | `QueryRouter` | Выбрать прямой поиск, RAG-ответ или действие | `route(query) -> SearchPlan` |
 | `AnswerGenerator` | Передать локальной Qwen вопрос и найденный контекст; вернуть ответ и ссылки только из метаданных retrieval | `generate(query, context) -> Answer` |

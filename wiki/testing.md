@@ -147,3 +147,13 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 - Упакованный backend ответил на `diagnose_backend`: backend и PDF runtime доступны, Chandra runtime присутствует. Весов и OCR inference в составе выпуска нет.
 - SHA-256 `StudyAgent-v1.0.0-beta.4-macos-arm64.dmg`: `90a2108d804d5b8da8f5fc6168100ee2e9023781def9d85b6303ef5f71c143f5`.
 - `.venv/bin/python -m pytest -q --ignore=tests/test_switch.py` — **71 passed**; `.venv/bin/ruff check .` — успешно; Xcode Release arm64 build завершился в составе сборки DMG. Полный локальный pytest не запускался повторно: известен abort на Cocoa `QApplication` в `tests/test_switch.py`; CI PR #12 прошёл для Python 3.12/3.13 и macOS client.
+
+## SA-03: первые три шага — 2026-10-26
+
+Ветка `feature/sa-03-rag`: `.venv` создана на Python 3.12 из `.[dev]`; `.venv/bin/python -m pytest -q` — **102 passed**, `.venv/bin/python -m ruff check .` — **All checks passed**. Полный pytest включает Qt switch-тесты; в этом свежем окружении прежний Qt abort не воспроизвёлся. `git diff --check` прошёл.
+
+Новые проверки используют только временные синтетические данные и mock embedding runtime: Markdown heading paths и line markers, Setext, code fences/indented code, сохранение помещающихся таблиц/кода и жёсткие лимиты, optional token counter; batch/query API и `truncate=false`; отклонение неверных/NaN/нулевых векторов; запрет remote models, HTTP proxies и redirects; отсутствие автоматической загрузки; смена digest; миграция v1 → v2 с сохранением FTS; перезапуск, пересчёт изменённого текста/heading, независимые профили и источники, cascade delete, изменение текста во время inference, ошибка batch, отмена и продолжение.
+
+Дополнительный сквозной Python-прогон `extractors → DocumentIndexer → SQLite → EmbeddingIndexer` на временной русскоязычной Markdown-папке с синтетическим эмбеддером: один документ, два фрагмента/вектора; после открытия новым `IndexStorage` — два skipped; `PRAGMA user_version=2`, `integrity_check=ok`, `foreign_key_check` без ошибок.
+
+Веса моделей не скачивались; реальный `/api/embed`, качество/скорость/память embedding-моделей и Windows не проверялись. UI/bridge не менялись, Xcode build для этого backend-изменения не запускался. Векторный/гибридный поиск и новый RAG не входят в эту часть; Issue #3 остаётся открытым.

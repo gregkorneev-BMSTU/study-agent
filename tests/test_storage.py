@@ -83,7 +83,7 @@ def test_version_zero_migration_keeps_existing_rows(tmp_path: Path) -> None:
     storage = IndexStorage(path)
     assert storage.list_sources()[0]["id"] == "old"
     with sqlite3.connect(path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
 
 
 def test_second_connection_reads_while_writer_transaction_is_open(tmp_path: Path) -> None:
@@ -203,3 +203,23 @@ def test_new_source_pending_until_first_sync_completion(tmp_path: Path) -> None:
     storage.mark_source_indexed("a")
     assert not storage.pending_sources(["a"])
     assert storage.pending_sources(["a", "b"])
+
+
+def test_schema_one_migration_preserves_chunks_and_fts(tmp_path: Path) -> None:
+    """Downgrade a synthetic fixture to the original v1 schema, then migrate it."""
+    path = tmp_path / "index.sqlite3"
+    storage = IndexStorage(path)
+    storage.register_source("a", str(tmp_path / "a"))
+    _put(storage, "a", "doc", "сохранённый материал")
+    with storage.connect() as db:
+        db.execute("DROP TRIGGER chunk_embeddings_update")
+        db.execute("DROP TABLE chunk_embeddings")
+        db.execute("DROP TABLE embedding_profiles")
+        db.execute("PRAGMA user_version=1")
+    migrated = IndexStorage(path)
+    assert migrated.search(["a"], "сохранённый")[0]["text"] == "сохранённый материал"
+    assert migrated.get_document("a", "Лекция.txt")["id"] == "doc"
+    with migrated.connect() as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert db.execute("SELECT count(*) FROM chunk_embeddings").fetchone()[0] == 0
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
