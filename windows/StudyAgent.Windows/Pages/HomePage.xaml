@@ -105,9 +105,20 @@
                     TextWrapping="Wrap"/>
             </StackPanel>
 
-            <StackPanel
-                x:Name="ResultsPanel"
-                Spacing="12"/>
+            <Expander
+                x:Name="ResultsExpander"
+                IsExpanded="False"
+                Visibility="Collapsed">
+                <Expander.Header>
+                    <TextBlock
+                        x:Name="ResultsHeading"
+                        Text="Найдено результатов: 0"
+                        FontWeight="SemiBold"/>
+                </Expander.Header>
+                <StackPanel
+                    x:Name="ResultsPanel"
+                    Spacing="12"/>
+            </Expander>
 
 
 
