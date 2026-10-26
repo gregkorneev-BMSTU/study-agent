@@ -71,24 +71,6 @@
                     Opacity="0.75"/>
             </StackPanel>
 
-            <StackPanel Spacing="6">
-                <ProgressRing
-                    x:Name="SearchProgress"
-                    Width="26"
-                    Height="26"
-                    IsActive="False"
-                    HorizontalAlignment="Left"/>
-
-                <TextBlock
-                    x:Name="SearchStatus"
-                    Text="Введите запрос для поиска."
-                    TextWrapping="Wrap"/>
-            </StackPanel>
-
-            <StackPanel
-                x:Name="ResultsPanel"
-                Spacing="12"/>
-
             <StackPanel Spacing="8">
                 <TextBlock
                     x:Name="AnswerHeading" Text="Ответ по найденным материалам"
@@ -108,6 +90,26 @@
                         IsTextSelectionEnabled="True"/>
                 </Border>
             </StackPanel>
+
+            <StackPanel Spacing="6">
+                <ProgressRing
+                    x:Name="SearchProgress"
+                    Width="26"
+                    Height="26"
+                    IsActive="False"
+                    HorizontalAlignment="Left"/>
+
+                <TextBlock
+                    x:Name="SearchStatus"
+                    Text="Введите запрос для поиска."
+                    TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel
+                x:Name="ResultsPanel"
+                Spacing="12"/>
+
+
 
         </StackPanel>
     </ScrollViewer>
