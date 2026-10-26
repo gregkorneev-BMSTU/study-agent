@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -10,6 +12,54 @@ namespace StudyAgent_Windows.Services;
 
 public sealed class PythonBridgeService
 {
+    private static readonly object BackendExtractLock = new();
+
+    private static string EnsureArchivedBackend()
+    {
+        string archive = Path.Combine(AppContext.BaseDirectory, "Backend.zip");
+        using var stream = File.OpenRead(archive);
+        string digest = Convert.ToHexString(SHA256.HashData(stream))[..16];
+        string cacheRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "StudyAgent", "backend-cache");
+        string destination = Path.Combine(cacheRoot, digest);
+        string executable = Path.Combine(destination, "StudyAgentBackend.exe");
+
+        lock (BackendExtractLock)
+        {
+            if (File.Exists(executable) &&
+                File.Exists(Path.Combine(destination, ".ready")))
+            {
+                return executable;
+            }
+
+            Directory.CreateDirectory(cacheRoot);
+            string temporary = Path.Combine(cacheRoot, digest + ".extracting");
+            if (Directory.Exists(temporary))
+            {
+                Directory.Delete(temporary, recursive: true);
+            }
+
+            ZipFile.ExtractToDirectory(archive, temporary);
+
+            if (!File.Exists(Path.Combine(temporary, "StudyAgentBackend.exe")))
+            {
+                Directory.Delete(temporary, recursive: true);
+                throw new FileNotFoundException(
+                    "StudyAgentBackend.exe is missing from Backend.zip");
+            }
+
+            File.WriteAllText(Path.Combine(temporary, ".ready"), "ready");
+            if (Directory.Exists(destination))
+            {
+                Directory.Delete(destination, recursive: true);
+            }
+
+            Directory.Move(temporary, destination);
+            return executable;
+        }
+    }
+
     public Task<JsonDocument> DiagnoseAsync()
     {
         return SendAsync(new
@@ -94,6 +144,11 @@ public sealed class PythonBridgeService
         if (File.Exists(bundledPath))
         {
             backendPath = bundledPath;
+            usePackagedBackend = true;
+        }
+        else if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Backend.zip")))
+        {
+            backendPath = EnsureArchivedBackend();
             usePackagedBackend = true;
         }
         else
