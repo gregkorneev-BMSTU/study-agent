@@ -55,7 +55,14 @@ def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHi
     A heading identifies its whole section even when split into adjacent chunks;
     without one, distinct pages or source markers remain independent results.
     """
-    focused = [replace(hit, excerpt=focus_excerpt(hit.excerpt, query)) for hit in hits]
+    focused = [
+        replace(
+            hit,
+            full_excerpt=hit.full_excerpt if hit.full_excerpt is not None else hit.excerpt,
+            excerpt=focus_excerpt(hit.excerpt, query),
+        )
+        for hit in hits
+    ]
     if is_math_query(query):
         # Stable sorting retains retrieval order for equal lexical math intent.
         focused.sort(key=lambda hit: -math_relevance(hit.excerpt, query))

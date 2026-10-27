@@ -92,6 +92,8 @@ struct SearchHit: Identifiable, Decodable {
     let title: String
     let documentID: String
     let excerpt: String
+    let fullExcerpt: String?
+    var displayExcerpt: String { fullExcerpt ?? excerpt }
     let score: Int
     let sourceRoot: String
     let pageNumber: Int?
@@ -104,6 +106,7 @@ struct SearchHit: Identifiable, Decodable {
 
     enum CodingKeys: String, CodingKey {
         case title, excerpt, score
+        case fullExcerpt = "full_excerpt"
         case documentID = "document_id"
         case sourceRoot = "source_root"
         case pageNumber = "page_number"
@@ -119,6 +122,7 @@ struct SearchHit: Identifiable, Decodable {
         title = try values.decode(String.self, forKey: .title)
         documentID = try values.decode(String.self, forKey: .documentID)
         excerpt = try values.decode(String.self, forKey: .excerpt)
+        fullExcerpt = try values.decodeIfPresent(String.self, forKey: .fullExcerpt)
         score = try values.decode(Int.self, forKey: .score)
         sourceRoot = try values.decode(String.self, forKey: .sourceRoot)
         pageNumber = try values.decodeIfPresent(Int.self, forKey: .pageNumber)

@@ -18,3 +18,8 @@ runs with `trust: false`, `maxExpand: 200`, `maxSize: 20`. CSP denies network
 connections and images; WKNavigationDelegate denies navigation outside the
 bundled entry page. HTML is never parsed from source excerpts. Text inside
 backtick/tilde fences and inline backtick spans stays verbatim. Math renders with HTML and MathML.
+
+The DOM-only Markdown subset supports headings, paragraphs, emphasis, lists,
+quotes and pipe tables. Math/code are protected before Markdown processing.
+Nested lists are flattened; links, images and HTML remain literal text.
+No document text is passed to an HTML parser.

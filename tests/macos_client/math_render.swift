@@ -62,6 +62,91 @@ struct MathRenderTest {
             arguments: ["text": #"Код `$x$`, формула \(y\)."#], in: nil, contentWorld: .page)
         let mixedMath = try await view.evaluateJavaScript("document.querySelectorAll('.katex').length") as? Int
         precondition(mixedMath == 1, "Math outside inline code must still render")
+        let markdown = #"""
+        # Ответ **по материалам**
+
+        **Основная формула:** $x_i^2 + y_j$; *пояснение* и _курсив_.
+
+        $$
+        \begin{aligned}
+        a_i &= x_i^2 \\
+
+        b_j &= \frac{1}{x_j}
+        \end{aligned}
+        $$
+
+        - Первый **элемент**
+        - Второй с \(z_k\)
+
+        3. Шаг один
+        4. Шаг два
+
+        > Цитата с **выделением** и `$literal$`.
+
+        | Формула | Значение |
+        | --- | --- |
+        | $q_n$ | **полезно** |
+        | `a|b` | \(r_s\) |
+
+        ```html
+        <script>window.injected=true</script>
+        $$not_math$$ **not_bold**
+        ```
+
+        <unknown data-value="x">HTML остаётся текстом</unknown>
+        <img src="https://example.org/leak" onerror="window.injected=true">
+        [ссылка](https://example.org/) ![image](https://example.org/image)
+        """#
+        _ = try await view.callAsyncJavaScript("window.renderStudyContent(text, false)",
+            arguments: ["text": markdown], in: nil, contentWorld: .page)
+        let markdownResult = try await view.evaluateJavaScript("""
+        ({heading:document.querySelector('h1')?.textContent,
+          strong:document.querySelectorAll('strong').length,
+          emphasis:document.querySelectorAll('em').length,
+          unordered:document.querySelectorAll('ul > li').length,
+          ordered:document.querySelectorAll('ol > li').length,
+          start:document.querySelector('ol')?.start,
+          quote:document.querySelector('blockquote')?.textContent,
+          cells:document.querySelectorAll('tbody td').length,
+          codeCell:document.querySelector('tbody tr:last-child td:first-child')?.textContent,
+          math:document.querySelectorAll('.katex').length,
+          latex:[...document.querySelectorAll('annotation')].map(node=>node.textContent),
+          errors:document.querySelectorAll('.katex-error').length,
+          code:document.querySelector('pre')?.textContent,
+          unsafe:document.querySelectorAll('img,script:not([src]),a,unknown').length,
+          literal:document.getElementById('content').textContent.includes('<unknown data-value="x">'),
+          injected:window.injected===true})
+        """) as! [String: Any]
+        precondition(markdownResult["heading"] as? String == "Ответ по материалам")
+        precondition((markdownResult["strong"] as? Int ?? 0) >= 5)
+        precondition(markdownResult["emphasis"] as? Int == 2)
+        precondition(markdownResult["unordered"] as? Int == 2)
+        precondition(markdownResult["ordered"] as? Int == 2 && markdownResult["start"] as? Int == 3)
+        precondition((markdownResult["quote"] as? String)?.contains("$literal$") == true)
+        precondition(markdownResult["cells"] as? Int == 4 && markdownResult["codeCell"] as? String == "a|b")
+        precondition(markdownResult["math"] as? Int == 5, "Mixed Markdown lost math: \(markdownResult)")
+        precondition(markdownResult["errors"] as? Int == 0)
+        let annotations = markdownResult["latex"] as? [String] ?? []
+        precondition(annotations.contains("x_i^2 + y_j"), "Markdown changed LaTeX underscores")
+        precondition(annotations.contains(where: { $0.contains("a_i &= x_i^2") && $0.contains("\n\n") }), "Display math lost blank lines")
+        precondition((markdownResult["code"] as? String)?.contains("$$not_math$$ **not_bold**") == true)
+        precondition(markdownResult["unsafe"] as? Int == 0 && markdownResult["literal"] as? Bool == true)
+        precondition(markdownResult["injected"] as? Bool == false)
+        let indentedCode = "    $$literal_math$$ **literal_bold**\n\n\t<script>window.injected=true</script>\n\nParagraph\n    $real_math$"
+        _ = try await view.callAsyncJavaScript("window.renderStudyContent(text, false)",
+            arguments: ["text": indentedCode], in: nil, contentWorld: .page)
+        let indentResult = try await view.evaluateJavaScript("""
+        ({code:document.querySelector('pre')?.textContent,
+          math:document.querySelectorAll('.katex').length,
+          strong:document.querySelectorAll('strong').length,
+          scripts:document.querySelectorAll('#content script').length,
+          injected:window.injected===true})
+        """) as! [String: Any]
+        precondition((indentResult["code"] as? String)?.contains("$$literal_math$$ **literal_bold**") == true)
+        precondition((indentResult["code"] as? String)?.contains("<script>window.injected=true</script>") == true)
+        precondition(indentResult["math"] as? Int == 1, "Indented paragraph continuation must remain prose")
+        precondition(indentResult["strong"] as? Int == 0 && indentResult["scripts"] as? Int == 0)
+        precondition(indentResult["injected"] as? Bool == false)
         let networkBlocked = try await view.callAsyncJavaScript(
             "try { await fetch('https://example.org/blocked'); return false; } catch (_) { return true; }",
             arguments: [:], in: nil, contentWorld: .page) as? Bool

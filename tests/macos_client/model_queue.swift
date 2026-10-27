@@ -10,9 +10,11 @@ struct ModelQueueTest {
     @MainActor
     static func main() async throws {
         let searchHits = try JSONDecoder().decode([SearchHit].self, from: Data("""
-        [{"title":"lecture","document_id":"physics.pdf","excerpt":"text","score":1,"source_root":"/library","page_number":17,"heading":null,"marker":"p17","extraction_type":"pdf_text","chunk_id":"chunk-1","related_count":2,"quality_warnings":["formula_suspect"]},
+        [{"title":"lecture","document_id":"physics.pdf","excerpt":"text","full_excerpt":"complete saved chunk","score":1,"source_root":"/library","page_number":17,"heading":null,"marker":"p17","extraction_type":"pdf_text","chunk_id":"chunk-1","related_count":2,"quality_warnings":["formula_suspect"]},
          {"title":"lecture","document_id":"physics.pdf","excerpt":"other text","score":1,"source_root":"/library","page_number":18,"heading":null,"marker":"p18","extraction_type":"pdf_text","chunk_id":"chunk-2"}]
         """.utf8))
+        precondition(searchHits[0].displayExcerpt == "complete saved chunk")
+        precondition(searchHits[1].displayExcerpt == "other text")
         precondition(searchHits[0].relatedCount == 2)
         precondition(searchHits[0].qualityWarnings == ["formula_suspect"])
         precondition(searchHits[1].relatedCount == nil)

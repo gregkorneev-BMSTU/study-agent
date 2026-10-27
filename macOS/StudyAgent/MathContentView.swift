@@ -57,16 +57,10 @@ struct MathContentView: View {
     }
 
     var body: some View {
-        if Self.containsMath(text), let directory = Bundle.main.resourceURL?.appendingPathComponent("math"),
+        if let directory = Bundle.main.resourceURL?.appendingPathComponent("math"),
            FileManager.default.fileExists(atPath: directory.appendingPathComponent("index.html").path) {
-            VStack(alignment: .leading, spacing: 8) {
-                OfflineMathView(text: text, directory: directory, height: $height)
-                    .frame(height: height)
-                DisclosureGroup(L10n.text("Исходный текст", language: language)) {
-                    Text(verbatim: text).textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }.font(.caption)
-            }
+            OfflineMathView(text: text, directory: directory, height: $height)
+                .frame(height: height)
         } else {
             Text(verbatim: text).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -292,3 +292,19 @@ def test_clean_sibling_replaces_corrupt_representative_without_reordering_groups
     assert found[0].chunk_id == "good"
     assert found[0].related_count == 2
     assert found[0].quality_warnings == []
+
+
+def test_focused_math_preserves_complete_chunk_for_display() -> None:
+    from study_agent.retrieval import _unique, hit_value
+    from study_agent.search import SearchHit
+
+    original = (
+        "# Интегралы\n\n$$\\int \\sqrt{x} dx = \\frac{2}{3}x^{3/2}+C$$"
+        "\n\nДругая часть чанка."
+    )
+    hit = SearchHit("Lecture", "lecture.md", original, 10, Path("/synthetic"))
+    result = _unique([hit], 8, "интеграл корня из x")[0]
+    assert result.full_excerpt == original
+    assert result.excerpt != original
+    assert result.excerpt in original
+    assert hit_value(result)["full_excerpt"] == original

@@ -24,6 +24,7 @@ class SearchHit:
     chunk_id: str | None = None
     related_count: int = 0
     quality_warnings: list[str] = field(default_factory=list)
+    full_excerpt: str | None = None
 
 
 @dataclass(frozen=True)

@@ -215,14 +215,7 @@ private struct SearchPanel: View {
                                     Text(model.text("Использованные источники"))
                                         .font(.headline)
                                     ForEach(Array(model.answerSources.enumerated()), id: \.element.id) { index, hit in
-                                        Button {
-                                            model.open(hit)
-                                        } label: {
-                                            Label("[\(index + 1)]  \(hit.title) · \(hit.locationDescription(language: model.language) ?? model.text("Открыть документ"))", systemImage: "doc.text.magnifyingglass")
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                        .buttonStyle(.link)
-                                        .help(model.text("Открыть исходный документ"))
+                                        SearchSourceCard(hit: hit, number: index + 1, initiallyExpanded: false)
                                     }
                                 }
                             }
@@ -230,43 +223,69 @@ private struct SearchPanel: View {
                         }
                     }
                     ForEach(model.hits) { hit in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(hit.title)
-                                    .font(.headline)
-                            }
-                            Text("\(URL(filePath: hit.sourceRoot).lastPathComponent)/\(hit.documentID)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                            if let location = hit.locationDescription(language: model.language) {
-                                Text(location)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            MathContentView(text: hit.excerpt, language: model.language)
-                            if hit.qualityWarnings?.contains("formula_suspect") == true {
-                                Label(model.text("В формуле возможна ошибка распознавания. Сверьте с оригиналом."), systemImage: "exclamationmark.triangle")
-                                    .font(.caption).foregroundStyle(.orange)
-                            }
-                            if let related = hit.relatedCount, related > 0 {
-                                Text(L10n.format("Ещё %d совпадений в этом разделе", language: model.language, related))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Button(model.text("Открыть источник"), systemImage: "arrow.up.forward.square") {
-                                model.open(hit)
-                            }
-                            .buttonStyle(.link)
-                            .accessibilityHint(model.text("Открыть исходный документ"))
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.background, in: RoundedRectangle(cornerRadius: 12))
+                        SearchSourceCard(hit: hit, number: nil, initiallyExpanded: true)
                     }
                 }
             }
         }
         .padding(28)
+    }
+}
+
+/// Compact provenance header; the disclosure displays the complete saved chunk.
+private struct SearchSourceCard: View {
+    @EnvironmentObject private var model: StudyAgentModel
+    let hit: SearchHit
+    let number: Int?
+    @State private var expanded: Bool
+
+    init(hit: SearchHit, number: Int?, initiallyExpanded: Bool) {
+        self.hit = hit
+        self.number = number
+        _expanded = State(initialValue: initiallyExpanded)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text((number.map { "[\($0)] " } ?? "") + URL(filePath: hit.documentID).lastPathComponent)
+                        .font(.subheadline.weight(.semibold))
+                        .textSelection(.enabled)
+                    Text("\(URL(filePath: hit.sourceRoot).lastPathComponent)/\(hit.documentID)")
+                        .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+                Spacer(minLength: 8)
+                Button { model.open(hit) } label: {
+                    Image(systemName: "arrow.up.forward.square")
+                }
+                .buttonStyle(.borderless)
+                .help(model.text("Открыть исходный документ"))
+                .accessibilityLabel(model.text("Открыть исходный документ"))
+            }
+            DisclosureGroup("Original Text", isExpanded: $expanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let location = hit.locationDescription(language: model.language) {
+                        Text(location).font(.caption).foregroundStyle(.secondary)
+                    }
+                    MathContentView(text: hit.displayExcerpt, language: model.language)
+                    if hit.qualityWarnings?.contains("formula_suspect") == true {
+                        Label(model.text("В формуле возможна ошибка распознавания. Сверьте с оригиналом."), systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
+                .padding(.top, 6)
+            }
+            .font(.caption)
+            if let related = hit.relatedCount, related > 0 {
+                Text(L10n.format("Ещё %d совпадений в этом разделе", language: model.language, related))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.quaternary))
     }
 }
 
