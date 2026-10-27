@@ -98,12 +98,23 @@ def dispatch(
                     raise ModelUnavailableError(str(error)) from error
                 return answer(model, question, context, language=language)
 
+            def repair_answer(
+                model: str, question: str, context: str, language: str | None, error: CitationError
+            ) -> str:
+                return answer(
+                    model, question, context, language=language,
+                    citation_feedback=(
+                        f"{error.reason}; supplied sources: {error.details['source_count']}"
+                    ),
+                )
+
             generated = generate_answer(
                 model,
                 _required_text(request, "query"),
                 found.hits,
                 language=language,
                 generator=local_answer,
+                citation_repair=repair_answer,
             )
             result = {
                 "answer": generated.answer,

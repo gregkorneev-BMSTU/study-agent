@@ -85,3 +85,20 @@ def test_generation_picker_excludes_embedding_and_remote_models(monkeypatch) -> 
         ),
     )
     assert ollama.list_models() == ["chat"]
+
+
+def test_citation_feedback_adds_bounded_format_instruction(monkeypatch) -> None:
+    captured = {}
+
+    def post(path, payload):
+        captured.update(payload)
+        return {'message': {'content': 'Определение [1].'}}
+
+    monkeypatch.setattr(ollama, '_post', post)
+    monkeypatch.setattr(ollama, 'ensure_local_model', lambda *_: 'synthetic')
+    ollama.answer('local', 'Вопрос?', '[1] Источник', citation_feedback='uncited_paragraph')
+    system = captured['messages'][0]['content']
+    assert captured['think'] is False
+    assert 'uncited_paragraph' in system
+    assert 'Do not add a citation unless that source supports the claim' in system
+    assert captured['messages'][1]['content'].endswith('[1] Источник')

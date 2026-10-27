@@ -196,6 +196,7 @@ def generate_answer(
     *,
     language: str | None = None,
     generator: Callable[..., str],
+    citation_repair: Callable[..., str] | None = None,
 ) -> AnswerResult:
     if len(question.encode("utf-8")) > 1024:
         raise ValueError("Question is too long; limit is 1024 UTF-8 bytes")
@@ -212,6 +213,19 @@ def generate_answer(
             raise CitationError("source_quality", source_count=0, warning_codes=warnings)
         return AnswerResult(refusal(language), [], False)
     content = generator(model, question, context, language=language).strip()
+    try:
+        return _validated_answer(content, sources, language)
+    except CitationError as error:
+        if citation_repair is None:
+            raise
+        # One bounded fresh attempt using the same sources; never fabricate citations.
+        content = citation_repair(model, question, context, language, error).strip()
+        return _validated_answer(content, sources, language)
+
+
+def _validated_answer(
+    content: str, sources: list[SearchHit], language: str | None
+) -> AnswerResult:
     if content == "INSUFFICIENT_CONTEXT":
         return AnswerResult(refusal(language), [], False)
     if re.search(r"\b[a-z][a-z0-9+.-]*://|mailto:|\[[^\]]+\]\([^)]*\)", content, re.I):

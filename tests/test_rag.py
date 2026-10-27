@@ -220,3 +220,44 @@ def test_indented_code_numbers_do_not_become_source_ids() -> None:
     )
     result = generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: text)
     assert result.answer == text
+
+
+def test_citation_repair_runs_once_with_same_context_and_revalidates() -> None:
+    seen = {}
+
+    def first(model, question, context, *, language):
+        seen['context'] = context
+        return 'Определение без ссылки на переданный источник.'
+
+    def repair(model, question, context, language, error):
+        assert context == seen['context']
+        assert error.reason == 'missing_citations'
+        return 'Матрица — прямоугольная таблица элементов [1].'
+
+    result = generate_answer('local', 'Вопрос?', [hit()], generator=first, citation_repair=repair)
+    assert result.grounded and len(result.sources) == 1
+
+
+def test_failed_citation_repair_does_not_bypass_validation() -> None:
+    calls = []
+
+    def repair(*args):
+        calls.append(1)
+        return 'Непроверенный факт [99].'
+
+    with pytest.raises(CitationError) as failure:
+        generate_answer(
+            'local', 'Вопрос?', [hit()], generator=lambda *a, **k: 'Нет ссылки',
+            citation_repair=repair,
+        )
+    assert calls == [1]
+    assert failure.value.reason == 'unknown_source'
+
+
+def test_suspect_source_never_triggers_citation_repair() -> None:
+    with pytest.raises(CitationError, match='damaged'):
+        generate_answer(
+            'local', 'Вопрос?', [hit(r'$$\int \sqrt{dx}=x+C$$')],
+            generator=lambda *a, **k: pytest.fail('must not generate'),
+            citation_repair=lambda *a: pytest.fail('must not repair'),
+        )

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import WebKit
 
 /// Synthetic offline smoke test. No user documents, running app or index are accessed.
@@ -16,6 +17,95 @@ struct MathRenderTest {
         precondition(!MathContentView.containsMath("````tex\n$$x$$\n```\n$$y$$\n````"))
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("assets/math")
+        let spacedDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("study agent math resources " + UUID().uuidString)
+        try FileManager.default.copyItem(at: directory, to: spacedDirectory)
+        defer { try? FileManager.default.removeItem(at: spacedDirectory) }
+        let hostedContent = NSHostingView(rootView:
+            ScrollView {
+                LazyVStack(alignment: .leading) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("lecture.md").font(.headline)
+                        DisclosureGroup("Original Text", isExpanded: .constant(true)) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Раздел: Проверка").font(.caption)
+                                MathContentView(text: "# Visible heading\n\n**Visible body** $x_i^2$", language: .russian, resourceDirectory: spacedDirectory)
+                            }.padding(.top, 6)
+                        }.font(.caption)
+                    }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }.frame(width: 640, height: 480)
+        )
+        let hostWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        hostWindow.contentView = hostedContent
+        hostWindow.orderFront(nil)
+        defer { hostWindow.orderOut(nil) }
+        func webViews(_ node: NSView) -> [WKWebView] {
+            (node as? WKWebView).map { [$0] } ?? node.subviews.flatMap(webViews)
+        }
+        var hostedWebView: WKWebView?
+        var hostedResult: [String: Any]?
+        for _ in 0..<200 {
+            hostedContent.layoutSubtreeIfNeeded()
+            hostedWebView = webViews(hostedContent).first
+            if let hostedWebView,
+               let data = try? await hostedWebView.evaluateJavaScript("({text:document.getElementById('content')?.textContent,width:innerWidth,height:document.getElementById('content')?.getBoundingClientRect().height})") as? [String: Any],
+               (data["text"] as? String)?.contains("Visible body") == true,
+               hostedWebView.bounds.width > 300, hostedWebView.bounds.height > 40 {
+                hostedResult = data; break
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        print("Actual SwiftUI web frame:", hostedWebView?.frame as Any, "DOM:", hostedResult as Any)
+        fflush(stdout)
+        precondition(hostedResult != nil, "Actual MathContentView did not render")
+        precondition((hostedWebView?.bounds.width ?? 0) > 300, "Actual renderer collapsed to zero width")
+        precondition((hostedWebView?.bounds.height ?? 0) > 40, "Actual renderer has no visible height")
+        // Exercise the actual delegate's process-termination path, then verify
+        // selectable SwiftUI source text is exposed instead of a blank web view.
+        if let hostedWebView {
+            hostedWebView.navigationDelegate?.webViewWebContentProcessDidTerminate?(hostedWebView)
+        }
+        for _ in 0..<100 {
+            hostedContent.layoutSubtreeIfNeeded()
+            if webViews(hostedContent).isEmpty { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        precondition(webViews(hostedContent).isEmpty, "Failed WebKit must be removed")
+        let badDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("study-agent renderer failure " + UUID().uuidString)
+        try FileManager.default.createDirectory(at: badDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: badDirectory) }
+        try "<html><body></body></html>".write(to: badDirectory.appendingPathComponent("index.html"), atomically: true, encoding: .utf8)
+        let badHost = NSHostingView(rootView: MathContentView(text: "Fallback evidence $x$", language: .russian,
+            resourceDirectory: badDirectory).frame(width: 500))
+        let badWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 200),
+            styleMask: [.titled], backing: .buffered, defer: false)
+        badWindow.contentView = badHost; badWindow.orderFront(nil)
+        defer { badWindow.orderOut(nil) }
+        try await Task.sleep(nanoseconds: 500_000_000)
+        for _ in 0..<100 {
+            badHost.layoutSubtreeIfNeeded()
+            if webViews(badHost).isEmpty { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        precondition(webViews(badHost).isEmpty, "Missing renderer function must trigger fallback")
+        // This hosting view contains only MathContentView. With the failed WK
+        // removed, nonuniform rendered pixels prove its raw-text fallback is visible.
+        badHost.layoutSubtreeIfNeeded()
+        let bitmap = badHost.bitmapImageRepForCachingDisplay(in: badHost.bounds)!
+        badHost.cacheDisplay(in: badHost.bounds, to: bitmap)
+        let pixels = bitmap.bitmapData!
+        let channels = bitmap.samplesPerPixel
+        let first = Array(UnsafeBufferPointer(start: pixels, count: channels))
+        var changedPixels = 0
+        for row in 0..<bitmap.pixelsHigh {
+            for col in 0..<bitmap.pixelsWide {
+                let offset = row * bitmap.bytesPerRow + col * channels
+                if (0..<channels).contains(where: { pixels[offset + $0] != first[$0] }) { changedPixels += 1 }
+            }
+        }
+        precondition(changedPixels > 30, "Source-text fallback rendered a blank bitmap")
+        print("Actual SwiftUI fallback has visible pixels:", changedPixels)
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         let delegate = RendererDelegate()

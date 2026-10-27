@@ -52,6 +52,8 @@ def answer(
     question: str,
     context: str,
     language: str | None = None,
+    *,
+    citation_feedback: str | None = None,
 ) -> str:
     """Answer from retrieved study material in the selected interface language."""
     try:
@@ -68,6 +70,7 @@ def answer(
         {
             "model": model,
             "stream": False,
+            **({"think": False} if citation_feedback else {}),
             "options": {"num_ctx": 8192, "num_predict": 768, "temperature": 0},
             "messages": [
                 {
@@ -79,6 +82,18 @@ def answer(
                         "INSUFFICIENT_CONTEXT. Cite every factual paragraph using only "
                         "the provided "
                         "source numbers in the format [1]. Do not invent source numbers or links."
+                        + (
+                            " The previous attempt failed citation validation: " + citation_feedback
+                            + ". Write a fresh concise answer from the same materials. "
+                            "Use no headings or introductory filler. "
+                            "Every paragraph and list item, "
+                            "including equations, must end with the relevant supplied source "
+                            "number(s). Do not add a citation unless that source "
+                            "supports the claim. "
+                            "If the materials do not support an answer, "
+                            "output INSUFFICIENT_CONTEXT."
+                            if citation_feedback else ""
+                        )
                     ),
                 },
                 {
