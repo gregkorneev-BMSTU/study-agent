@@ -37,3 +37,9 @@ jobs:
           /tmp/study-agent-model-queue
       - name: Build macOS client
         run: xcodebuild -project macOS/StudyAgent.xcodeproj -scheme 'Study Agent' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Check embedded Markdown rendering and scrolling
+        run: |
+          swiftc -parse-as-library -o /tmp/study-agent-math-render macOS/StudyAgent/{Localization,MathContentView}.swift tests/macos_client/math_render.swift
+          /tmp/study-agent-math-render
+          swiftc -parse-as-library -o /tmp/study-agent-math-scroll macOS/StudyAgent/{Localization,MathContentView}.swift tests/macos_client/math_scroll.swift
+          /tmp/study-agent-math-scroll

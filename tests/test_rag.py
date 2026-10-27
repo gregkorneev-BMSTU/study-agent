@@ -261,3 +261,45 @@ def test_suspect_source_never_triggers_citation_repair() -> None:
             generator=lambda *a, **k: pytest.fail('must not generate'),
             citation_repair=lambda *a: pytest.fail('must not repair'),
         )
+
+
+def test_repair_can_refuse_without_exposing_unreferenced_sources() -> None:
+    result = generate_answer(
+        'local', 'Вопрос?', [hit()], generator=lambda *a, **k: 'Нет ссылки',
+        citation_repair=lambda *a: 'INSUFFICIENT_CONTEXT',
+    )
+    assert not result.grounded
+    assert result.sources == []
+
+
+def test_context_limits_five_sources_and_does_not_leak_sixth_to_generator() -> None:
+    from dataclasses import replace
+
+    hits = [replace(hit(f'Уникальный фрагмент номер {index}.'),
+                    document_id=f'doc-{index}.md', chunk_id=f'chunk-{index}')
+            for index in range(6)]
+    seen = {}
+
+    def generator(model, question, context, **kwargs):
+        seen['context'] = context
+        return 'Подтверждённое содержание [5].'
+
+    result = generate_answer('local', 'Вопрос?', hits, generator=generator)
+    assert 'doc-4.md' in seen['context']
+    assert 'doc-5.md' not in seen['context']
+    assert 'фрагмент номер 5.' not in seen['context']
+    assert [source.document_id for source in result.sources] == ['doc-4.md']
+    assert result.answer == 'Подтверждённое содержание [1].'
+
+
+def test_citation_repair_does_not_accept_another_uncited_explanation() -> None:
+    with pytest.raises(CitationError) as failure:
+        generate_answer(
+            'local', 'Вопрос?', [hit()], generator=lambda *a, **k: 'Нет ссылки',
+            citation_repair=lambda *a: (
+                'Определение [1].\n\n'
+                'Ещё один содержательный абзац без указания подтверждающего источника.'
+            ),
+        )
+    assert failure.value.reason == 'uncited_paragraph'
+    assert failure.value.details['paragraph_index'] == 2

@@ -36,3 +36,9 @@
 Swift WKWebView harness проверяет фактический офлайн рендеринг, MathML, HTML injection, fenced/inline code, недоверенные ссылки, лимит макросов и тёмную схему. Команда: `swiftc -parse-as-library -o /tmp/sa03-math-render macOS/StudyAgent/Localization.swift macOS/StudyAgent/MathContentView.swift tests/macos_client/math_render.swift && /tmp/sa03-math-render`. Это проверка компонента, а не полный визуальный прогон приложения.
 
 Новые диагностические регрессии различают отсутствие ссылок, несуществующий номер, абзац без ссылки, сгенерированные URL и подозрительные источники. Фрагменты сохраняются после ошибки ответа. Эвристики качества ограничены известными признаками повреждения; произвольные математические ошибки они не обнаруживают.
+
+## Ответы Gemma и scroll regression — 2026-10-27
+
+[gemma4-e2b-answers.json](gemma4-e2b-answers.json): **9 passed**, 48.21 s, реальная установленная `gemma4:e2b`, generation через production bridge. Retrieval заменён синтетическими hit-объектами. Первые восемь — естественные ответы; девятый явно добавляет тестовый абзац без ссылки и проверяет настоящую повторную генерацию. Ни один неудачный результат финального прогона не исключён. Отчёт содержит только синтетический текст, локальную версию runtime/digest и времена, без пользовательских документов. Успех на этих примерах не заменяет приёмку большого корпуса/OCR.
+
+Новый actual SwiftUI 12-card scroll harness фиксирует vertical-wheel interception: старый WebKit поглощал событие, внешний native scroll работал. Исправленная embedded WK subclass передаёт vertical event родителю; horizontal event сохраняется внутри WebKit. Проверены обе стороны прокрутки над prose/math, overflow, selection/MathML и стабильность высот. Команды: [testing.md](../../wiki/testing.md).

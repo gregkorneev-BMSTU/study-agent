@@ -99,7 +99,7 @@ private struct OfflineMathView: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.userContentController.add(context.coordinator, name: "mathHeight")
-        let view = WKWebView(frame: .zero, configuration: config)
+        let view = EmbeddedDocumentWebView(frame: .zero, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
         view.navigationDelegate = context.coordinator
         context.coordinator.text = text
@@ -203,5 +203,38 @@ private struct OfflineMathView: NSViewRepresentable {
             let next = max(24, CGFloat(value.doubleValue) + 2)
             if abs(height.wrappedValue - next) > 1 { height.wrappedValue = next }
         }
+    }
+}
+
+/// The embedded document grows to its content height, so vertical wheel events
+/// belong to the surrounding results scroll view. WebKit otherwise consumes
+/// them even though its own document has no vertical scrolling range.
+private final class EmbeddedDocumentWebView: WKWebView {
+    private var forwardingVerticalGesture = false
+
+    override func scrollWheel(with event: NSEvent) {
+        let vertical = abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX)
+            || (event.scrollingDeltaX == 0 && event.scrollingDeltaY == 0 && forwardingVerticalGesture)
+        if event.scrollingDeltaX != 0 || event.scrollingDeltaY != 0 {
+            forwardingVerticalGesture = vertical
+        }
+        defer {
+            if event.phase.contains(.cancelled) || event.momentumPhase.contains(.ended) {
+                forwardingVerticalGesture = false
+            }
+        }
+        if vertical && !event.modifierFlags.contains(.shift) {
+            var ancestor = superview
+            while let current = ancestor {
+                if let outer = current as? NSScrollView {
+                    outer.scrollWheel(with: event)
+                    return
+                }
+                ancestor = current.superview
+            }
+        }
+        // Horizontal wheel events remain in WebKit for overflowing formulas and
+        // tables. Mouse selection and the accessible MathML tree are unchanged.
+        super.scrollWheel(with: event)
     }
 }
