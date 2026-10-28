@@ -21,8 +21,8 @@ def test_local_source_lists_supported_files(tmp_path: Path) -> None:
     ]
 
 
-def test_pdf_ocr_runs_only_for_pages_without_enough_text(tmp_path: Path, monkeypatch) -> None:
-    """Проверяет разбиение PDF по страницам и ленивый вызов OCR."""
+def test_pdf_ocr_runs_on_every_page_and_keeps_digital_text(tmp_path: Path, monkeypatch) -> None:
+    """Printed text must not suppress handwriting recognition on the same page."""
 
     class TextPage:
         def __init__(self, text: str) -> None:
@@ -80,21 +80,63 @@ def test_pdf_ocr_runs_only_for_pages_without_enough_text(tmp_path: Path, monkeyp
     result = extractors._extract_pdf(tmp_path / "scan.pdf")
 
     # Проверяем строго по новому контракту DTO блоков
-    assert len(result) == 3
+    assert len(result) == 4
 
     assert result[0] == ExtractedBlock(
         text="A" * 80, source_type="pdf", extraction_type="digital", page_number=1
     )
     assert result[1] == ExtractedBlock(
-        text="OCR text", source_type="pdf", extraction_type="ocr", page_number=2
+        text="OCR text", source_type="pdf", extraction_type="ocr", page_number=1
     )
     assert result[2] == ExtractedBlock(
+        text="OCR text", source_type="pdf", extraction_type="ocr", page_number=2
+    )
+    assert result[3] == ExtractedBlock(
         text="OCR text", source_type="pdf", extraction_type="ocr", page_number=3
     )
     assert ocr_calls == [
+        "pil_image_from:" + "A" * 80,
         "pil_image_from:",
         "pil_image_from:Дисциплина: математика. " + "Èíòåãðàëû è óðàâíåíèÿ " * 4,
     ]
+
+
+def test_pdf_keeps_digital_text_when_ocr_fails(tmp_path: Path, monkeypatch) -> None:
+    class Page:
+        def get_textpage(self):
+            return SimpleNamespace(
+                get_text_range=lambda: "Readable printed text", close=lambda: None
+            )
+
+        def render(self, scale: int):
+            return SimpleNamespace(to_pil=lambda: "image")
+
+        def close(self):
+            pass
+
+    class PdfDocument:
+        def __init__(self, path: Path):
+            pass
+
+        def __iter__(self):
+            return iter([Page()])
+
+        def close(self):
+            pass
+
+    monkeypatch.setitem(
+        __import__("sys").modules, "pypdfium2", SimpleNamespace(PdfDocument=PdfDocument)
+    )
+
+    def failed_ocr(image):
+        raise RuntimeError("unavailable")
+
+    monkeypatch.setattr(extractors, "_ocr_image", failed_ocr)
+    result = extractors._extract_pdf(tmp_path / "notes.pdf")
+    assert result[0].text == "Readable printed text"
+    assert result[0].extraction_type == "digital"
+    assert result[1].extraction_type == "ocr"
+    assert result[1].warnings
 
 
 def test_ocr_result_is_cached_as_json_outside_source_folder(tmp_path: Path, monkeypatch) -> None:
@@ -178,6 +220,71 @@ def test_extract_docx_paragraphs_and_tables(tmp_path: Path) -> None:
 
     assert (
         search_sources([source], "table B", storage=storage)[0].document_id == "document.docx"
+    )
+
+
+def test_docx_embedded_image_is_recognized_alongside_printed_text(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import docx
+    from PIL import Image
+
+    image_path = tmp_path / "handwriting.png"
+    Image.new("RGB", (20, 20), "white").save(image_path)
+    document = docx.Document()
+    document.add_heading("Lecture", level=1)
+    document.add_paragraph("Printed definition")
+    document.add_picture(str(image_path))
+    cell = document.add_table(rows=1, cols=1).cell(0, 0)
+    cell.text = "Printed table"
+    cell.paragraphs[0].add_run().add_picture(str(image_path))
+    path = tmp_path / "lecture.docx"
+    document.save(path)
+    calls = []
+
+    def fake_ocr(image):
+        calls.append(image.size)
+        return "handwritten equation"
+
+    monkeypatch.setattr(extractors, "_ocr_image", fake_ocr)
+    blocks = extractors.extract_document(path)
+    assert [block.text for block in blocks] == [
+        "Lecture",
+        "Printed definition",
+        "handwritten equation",
+        "Printed table",
+        "handwritten equation",
+    ]
+    assert [block.extraction_type for block in blocks] == [
+        "digital", "digital", "ocr", "digital", "ocr",
+    ]
+    assert blocks[-1].heading == blocks[2].heading == "Lecture"
+    assert calls == [(20, 20), (20, 20)]
+
+
+def test_markdown_linked_image_is_indexed_as_local_image(tmp_path: Path, monkeypatch) -> None:
+    from PIL import Image
+
+    from study_agent.indexer import DocumentIndexer, source_id
+    from study_agent.storage import IndexStorage
+
+    (tmp_path / "notes.md").write_text(
+        "# Lecture\n\nSee ![handwritten page](handwriting.png)", encoding="utf-8"
+    )
+    Image.new("RGB", (20, 20), "white").save(tmp_path / "handwriting.png")
+    cache_path = extractors._cache_path
+    monkeypatch.setattr(
+        extractors, "_cache_path", lambda path: tmp_path / "cache" / cache_path(path).name
+    )
+    monkeypatch.setattr(extractors, "_ocr_image", lambda image: "handwritten theorem")
+    source = LocalFolderSource(tmp_path)
+    assert [doc.document_id for doc in source.list_documents()] == ["handwriting.png", "notes.md"]
+    assert source.read("notes.md")[0].extraction_type == "digital"
+    assert source.read("handwriting.png")[0].text == "handwritten theorem"
+    storage = IndexStorage(tmp_path / "index.sqlite3")
+    assert DocumentIndexer(storage).sync_source(source).indexed == 2
+    assert storage.search([source_id(tmp_path)], "handwritten")[0]["relative_path"] == (
+        "handwriting.png"
     )
 
 

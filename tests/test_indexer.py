@@ -265,3 +265,30 @@ def test_pdf_upgrade_ignores_old_extraction_cache(tmp_path: Path, monkeypatch) -
     assert report.indexed == 1 and report.skipped == 0
     assert calls == [True]
     assert storage.search([source_id(root)], "recognized")[0]["extraction_type"] == "ocr"
+
+
+def test_docx_upgrade_reprocesses_embedded_images(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.indexer import INDEX_VERSION
+    from study_agent.models import ExtractedBlock
+
+    root, source, storage, indexer = _setup(tmp_path)
+    (root / "notes.docx").write_bytes(b"synthetic DOCX")
+    monkeypatch.setattr(
+        source,
+        "read",
+        lambda _: [ExtractedBlock("printed text", "docx", "digital")],
+    )
+    assert indexer.sync_source(source).indexed == 1
+    with storage.connect() as db:
+        db.execute("UPDATE documents SET version=? WHERE format='.docx'", (INDEX_VERSION,))
+    monkeypatch.setattr(
+        source,
+        "read",
+        lambda _: [
+            ExtractedBlock("printed text", "docx", "digital"),
+            ExtractedBlock("handwritten note", "docx", "ocr", marker="image_1"),
+        ],
+    )
+    report = indexer.sync_source(source)
+    assert report.indexed == 1 and report.skipped == 0
+    assert storage.search([source_id(root)], "handwritten")[0]["extraction_type"] == "ocr"

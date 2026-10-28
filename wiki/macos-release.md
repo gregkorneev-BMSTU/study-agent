@@ -22,7 +22,7 @@ Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend
 
 ```sh
 ./scripts/build_macos_native_app.sh
-./scripts/build_macos_dmg.sh --mode development --suffix beta.6
+./scripts/build_macos_dmg.sh --mode development --suffix beta.6.1
 ```
 
 Скрипт DMG может использовать готовый `.app` через `--app`, чтобы не повторять сборку. Версию и номер сборки он читает из `Info.plist`, которые заданы `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` Xcode. Development-режим подписан ad-hoc и подходит для локальной проверки; он не является нотариализованным дистрибутивом.

@@ -303,7 +303,13 @@ def test_failed_pdf_page_does_not_hide_later_page_or_other_document(
             "title": "scan",
             "code": "ocr_failed",
             "page_number": 1,
-        }
+        },
+        {
+            "document_id": "scan.pdf",
+            "title": "scan",
+            "code": "ocr_failed",
+            "page_number": 2,
+        },
     ]
     assert "/tmp/secret" not in str(result)
 

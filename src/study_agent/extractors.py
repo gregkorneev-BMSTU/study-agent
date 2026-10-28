@@ -1,8 +1,9 @@
-"""Local text extraction with lazy Chandra OCR for scans and images."""
+"""Local text extraction with Chandra OCR for visual content."""
 
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
@@ -17,12 +18,13 @@ from study_agent.ocr_model import model_directory, model_is_installed
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
 OCR_SUFFIXES = {".pdf", *IMAGE_SUFFIXES}
-PDF_EXTRACTION_VERSION = 2
+PDF_EXTRACTION_VERSION = 3
+DOCX_EXTRACTION_VERSION = 2
 _manager: Any | None = None
 
 
 def extract_document(path: Path) -> list[ExtractedBlock]:
-    """Extract document blocks; use local Chandra only when a page needs OCR."""
+    """Extract document blocks and recognize visual content."""
     suffix = path.suffix.lower()
 
     if suffix == ".md":
@@ -90,34 +92,41 @@ def _extract_pdf(path: Path) -> list[ExtractedBlock]:
             finally:
                 text_page.close()
 
-            extraction_type = "digital"
-            warnings: list[str] = []
-
-            if not _has_sufficient_text(text):
-                try:
-                    image = page.render(scale=2).to_pil()
-                    text = _ocr_image(image)
-                    extraction_type = "ocr"
-                except Exception as ocr_error:
-                    # Сбой Chandra на этой странице не блокирует обработку других страниц.
-                    if os.environ.get("STUDY_AGENT_DEBUG_OCR") == "1":
-                        print(
-                            f"OCR failure: {type(ocr_error).__name__}: {ocr_error}",
-                            file=sys.stderr,
-                        )
-                    extraction_type = "ocr"
-                    warnings.append(f"OCR failed on page {page_number}: {ocr_error}")
-
-            if text or warnings:
+            if text and not _looks_like_mojibake(text):
                 blocks.append(
                     ExtractedBlock(
                         text=text,
                         source_type="pdf",
-                        extraction_type=extraction_type,
+                        extraction_type="digital",
                         page_number=page_number,
-                        heading=None,  # У PDF плоская структура, заголовки сделает SA-03/SA-01
-                        marker=None,
-                        warnings=warnings,
+                    )
+                )
+
+            try:
+                image = page.render(scale=2).to_pil()
+                recognized = _ocr_image(image)
+                if recognized and recognized != text:
+                    blocks.append(
+                        ExtractedBlock(
+                            text=recognized,
+                            source_type="pdf",
+                            extraction_type="ocr",
+                            page_number=page_number,
+                        )
+                    )
+            except Exception as ocr_error:
+                if os.environ.get("STUDY_AGENT_DEBUG_OCR") == "1":
+                    print(
+                        f"OCR failure: {type(ocr_error).__name__}: {ocr_error}",
+                        file=sys.stderr,
+                    )
+                blocks.append(
+                    ExtractedBlock(
+                        text="",
+                        source_type="pdf",
+                        extraction_type="ocr",
+                        page_number=page_number,
+                        warnings=[f"OCR failed on page {page_number}: {ocr_error}"],
                     )
                 )
             page.close()
@@ -155,13 +164,12 @@ def _extract_docx(path: Path) -> list[ExtractedBlock]:
     headings: dict[int, str] = {}
     paragraph_index = 0
     table_index = 0
+    image_index = 0
     for item in document.iter_inner_content():
         if isinstance(item, Paragraph):
             index = paragraph_index
             paragraph_index += 1
             text = item.text.strip()
-            if not text:
-                continue
             style_name = item.style.name if item.style else ""
             match = re.fullmatch(r"Heading ([1-9][0-9]*)", style_name)
             if match:
@@ -178,21 +186,48 @@ def _extract_docx(path: Path) -> list[ExtractedBlock]:
                 if cells:
                     rows.append(" | ".join(cells))
             text = "\n".join(rows)
-            if not text:
-                continue
             marker = f"table_{index}"
         else:
             continue
         heading = " › ".join(headings[level] for level in sorted(headings)) or None
-        blocks.append(
-            ExtractedBlock(
-                text=text,
-                source_type="docx",
-                extraction_type="digital",
-                heading=heading,
-                marker=marker,
+        if text:
+            blocks.append(
+                ExtractedBlock(
+                    text=text,
+                    source_type="docx",
+                    extraction_type="digital",
+                    heading=heading,
+                    marker=marker,
+                )
             )
-        )
+        for blip in item._element.xpath(".//a:blip"):
+            image_index += 1
+            relationship = blip.get(
+                "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
+            )
+            try:
+                from PIL import Image
+
+                image_part = document.part.related_parts[relationship]
+                with Image.open(io.BytesIO(image_part.blob)) as image:
+                    recognized = _ocr_image(image.convert("RGB"))
+                if recognized:
+                    blocks.append(
+                        ExtractedBlock(
+                            recognized,
+                            "docx",
+                            "ocr",
+                            heading=heading,
+                            marker=f"image_{image_index}",
+                        )
+                    )
+            except Exception as error:
+                blocks.append(
+                    ExtractedBlock(
+                        "", "docx", "ocr", heading=heading, marker=f"image_{image_index}",
+                        warnings=[f"OCR failed for image {image_index}: {error}"],
+                    )
+                )
 
     return blocks
 
@@ -213,14 +248,11 @@ def _extract_image(path: Path) -> list[ExtractedBlock]:
         ]
 
 
-def _has_sufficient_text(text: str) -> bool:
-    if sum(character.isalnum() for character in text) < 32:
-        return False
-
+def _looks_like_mojibake(text: str) -> bool:
     letters = [character for character in text if character.isalpha()]
     # PDFium can expose Windows-1251 text as accented Latin characters.
     extended_latin = sum("\u00c0" <= character <= "\u00ff" for character in letters)
-    return extended_latin < 16 or extended_latin / len(letters) < 0.30
+    return extended_latin >= 16 and extended_latin / len(letters) >= 0.30
 
 
 def _ocr_image(image: Any) -> str:

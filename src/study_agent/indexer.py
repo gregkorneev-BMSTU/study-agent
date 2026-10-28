@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import Event
 
 from study_agent.chunking import CHUNK_VERSION, chunk_blocks
-from study_agent.extractors import PDF_EXTRACTION_VERSION
+from study_agent.extractors import DOCX_EXTRACTION_VERSION, PDF_EXTRACTION_VERSION
 from study_agent.markdown import MARKDOWN_VERSION
 from study_agent.sources import DocumentRef, LocalFolderSource
 from study_agent.storage import IndexStorage
@@ -157,6 +157,8 @@ class DocumentIndexer:
             processing_version = f"{INDEX_VERSION}:md-{MARKDOWN_VERSION}"
         elif suffix == ".pdf":
             processing_version = f"{INDEX_VERSION}:pdf-{PDF_EXTRACTION_VERSION}"
+        elif suffix == ".docx":
+            processing_version = f"{INDEX_VERSION}:docx-{DOCX_EXTRACTION_VERSION}"
         else:
             processing_version = INDEX_VERSION
         previous = self.storage.get_document(key, doc.path)
