@@ -30,10 +30,13 @@ var
   PackagePath: String;
   Parameters: String;
 begin
+  Log('Preparing temporary MSIX extraction.');
   Result := '';
   try
     ExtractTemporaryFile('StudyAgent.msix');
+    Log('Study Agent MSIX extracted successfully.');
   except
+    Log('Study Agent MSIX extraction failed.');
     Result := 'Could not extract the Study Agent MSIX package.';
     Exit;
   end;
@@ -42,10 +45,12 @@ begin
   Parameters := '-NoProfile -ExecutionPolicy Bypass -Command "try { Add-AppxPackage -Path ' + #39 + PackagePath + #39 + ' -AllowUnsigned -ErrorAction Stop } catch { Write-Error $_; exit 1 }"';
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
   begin
+    Log('Could not start Windows PowerShell for MSIX installation.');
     Result := 'Could not start PowerShell to install the application.';
     Exit;
   end;
 
+  Log('PowerShell MSIX installation exit code: ' + IntToStr(ResultCode));
   if ResultCode <> 0 then
     Result := 'Windows could not install the MSIX package. See the PowerShell error window and try again.';
 end;
