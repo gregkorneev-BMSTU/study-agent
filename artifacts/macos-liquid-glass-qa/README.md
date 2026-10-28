@@ -55,7 +55,7 @@ No new glass-specific API was needed: `NavigationSplitView`, `.listStyle(.sideba
 - `macOS/StudyAgent/ContentView.swift`
 - `macOS/StudyAgent/StudyAgentApp.swift`
 - `macOS/StudyAgent/StudyAgentModel.swift`
-- `wiki/design-system.md`
-- `wiki/architecture.md`
-- `wiki/current-state.md`
-- `wiki/testing.md`
+- `wiki/development/design-system.md`
+- `wiki/development/architecture.md`
+- `wiki/development/current-state.md`
+- `wiki/development/testing.md`

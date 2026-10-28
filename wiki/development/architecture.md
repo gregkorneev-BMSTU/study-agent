@@ -1,5 +1,8 @@
 # Архитектура
 
+← [Разработка](README.md) · [Wiki](../README.md)
+
+
 ## SA-01: постоянный локальный индекс
 
 Текущий поток SA-01: `LocalFolderSource` → существующие extractors / `ExtractedBlock` → `DocumentIndexer` → `chunk_blocks` → SQLite `IndexStorage` → лексический поиск. Индексатор сравнивает относительный путь, размер, `st_mtime_ns` и версию обработки; неизменённый файл не извлекается повторно. Поиск читает сохранённые фрагменты, сохраняя страницу PDF, заголовок и маркер DOCX и происхождение OCR. База находится в пользовательском каталоге данных вне приложения и репозитория. Детали: [индексация документов](document-indexing.md).
@@ -52,7 +55,7 @@ DocumentSource ── LocalFolderSource / IU5HubSource ── MaterialRetriever
 
 Для нативной macOS-сборки используйте единственный поддерживаемый путь `scripts/build_macos_native_app.sh`; проект Swift доступен для открытия и запуска в Xcode. Она требует macOS 14+, Xcode и локального Python окружения с optional dependency `packaging`. PySide6 GUI остаётся для разработки; отдельный Qt `.app` packaging script удалён.
 
-Исходный код Study Agent распространяется под MIT (см. [`LICENSE`](../LICENSE)). Это не заменяет лицензии библиотек, моделей и графических материалов; см. [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). При сборке macOS `.app` в `Contents/Resources/Legal` копируются лицензии проекта, Python и найденных в build-окружении пакетов вместе с CSV-инвентарём.
+Исходный код Study Agent распространяется под MIT (см. [`LICENSE`](../../LICENSE)). Это не заменяет лицензии библиотек, моделей и графических материалов; см. [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md). При сборке macOS `.app` в `Contents/Resources/Legal` копируются лицензии проекта, Python и найденных в build-окружении пакетов вместе с CSV-инвентарём.
 
 Нативные материалы sidebar и toolbar остаются под управлением macOS. Study Agent не меняет `NSWindow.alphaValue` и не переопределяет Liquid Glass; стандартные компоненты автоматически принимают системное оформление и настройки доступности. Приложение не читает значение системного ползунка. Отдельной плашки или панели настройки Liquid Glass в интерфейсе нет.
 

@@ -43,11 +43,11 @@ Study Agent помогает искать в учебных материалах
 
 ## Руководства
 
-- [Первый запуск](wiki/onboarding.md)
-- [Настройка локальной модели](wiki/model-setup.md)
-- [Распознавание документов и Chandra OCR](wiki/chandra-ocr.md)
+- [Первый запуск](wiki/users/onboarding.md)
+- [Настройка локальной модели](wiki/users/model-setup.md)
+- [Распознавание документов и Chandra OCR](wiki/users/chandra-ocr.md)
 - [Остальная документация Wiki](wiki/README.md)
-- **Для разработчиков:** [настройка окружения, запуск, сборка и проверки](wiki/development.md)
+- **Для разработчиков:** [настройка окружения, запуск, сборка и проверки](wiki/development/README.md)
 
 ## Лицензия
 

@@ -1,5 +1,8 @@
 # macOS Beta: установка и выпуск
 
+← [Разработка](README.md) · [Wiki](../README.md)
+
+
 ## Состав и установка
 
 Нативное приложение собирается Xcode для macOS 14+ на Apple Silicon. SwiftUI-интерфейс использует встроенный Python helper (`Contents/Resources/Backend`) через JSON Lines. Конечному пользователю не нужен отдельный Python или PySide6. Поддержка Intel и Universal Binary для этого образа не заявлена.
@@ -12,7 +15,7 @@ DMG содержит `Study Agent.app` и ссылку `Applications` на `/App
 
 При найденной, но остановленной Ollama мастер предлагает открыть установленное приложение. При отсутствии Ollama он открывает только [официальную страницу загрузки](https://ollama.com/download); скачивание и установка самого дистрибутива остаются системным графическим процессом Ollama. Study Agent не проверяет подпись стороннего загруженного пакета. Для работающей Ollama мастер предлагает Qwen 3.5 4B через локальный `POST /api/pull`: данные модели идут в Ollama, а интерфейс показывает переданные API статус и `completed/total`, если они есть. Доступны отмена и повторная попытка. Уже установленная выбранная модель определяется через `GET /api/tags`; автоматической повторной загрузки нет. Оценка 3,3–4 ГБ взята из [каталога Ollama](https://ollama.com/library/qwen3.5/tags), это размер файла, а не гарантированный объём RAM.
 
-Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend` вернула `ocr_runtime_available=true`. Веса отдельно скачиваются пользователем с явного действия в мастере настройки. Поиск сам не начинает сетевую загрузку весов. Без весов OCR недоступен; inference и качество OCR не проверялись. Текстовые файлы и цифровой слой PDF доступны без OCR. Условия исходного кода Chandra и весов модели различаются; подробности приведены в [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend` вернула `ocr_runtime_available=true`. Веса отдельно скачиваются пользователем с явного действия в мастере настройки. Поиск сам не начинает сетевую загрузку весов. Без весов OCR недоступен; inference и качество OCR не проверялись. Текстовые файлы и цифровой слой PDF доступны без OCR. Условия исходного кода Chandra и весов модели различаются; подробности приведены в [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md).
 
 После Beta 3 обнаружена ошибка упаковки OCR: PyInstaller не включал нативные файлы `torchvision/*.so` и `torchvision/.dylibs`. На сканированных PDF это приводило к аварийному завершению helper и сообщению «Локальный backend вернул некорректный ответ». Скрипт `scripts/build_macos_native_app.sh` теперь добавляет эти файлы, если `torchvision` установлен в окружении сборки. Проверять выпуск следует на упакованном `.app`, а не только в Python-окружении; наличие `ocr_runtime_available=true` само по себе не подтверждает работу inference.
 
@@ -33,7 +36,7 @@ Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend
 
 ## Публикация
 
-Текущий выпуск: **Study Agent v1 Beta 6.1**, тег `v1.0.0-beta.6.1`, Xcode `CURRENT_PROJECT_VERSION = 7`, файл `StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg`. Двуязычные release notes: [`wiki/releases/v1.0.0-beta.6.1.md`](releases/v1.0.0-beta.6.1.md). Предыдущие выпуски — [Beta 6](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6) и [Beta 5](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.5). Перед каждым новым GitHub Release выполнить Python/Xcode проверки, убедиться, что DMG соответствует коммиту и тегу, проверить состав образа и подпись извлечённого приложения, вычислить SHA-256 и перечислить функции/ограничения на русском и английском. Для ad-hoc сборки использовать пометку **pre-release / test build** с явным предупреждением об отсутствии Developer ID и нотариализации. При появлении Developer ID и успешной нотариализации выпускать новый артефакт с новым номером сборки/тегом, не подменяя старые файлы.
+Текущий выпуск: **Study Agent v1 Beta 6.1**, тег `v1.0.0-beta.6.1`, Xcode `CURRENT_PROJECT_VERSION = 7`, файл `StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg`. Двуязычные release notes: [`wiki/releases/v1.0.0-beta.6.1.md`](../releases/v1.0.0-beta.6.1.md). Предыдущие выпуски — [Beta 6](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6) и [Beta 5](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.5). Перед каждым новым GitHub Release выполнить Python/Xcode проверки, убедиться, что DMG соответствует коммиту и тегу, проверить состав образа и подпись извлечённого приложения, вычислить SHA-256 и перечислить функции/ограничения на русском и английском. Для ad-hoc сборки использовать пометку **pre-release / test build** с явным предупреждением об отсутствии Developer ID и нотариализации. При появлении Developer ID и успешной нотариализации выпускать новый артефакт с новым номером сборки/тегом, не подменяя старые файлы.
 
 Для Beta 3 `hdiutil verify` подтвердил целостность DMG. Строгая проверка непосредственно на смонтированном HFS+ томе показывает FinderInfo extended attributes на вложенных файлах лицензий; после копирования `.app` в обычный каталог `codesign --verify --deep --strict` проходит. Зафиксируйте оба результата и не называйте сборку нотариализованной.
 
