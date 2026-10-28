@@ -55,6 +55,9 @@ def test_answer_sends_question_and_material_only_to_local_endpoint(monkeypatch) 
     assert payload["options"]["num_predict"] == 2048
     assert "every bullet/list item" in payload["messages"][0]["content"]
     assert "[SOURCE 1]" in payload["messages"][0]["content"]
+    system = payload["messages"][0]["content"]
+    assert "preserving its Markdown structure and source order" in system
+    assert "Do not add a title, introduction, explanation, summary" in system
 
 
 def test_answer_uses_selected_interface_language(monkeypatch) -> None:

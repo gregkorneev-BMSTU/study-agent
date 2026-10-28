@@ -160,6 +160,16 @@ def test_real_model_answers_large_formula_table_without_token_truncation(monkeyp
     assert result['grounded']
     assert result['sources'][0]['document_id'] == 'integrals.md'
     assert r'\int' in result['answer']
+    assert not re.match(
+        r"\s*(?:вот|представляю|ниже|here(?:'s| is)|below is)\b",
+        result['answer'], re.IGNORECASE,
+    ), result['answer']
+    content_lines = [line.strip() for line in result['answer'].splitlines() if line.strip()]
+    assert all(
+        line.startswith("#") or "$" in line or r"\[" in line
+        or re.fullmatch(r"\[\d+(?:,\s*\d+)*\]", line)
+        for line in content_lines
+    ), result['answer']
     assert _citation_matches(result['answer'])
     assert _uncited_paragraph(result['answer'], _citation_matches(result['answer'])) is None
     assert usage['prompt_eval_count'] < usage['num_ctx']
