@@ -82,21 +82,29 @@ jobs:
             -c Debug -r win-x64 -p:Platform=x64
 
       - name: Prepare backend packaging environment
-        if: github.event_name == 'workflow_dispatch'
         run: |
           python -m venv .venv
           .\.venv\Scripts\python.exe -m pip install --upgrade pip
-          .\.venv\Scripts\python.exe -m pip install ".[dev]" pyinstaller
+          .\.venv\Scripts\python.exe -m pip install ".[ocr,packaging]"
 
       - name: Build Windows backend
-        if: github.event_name == 'workflow_dispatch'
         run: |
           .\scripts\build_windows_backend.ps1
 
-      - name: Upload unsigned backend artifact
-        if: github.event_name == 'workflow_dispatch'
+      - name: Smoke test packaged backend with synthetic documents
+        run: .\scripts\smoke_windows_backend.ps1
+
+      - name: Build Windows Release package
+        run: |
+          dotnet build "./windows/StudyAgent.Windows/StudyAgent.Windows.csproj" `
+            -c Release -r win-x64 -p:Platform=x64 `
+            -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false
+
+      - name: Upload unsigned Windows Release package
         uses: actions/upload-artifact@v4
         with:
-          name: study-agent-windows-backend-unsigned
-          path: build/windows-backend/dist/StudyAgentBackend/
+          name: study-agent-windows-release-unsigned
+          path: |
+            build/windows-backend/StudyAgentBackend.zip
+            windows/StudyAgent.Windows/AppPackages/**/*.msix
           if-no-files-found: error

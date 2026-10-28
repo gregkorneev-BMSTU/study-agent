@@ -1,5 +1,6 @@
 
 using System;
+using System.Threading.Tasks;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -14,6 +15,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         ActiveWindow = this;
+        Closed += (_, _) => Services.PythonBridgeService.TerminateAll();
         ApplyLanguage();
 
         string savedTheme =
@@ -34,6 +36,34 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.SetIcon("Assets/AppIcon.ico");
+        if (Content is FrameworkElement contentRoot)
+            contentRoot.Loaded += (_, _) => contentRoot.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (Windows.Storage.ApplicationData.Current.LocalSettings.Values["WelcomeShown"] is null)
+                    _ = ShowWelcomeAsync();
+            });
+    }
+
+    public async Task ShowWelcomeAsync()
+    {
+        string language = Services.LocalizationService.CurrentLanguage;
+        var dialog = new ContentDialog
+        {
+            Title = language == "ru" ? "Добро пожаловать в Study Agent" : "Welcome to Study Agent",
+            Content = language == "ru"
+                ? "Study Agent индексирует выбранные вами локальные папки. Поиск работает на этом компьютере; ответы генерирует выбранная локальная модель Ollama. Добавьте папку, чтобы начать."
+                : "Study Agent indexes local folders you choose. Search stays on this computer; answers use a local Ollama model. Add a folder to get started.",
+            PrimaryButtonText = language == "ru" ? "Настроить библиотеку" : "Set up library",
+            CloseButtonText = language == "ru" ? "Позже" : "Later",
+            XamlRoot = Content.XamlRoot
+        };
+        bool goToLibrary = await dialog.ShowAsync() == ContentDialogResult.Primary;
+        Windows.Storage.ApplicationData.Current.LocalSettings.Values["WelcomeShown"] = true;
+        if (goToLibrary)
+        {
+            NavView.SelectedItem = LibraryNavItem;
+            NavFrame.Navigate(typeof(LibraryPage));
+        }
     }
 
     public void ApplyLanguage()

@@ -192,6 +192,7 @@ window.renderStudyContent = function (text, dark) {
   }
   blocks(root, masked);
 };
-new ResizeObserver(() => window.webkit.messageHandlers.mathHeight.postMessage(
-  Math.ceil(document.getElementById('content').getBoundingClientRect().height)
-)).observe(document.getElementById('content'));
+new ResizeObserver(() => {
+  const handler = window.webkit?.messageHandlers?.mathHeight;
+  if (handler) handler.postMessage(Math.ceil(document.getElementById('content').getBoundingClientRect().height));
+}).observe(document.getElementById('content'));

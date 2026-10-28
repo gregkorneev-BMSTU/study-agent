@@ -7,6 +7,13 @@ import pytest
 from study_agent import ocr_model
 
 
+def test_model_directory_uses_application_data_override(tmp_path: Path, monkeypatch) -> None:
+    data_directory = tmp_path / "StudyAgent"
+    monkeypatch.setenv("STUDY_AGENT_DATA_DIR", str(data_directory))
+
+    assert ocr_model.model_directory() == data_directory / "Models" / "Chandra"
+
+
 def test_model_install_downloads_pinned_snapshot_and_reports_progress(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1,4 +1,5 @@
-﻿using Windows.Storage;
+﻿using System.Globalization;
+using Windows.Storage;
 
 namespace StudyAgent_Windows.Services;
 
@@ -8,8 +9,10 @@ public static class LocalizationService
     {
         get
         {
-            return ApplicationData.Current.LocalSettings
-                .Values["AppLanguage"] as string ?? "ru";
+            object? selected = ApplicationData.Current.LocalSettings.Values["AppLanguage"];
+            if (selected is string language && (language == "ru" || language == "en"))
+                return language;
+            return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru" ? "ru" : "en";
         }
         set
         {

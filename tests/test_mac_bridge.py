@@ -1,3 +1,5 @@
+import io
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -148,6 +150,45 @@ def test_dispatch_returns_structured_error_for_unknown_command() -> None:
     assert response["ok"] is False
     assert response["request_id"] == "bad"
     assert response["error"]["message"] == "Unknown backend command"
+
+
+def test_json_lines_protocol_keeps_progress_separate_from_final_envelope(monkeypatch) -> None:
+    output = io.StringIO()
+    monkeypatch.setattr(mac_bridge.sys, "stdin", io.StringIO('{"request_id":"request-1"}\n'))
+    monkeypatch.setattr(mac_bridge.sys, "stdout", output)
+
+    def dispatch(request, progress_callback=None):
+        progress_callback({"phase": "indexing", "current": 1, "total": 1})
+        return {"request_id": request["request_id"], "ok": True, "result": {"indexed": 1}}
+
+    monkeypatch.setattr(mac_bridge, "dispatch", dispatch)
+    assert mac_bridge.main() == 0
+
+    messages = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert messages == [
+        {
+            "event": "progress",
+            "request_id": "request-1",
+            "result": {"phase": "indexing", "current": 1, "total": 1},
+        },
+        {"request_id": "request-1", "ok": True, "result": {"indexed": 1}},
+    ]
+
+
+def test_dispatch_returns_current_structured_embedding_error(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
+    response = mac_bridge.dispatch(
+        {
+            "request_id": "semantic",
+            "command": "search",
+            "roots": [],
+            "query": "test",
+            "search_mode": "semantic",
+        }
+    )
+
+    assert response["ok"] is False
+    assert response["error"]["code"] == "embedding_required"
 
 
 def test_dispatch_installs_ocr_model_only_when_requested(tmp_path: Path, monkeypatch) -> None:

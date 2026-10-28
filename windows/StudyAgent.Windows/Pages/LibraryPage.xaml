@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Padding="32">
         <StackPanel Spacing="18">
 
@@ -25,6 +26,13 @@
                 </StackPanel>
             </Button>
 
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="CheckChangesButton" Content="Проверить изменения"
+                    Click="CheckChangesButton_Click" />
+                <Button x:Name="CancelIndexButton" Content="Отменить"
+                    IsEnabled="False" Click="CancelIndexButton_Click" />
+            </StackPanel>
+
             <ProgressRing
                 x:Name="LoadingIndicator"
                 IsActive="False"
@@ -36,6 +44,16 @@
                 x:Name="LibraryStatus"
                 Text="Добавьте папку с учебными материалами."
                 TextWrapping="Wrap" />
+
+            <ProgressBar x:Name="IndexProgress" Minimum="0" Maximum="100"
+                Visibility="Collapsed" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="InstallOcrButton" Content="Установить веса OCR" IsEnabled="False"
+                    Click="InstallOcrButton_Click" />
+                <ProgressRing x:Name="OcrProgress" Width="24" Height="24"
+                    IsActive="False" />
+            </StackPanel>
 
             <ListView
                 x:Name="SourcesList"
@@ -54,4 +72,5 @@
 
         </StackPanel>
     </Grid>
+    </ScrollViewer>
 </Page>

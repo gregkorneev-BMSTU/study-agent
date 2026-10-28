@@ -1,5 +1,5 @@
 :root { color-scheme: light dark; }
-html,body { margin:0; padding:0; overflow:hidden; background:transparent; }
+html,body { margin:0; padding:0; min-height:100%; overflow:auto; background:transparent; }
 body { font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif; color:CanvasText; user-select:text; overflow-wrap:anywhere; }
 #content > :first-child { margin-top:0; }
 #content > :last-child { margin-bottom:0; }

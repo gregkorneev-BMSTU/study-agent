@@ -15,6 +15,8 @@ MODEL_REVISION = "af93b47dba1b47b6640c86ccf487ed2260ab9a09"
 
 
 def model_directory() -> Path:
+    if data_directory := os.environ.get("STUDY_AGENT_DATA_DIR"):
+        return Path(data_directory).expanduser() / "Models" / "Chandra"
     if os.name == "nt":
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
     elif sys.platform == "darwin":

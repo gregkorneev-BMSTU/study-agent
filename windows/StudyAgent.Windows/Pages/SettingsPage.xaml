@@ -45,6 +45,28 @@
                 </Border>
             </StackPanel>
 
+            <StackPanel Spacing="10">
+                <TextBlock x:Name="AccessibilityHeading" Text="Доступность Windows"
+                    FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="AccessibilityDescription" TextWrapping="Wrap"
+                    Text="Повышенную контрастность и уменьшение движения можно настроить системными средствами Windows." />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="ContrastButton" Content="Повышенная контрастность"
+                        Click="ContrastButton_Click" />
+                    <Button x:Name="MotionButton" Content="Уменьшение движения"
+                        Click="MotionButton_Click" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+                <TextBlock x:Name="SetupHeading" Text="Первоначальная настройка"
+                    FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="SetupDescription" TextWrapping="Wrap"
+                    Text="Откройте мастер приветствия и перейдите к диагностике компонентов в Библиотеке." />
+                <Button x:Name="ReplayWelcomeButton" Content="Открыть мастер настройки"
+                    HorizontalAlignment="Left" Click="ReplayWelcomeButton_Click" />
+            </StackPanel>
+
             <StackPanel Spacing="12">
                 <TextBlock
                     x:Name="AppearanceHeading"
@@ -126,6 +148,17 @@
                             Opacity="0.7"/>
                     </StackPanel>
                 </Border>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="OpenOllamaButton" Content="Установить Ollama"
+                        Click="OpenOllamaButton_Click" />
+                    <Button x:Name="InstallModelButton" Content="Установить рекомендованную модель"
+                        Click="InstallModelButton_Click" />
+                    <Button x:Name="CancelModelButton" Content="Отменить"
+                        IsEnabled="False" Click="CancelModelButton_Click" />
+                </StackPanel>
+                <ProgressBar x:Name="ModelInstallProgress" Minimum="0" Maximum="100"
+                    Visibility="Collapsed" />
+                <TextBlock x:Name="ModelInstallStatus" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Spacing="12">
@@ -155,6 +188,17 @@
                             Opacity="0.7"/>
                     </StackPanel>
                 </Border>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="OpenOllamaButton" Content="Установить Ollama"
+                        Click="OpenOllamaButton_Click" />
+                    <Button x:Name="InstallModelButton" Content="Установить рекомендованную модель"
+                        Click="InstallModelButton_Click" />
+                    <Button x:Name="CancelModelButton" Content="Отменить"
+                        IsEnabled="False" Click="CancelModelButton_Click" />
+                </StackPanel>
+                <ProgressBar x:Name="ModelInstallProgress" Minimum="0" Maximum="100"
+                    Visibility="Collapsed" />
+                <TextBlock x:Name="ModelInstallStatus" TextWrapping="Wrap" />
             </StackPanel>
 
         </StackPanel>
