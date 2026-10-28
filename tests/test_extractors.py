@@ -51,7 +51,11 @@ def test_pdf_ocr_runs_only_for_pages_without_enough_text(tmp_path: Path, monkeyp
 
     class PdfDocument:
         def __init__(self, path: Path) -> None:
-            self.pages = [Page("A" * 80), Page("")]
+            self.pages = [
+                Page("A" * 80),
+                Page(""),
+                Page("Дисциплина: математика. " + "Èíòåãðàëû è óðàâíåíèÿ " * 4),
+            ]
 
         def __iter__(self):
             return iter(self.pages)
@@ -76,7 +80,7 @@ def test_pdf_ocr_runs_only_for_pages_without_enough_text(tmp_path: Path, monkeyp
     result = extractors._extract_pdf(tmp_path / "scan.pdf")
 
     # Проверяем строго по новому контракту DTO блоков
-    assert len(result) == 2
+    assert len(result) == 3
 
     assert result[0] == ExtractedBlock(
         text="A" * 80, source_type="pdf", extraction_type="digital", page_number=1
@@ -84,7 +88,13 @@ def test_pdf_ocr_runs_only_for_pages_without_enough_text(tmp_path: Path, monkeyp
     assert result[1] == ExtractedBlock(
         text="OCR text", source_type="pdf", extraction_type="ocr", page_number=2
     )
-    assert ocr_calls == ["pil_image_from:"]
+    assert result[2] == ExtractedBlock(
+        text="OCR text", source_type="pdf", extraction_type="ocr", page_number=3
+    )
+    assert ocr_calls == [
+        "pil_image_from:",
+        "pil_image_from:Дисциплина: математика. " + "Èíòåãðàëû è óðàâíåíèÿ " * 4,
+    ]
 
 
 def test_ocr_result_is_cached_as_json_outside_source_folder(tmp_path: Path, monkeypatch) -> None:

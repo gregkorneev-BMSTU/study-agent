@@ -17,6 +17,7 @@ from study_agent.ocr_model import model_directory, model_is_installed
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
 OCR_SUFFIXES = {".pdf", *IMAGE_SUFFIXES}
+PDF_EXTRACTION_VERSION = 2
 _manager: Any | None = None
 
 
@@ -213,7 +214,13 @@ def _extract_image(path: Path) -> list[ExtractedBlock]:
 
 
 def _has_sufficient_text(text: str) -> bool:
-    return sum(character.isalnum() for character in text) >= 32
+    if sum(character.isalnum() for character in text) < 32:
+        return False
+
+    letters = [character for character in text if character.isalpha()]
+    # PDFium can expose Windows-1251 text as accented Latin characters.
+    extended_latin = sum("\u00c0" <= character <= "\u00ff" for character in letters)
+    return extended_latin < 16 or extended_latin / len(letters) < 0.30
 
 
 def _ocr_image(image: Any) -> str:
@@ -259,4 +266,5 @@ def _cache_path(path: Path) -> Path:
         base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "study-agent/ocr"
 
     # Безопасное изолированное расширение для новой структуры данных
-    return base / f"{digest}.json"
+    name = f"pdf-{PDF_EXTRACTION_VERSION}-{digest}" if path.suffix.lower() == ".pdf" else digest
+    return base / f"{name}.json"

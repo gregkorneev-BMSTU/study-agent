@@ -221,3 +221,47 @@ def test_markdown_processing_upgrade_reextracts_only_markdown(tmp_path: Path, mo
     report = indexer.sync_source(source)
     assert reads == ["notes.md"]
     assert report.indexed == 1 and report.skipped == 1
+
+
+def test_pdf_upgrade_ignores_old_extraction_cache(tmp_path: Path, monkeypatch) -> None:
+    import hashlib
+    import json
+
+    from study_agent import extractors
+    from study_agent.indexer import INDEX_VERSION
+    from study_agent.models import ExtractedBlock
+
+    root, source, storage, indexer = _setup(tmp_path)
+    pdf = root / "scan.pdf"
+    pdf.write_bytes(b"synthetic PDF")
+    read = source.read
+    monkeypatch.setattr(
+        source,
+        "read",
+        lambda _: [ExtractedBlock("old digital text", "pdf", "digital", page_number=1)],
+    )
+    assert indexer.sync_source(source).indexed == 1
+    with storage.connect() as db:
+        db.execute("UPDATE documents SET version=? WHERE format='.pdf'", (INDEX_VERSION,))
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    old_key = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    (cache / f"{old_key}.json").write_text(
+        json.dumps([ExtractedBlock("old digital text", "pdf", "digital").to_dict()]),
+        encoding="utf-8",
+    )
+    cache_path = extractors._cache_path
+    monkeypatch.setattr(extractors, "_cache_path", lambda path: cache / cache_path(path).name)
+    calls = []
+
+    def extract(_: Path) -> list[ExtractedBlock]:
+        calls.append(True)
+        return [ExtractedBlock("recognized text", "pdf", "ocr", page_number=1)]
+
+    monkeypatch.setattr(extractors, "_extract_pdf", extract)
+    monkeypatch.setattr(source, "read", read)
+    report = indexer.sync_source(source)
+    assert report.indexed == 1 and report.skipped == 0
+    assert calls == [True]
+    assert storage.search([source_id(root)], "recognized")[0]["extraction_type"] == "ocr"
