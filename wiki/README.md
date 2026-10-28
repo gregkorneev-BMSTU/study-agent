@@ -15,7 +15,7 @@
 - [Release notes — Study Agent v1 Beta 5](releases/v1.0.0-beta.5.md) — предыдущий выпуск.
 - [Release notes — Study Agent v1 Beta 4](releases/v1.0.0-beta.4.md) — предыдущий выпуск.
 - [Дорожная карта](roadmap.md) — этапы дальнейшей работы.
-- [Разработка](development.md) — роли, процесс и Git.
+- [Разработка](development.md) — окружение, запуск, сборка и проверки для участников проекта.
 - [Тестирование](testing.md) — проверки и CI.
 - [macOS Beta: установка и выпуск](macos-release.md) — мастер первого запуска, DMG, подпись и публикация.
 - [Первый запуск macOS](onboarding.md) — Welcome Experience из PR #7 и переход к технической настройке.
