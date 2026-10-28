@@ -380,7 +380,7 @@ class IndexStorage:
         placeholders = ",".join("?" for _ in source_ids)
         with self.connect() as db:
             return db.execute(
-                f"""SELECT c.id AS chunk_id,c.text,c.heading,c.page_number,c.marker,
+                f"""SELECT c.id AS chunk_id,c.ordinal,c.text,c.heading,c.page_number,c.marker,
                            c.extraction_type,d.title,d.relative_path,d.source_id,s.root,
                            e.input_hash,e.vector,e.dimensions
                     FROM chunks c JOIN documents d ON d.id=c.document_id
@@ -500,7 +500,7 @@ class IndexStorage:
                 return db.execute(
                     f"""
                     SELECT d.title,d.relative_path,d.source_id,s.root,c.id AS chunk_id,
-                           c.text,c.page_number,c.heading,c.marker,c.extraction_type,
+                           c.ordinal,c.text,c.page_number,c.heading,c.marker,c.extraction_type,
                            -bm25(chunks_fts) AS rank
                     FROM chunks_fts JOIN chunks c ON c.rowid=chunks_fts.rowid
                     JOIN documents d ON d.id=c.document_id JOIN sources s ON s.id=d.source_id
@@ -512,7 +512,7 @@ class IndexStorage:
             rows = db.execute(
                 f"""
                 SELECT d.title,d.relative_path,d.source_id,s.root,c.id AS chunk_id,
-                       c.text,c.page_number,c.heading,c.marker,c.extraction_type
+                       c.ordinal,c.text,c.page_number,c.heading,c.marker,c.extraction_type
                 FROM chunks c JOIN documents d ON d.id=c.document_id
                 JOIN sources s ON s.id=d.source_id WHERE d.source_id IN ({placeholders})
             """,

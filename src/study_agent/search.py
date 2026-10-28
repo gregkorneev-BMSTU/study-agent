@@ -28,6 +28,7 @@ class SearchHit:
     matched_excerpts: list[str] = field(default_factory=list)
     context_excerpts: list[str] = field(default_factory=list)
     matched_chunk_ids: list[str] = field(default_factory=list)
+    chunk_ordinal: int | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ def search_sources(
             marker=row["marker"],
             extraction_type=row["extraction_type"],
             chunk_id=row["chunk_id"],
+            chunk_ordinal=row["ordinal"],
         )
         for row in rows
     ]

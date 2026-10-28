@@ -64,6 +64,7 @@ def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHi
         # Stable sorting retains retrieval order for equal lexical math intent.
         focused.sort(key=lambda hit: -math_relevance(hit.excerpt, query))
     grouped: dict[tuple[object, ...], SearchHit] = {}
+    group_matches: dict[tuple[object, ...], list[SearchHit]] = {}
     for hit in focused:
         key = (hit.source_root, hit.document_id)
         if key in grouped:
@@ -76,6 +77,7 @@ def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHi
             previous_ids = representative.matched_chunk_ids or (
                 [representative.chunk_id] if representative.chunk_id else []
             )
+            group_matches[key].append(hit)
             grouped[key] = replace(
                 base,
                 related_count=len(excerpts) - 1,
@@ -90,6 +92,32 @@ def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHi
                 matched_excerpts=[hit.excerpt],
                 matched_chunk_ids=[hit.chunk_id] if hit.chunk_id else [],
             )
+            group_matches[key] = [hit]
+    for key, matches in group_matches.items():
+        excerpt_order: dict[str, tuple[tuple[int, int], int]] = {}
+        ordered_chunk_ids: list[tuple[tuple[int, int], int, str]] = []
+        for index, match in enumerate(matches):
+            position = (
+                (0, match.chunk_ordinal) if match.chunk_ordinal is not None else (1, index)
+            )
+            excerpt_order.setdefault(match.excerpt, (position, index))
+            if match.chunk_id:
+                ordered_chunk_ids.append((position, index, match.chunk_id))
+        excerpts = [
+            excerpt
+            for excerpt, _ in sorted(
+                excerpt_order.items(), key=lambda item: item[1]
+            )
+        ]
+        chunk_ids = list(dict.fromkeys(
+            chunk_id for _, _, chunk_id in sorted(ordered_chunk_ids)
+        ))
+        grouped[key] = replace(
+            grouped[key],
+            related_count=max(0, len(excerpts) - 1),
+            matched_excerpts=excerpts,
+            matched_chunk_ids=chunk_ids,
+        )
     selected = list(grouped.values())
     if is_math_query(query) and any(
         math_signature_matches(excerpt, query)
@@ -103,7 +131,8 @@ def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHi
             ]
             if excerpts:
                 filtered.append(replace(
-                    hit, excerpt=excerpts[0], matched_excerpts=excerpts,
+                    hit, excerpt=hit.excerpt if hit.excerpt in excerpts else excerpts[0],
+                    matched_excerpts=excerpts,
                     related_count=len(excerpts) - 1,
                 ))
         selected = filtered

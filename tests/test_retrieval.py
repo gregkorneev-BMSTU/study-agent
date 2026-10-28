@@ -144,6 +144,27 @@ def test_groups_all_matches_by_file_and_preserves_excerpts() -> None:
     assert found[2].related_count == 1
 
 
+def test_matches_within_a_file_follow_original_chunk_order() -> None:
+    from study_agent.retrieval import _unique
+    from study_agent.search import SearchHit
+
+    root = Path("/synthetic")
+    hits = [
+        SearchHit("A", "a.md", "Третий чанк", 100, root,
+                  chunk_id="doc:2", chunk_ordinal=2),
+        SearchHit("A", "a.md", "Первый чанк", 50, root,
+                  chunk_id="doc:0", chunk_ordinal=0),
+        SearchHit("A", "a.md", "Второй чанк", 90, root,
+                  chunk_id="doc:1", chunk_ordinal=1),
+    ]
+
+    result = _unique(hits, 8)[0]
+
+    assert result.excerpt == "Третий чанк"  # Best-ranked match remains representative.
+    assert result.matched_excerpts == ["Первый чанк", "Второй чанк", "Третий чанк"]
+    assert result.matched_chunk_ids == ["doc:0", "doc:1", "doc:2"]
+
+
 def test_math_group_keeps_precise_formula_with_original_provenance() -> None:
     from study_agent.retrieval import _unique
     from study_agent.search import SearchHit

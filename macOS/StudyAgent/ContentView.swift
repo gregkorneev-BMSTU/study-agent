@@ -212,23 +212,30 @@ private struct SearchPanel: View {
                                 MathContentView(text: answer, language: model.language)
                                 if !model.answerSources.isEmpty {
                                     Divider()
-                                    Text(model.text("Использованные источники"))
-                                        .font(.headline)
-                                    ForEach(Array(model.answerSources.enumerated()), id: \.element.id) { index, hit in
-                                        SearchSourceCard(hit: hit, number: index + 1, initiallyExpanded: false)
-                                    }
+                                    Text(model.text("Источники ответа отмечены номерами в найденных фрагментах ниже."))
+                                        .font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                             .padding(.top, 4)
                         }
                     }
                     ForEach(model.hits) { hit in
-                        SearchSourceCard(hit: hit, number: nil, initiallyExpanded: false)
+                        SearchSourceCard(
+                            hit: hit,
+                            number: citationNumber(for: hit),
+                            initiallyExpanded: false
+                        )
                     }
                 }
             }
         }
         .padding(28)
+    }
+
+    private func citationNumber(for hit: SearchHit) -> Int? {
+        model.answerSources.firstIndex {
+            $0.sourceRoot == hit.sourceRoot && $0.documentID == hit.documentID
+        }.map { $0 + 1 }
     }
 }
 

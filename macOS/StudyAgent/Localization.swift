@@ -189,6 +189,7 @@ enum L10n {
         "Подключить папку снова…": "Reconnect Folder…",
         "Действия с папкой": "Folder Actions",
         "Использованные источники": "Sources Used",
+        "Источники ответа отмечены номерами в найденных фрагментах ниже.": "Answer sources are numbered in the matching excerpts below.",
         "Открыть источник": "Open Source",
         "Открыть документ": "Open Document",
         "Страница %d": "Page %d",
