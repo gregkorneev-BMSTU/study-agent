@@ -103,12 +103,14 @@ def test_failed_document_does_not_stop_others_or_erase_old_text(
     assert storage.list_warnings([source_id(root)])
     reopened = IndexStorage(tmp_path / "index.sqlite3")
     issues = DocumentIndexer(reopened).get_index_status(source_id(root))["issues"]
-    assert issues == [{
-        "document_id": "bad.txt",
-        "title": "bad",
-        "code": "document_extraction_failed",
-        "page_number": None,
-    }]
+    assert issues == [
+        {
+            "document_id": "bad.txt",
+            "title": "bad",
+            "code": "document_extraction_failed",
+            "page_number": None,
+        }
+    ]
 
 
 def test_cancel_preserves_index_and_resume(tmp_path: Path) -> None:
@@ -196,3 +198,97 @@ def test_file_stat_failure_does_not_stop_scan_or_delete_saved_document(
     assert storage.search([source_id(root)], "durable")
     assert storage.search([source_id(root)], "searchable")
     assert storage.list_warnings([source_id(root)])[0]["code"] == report.errors[0]["code"]
+
+
+def test_markdown_processing_upgrade_reextracts_only_markdown(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.indexer import INDEX_VERSION
+
+    root, source, storage, indexer = _setup(tmp_path)
+    (root / "notes.md").write_text("# Раздел\nФормула $$x^2$$", encoding="utf-8")
+    (root / "notes.txt").write_text("Обычный текст", encoding="utf-8")
+    indexer.sync_source(source)
+    # Simulate a pre-math Markdown index while keeping other formats current.
+    with storage.connect() as db:
+        db.execute("UPDATE documents SET version=? WHERE format='.md'", (INDEX_VERSION,))
+    reads = []
+    original = source.read
+
+    def read(document_id):
+        reads.append(document_id)
+        return original(document_id)
+
+    monkeypatch.setattr(source, "read", read)
+    report = indexer.sync_source(source)
+    assert reads == ["notes.md"]
+    assert report.indexed == 1 and report.skipped == 1
+
+
+def test_pdf_upgrade_ignores_old_extraction_cache(tmp_path: Path, monkeypatch) -> None:
+    import hashlib
+    import json
+
+    from study_agent import extractors
+    from study_agent.indexer import INDEX_VERSION
+    from study_agent.models import ExtractedBlock
+
+    root, source, storage, indexer = _setup(tmp_path)
+    pdf = root / "scan.pdf"
+    pdf.write_bytes(b"synthetic PDF")
+    read = source.read
+    monkeypatch.setattr(
+        source,
+        "read",
+        lambda _: [ExtractedBlock("old digital text", "pdf", "digital", page_number=1)],
+    )
+    assert indexer.sync_source(source).indexed == 1
+    with storage.connect() as db:
+        db.execute("UPDATE documents SET version=? WHERE format='.pdf'", (INDEX_VERSION,))
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    old_key = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    (cache / f"{old_key}.json").write_text(
+        json.dumps([ExtractedBlock("old digital text", "pdf", "digital").to_dict()]),
+        encoding="utf-8",
+    )
+    cache_path = extractors._cache_path
+    monkeypatch.setattr(extractors, "_cache_path", lambda path: cache / cache_path(path).name)
+    calls = []
+
+    def extract(_: Path) -> list[ExtractedBlock]:
+        calls.append(True)
+        return [ExtractedBlock("recognized text", "pdf", "ocr", page_number=1)]
+
+    monkeypatch.setattr(extractors, "_extract_pdf", extract)
+    monkeypatch.setattr(source, "read", read)
+    report = indexer.sync_source(source)
+    assert report.indexed == 1 and report.skipped == 0
+    assert calls == [True]
+    assert storage.search([source_id(root)], "recognized")[0]["extraction_type"] == "ocr"
+
+
+def test_docx_upgrade_reprocesses_embedded_images(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.indexer import INDEX_VERSION
+    from study_agent.models import ExtractedBlock
+
+    root, source, storage, indexer = _setup(tmp_path)
+    (root / "notes.docx").write_bytes(b"synthetic DOCX")
+    monkeypatch.setattr(
+        source,
+        "read",
+        lambda _: [ExtractedBlock("printed text", "docx", "digital")],
+    )
+    assert indexer.sync_source(source).indexed == 1
+    with storage.connect() as db:
+        db.execute("UPDATE documents SET version=? WHERE format='.docx'", (INDEX_VERSION,))
+    monkeypatch.setattr(
+        source,
+        "read",
+        lambda _: [
+            ExtractedBlock("printed text", "docx", "digital"),
+            ExtractedBlock("handwritten note", "docx", "ocr", marker="image_1"),
+        ],
+    )
+    report = indexer.sync_source(source)
+    assert report.indexed == 1 and report.skipped == 0
+    assert storage.search([source_id(root)], "handwritten")[0]["extraction_type"] == "ocr"

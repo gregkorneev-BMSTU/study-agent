@@ -29,8 +29,10 @@ def test_lists_supported_formats_and_reads_text_files(tmp_path: Path) -> None:
     assert len(result) == 1
     assert result[0] == ExtractedBlock(
         text="# Notes",
-        source_type="text",
-        extraction_type="digital"
+        source_type="markdown",
+        extraction_type="digital",
+        heading="Notes",
+        marker="line:1",
     )
 
 

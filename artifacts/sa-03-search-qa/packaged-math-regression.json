@@ -1,0 +1,11 @@
+{
+  "synthetic_corpus": true,
+  "query": "интеграл корня из x",
+  "grouped_hits": 1,
+  "hidden_related": 1,
+  "excerpt": "$$\\int \\sqrt{x}\\,dx=\\frac{2}{3}x^{3/2}+C$$",
+  "answer_ok": true,
+  "answer": "$$\\int \\sqrt{x}\\,dx=\\frac{2}{3}x^{3/2}+C$$[1]",
+  "grounded": true,
+  "source_count": 1
+}

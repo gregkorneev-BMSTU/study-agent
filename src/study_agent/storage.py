@@ -6,17 +6,22 @@ import json
 import os
 import re
 import sqlite3
+import struct
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 from study_agent.chunking import Chunk
+from study_agent.embeddings import INPUT_VERSION, EmbeddingProfile, input_hash, validate_vector
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def default_database_path() -> Path:
+    # Optional isolation for developer builds and packaged-helper smoke tests.
+    if data_directory := os.environ.get("STUDY_AGENT_DATA_DIR"):
+        return Path(data_directory).expanduser() / "index.sqlite3"
     if os.name == "nt":
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
     elif sys.platform == "darwin":
@@ -85,6 +90,32 @@ class IndexStorage:
                 for statement in schema.split(";"):
                     if statement.strip():
                         db.execute(statement)
+            if version < 2:
+                db.execute("""
+                    CREATE TABLE embedding_profiles (
+                        fingerprint TEXT PRIMARY KEY, model TEXT NOT NULL,
+                        model_digest TEXT NOT NULL,
+                        dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+                        document_prefix TEXT NOT NULL, query_prefix TEXT NOT NULL,
+                        input_version INTEGER NOT NULL
+                    )
+                """)
+                db.execute("""
+                    CREATE TABLE chunk_embeddings (
+                        chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+                        model_fingerprint TEXT NOT NULL
+                            REFERENCES embedding_profiles(fingerprint) ON DELETE CASCADE,
+                        input_hash TEXT NOT NULL, dimensions INTEGER NOT NULL CHECK(dimensions > 0),
+                        vector BLOB NOT NULL CHECK(length(vector) = dimensions * 4),
+                        PRIMARY KEY(chunk_id, model_fingerprint)
+                    )
+                """)
+                db.execute("""
+                    CREATE TRIGGER chunk_embeddings_update AFTER UPDATE OF text,heading ON chunks
+                    WHEN old.text IS NOT new.text OR old.heading IS NOT new.heading BEGIN
+                        DELETE FROM chunk_embeddings WHERE chunk_id=new.id;
+                    END
+                """)
                 db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             self.fts = self._ensure_fts(db)
             db.commit()
@@ -232,13 +263,26 @@ class IndexStorage:
                     json.dumps(warnings, ensure_ascii=False),
                 ),
             )
-            db.execute("DELETE FROM chunks WHERE document_id=?", (document_id,))
+            # Keep unchanged ordinals and their embeddings; remove obsolete tail chunks.
+            if len({chunk.ordinal for chunk in chunks}) != len(chunks):
+                raise sqlite3.IntegrityError("Duplicate chunk ordinal")
+            existing = db.execute(
+                "SELECT id,ordinal FROM chunks WHERE document_id=?", (document_id,)
+            ).fetchall()
+            ordinals = {chunk.ordinal for chunk in chunks}
+            db.executemany(
+                "DELETE FROM chunks WHERE id=?",
+                [(row["id"],) for row in existing if row["ordinal"] not in ordinals],
+            )
             for chunk in chunks:
                 db.execute(
                     """
                     INSERT INTO chunks(id,document_id,ordinal,text,page_number,
                                        heading,marker,extraction_type)
                     VALUES (?,?,?,?,?,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET text=excluded.text,
+                        page_number=excluded.page_number,heading=excluded.heading,
+                        marker=excluded.marker,extraction_type=excluded.extraction_type
                 """,
                     (
                         f"{document_id}:{chunk.ordinal}",
@@ -252,6 +296,120 @@ class IndexStorage:
                     ),
                 )
             db.commit()
+
+    def embedding_chunks(
+        self, source_ids: list[str], model_fingerprint: str,
+    ) -> list[sqlite3.Row]:
+        """Saved chunks and cache state, scoped to explicitly selected sources."""
+        if not source_ids:
+            return []
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            return db.execute(
+                f"""SELECT c.id AS chunk_id,c.text,c.heading,e.input_hash
+                    FROM chunks c JOIN documents d ON d.id=c.document_id
+                    LEFT JOIN chunk_embeddings e
+                      ON e.chunk_id=c.id AND e.model_fingerprint=?
+                    WHERE d.source_id IN ({placeholders})
+                    ORDER BY d.source_id,d.relative_path,c.ordinal""",
+                (model_fingerprint, *source_ids),
+            ).fetchall()
+
+    def put_embeddings(
+        self, profile: EmbeddingProfile, records: list[tuple[str, str, list[float]]],
+    ) -> int:
+        """Atomically save a batch, ignoring chunks changed/deleted during inference."""
+        encoded = [
+            (chunk_id, text, struct.pack(
+                f"<{profile.dimensions}f", *validate_vector(vector, profile.dimensions)
+            ))
+            for chunk_id, text, vector in records
+        ]
+        written = 0
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                "INSERT OR IGNORE INTO embedding_profiles VALUES (?,?,?,?,?,?,?)",
+                (profile.fingerprint, profile.model, profile.model_digest, profile.dimensions,
+                 profile.document_prefix, profile.query_prefix, INPUT_VERSION),
+            )
+            for chunk_id, text, vector in encoded:
+                row = db.execute(
+                    "SELECT text,heading FROM chunks WHERE id=?", (chunk_id,)
+                ).fetchone()
+                if row is None or profile.document_input(row["text"], row["heading"]) != text:
+                    continue
+                db.execute(
+                    """INSERT INTO chunk_embeddings VALUES (?,?,?,?,?)
+                       ON CONFLICT(chunk_id,model_fingerprint) DO UPDATE SET
+                           input_hash=excluded.input_hash,dimensions=excluded.dimensions,
+                           vector=excluded.vector""",
+                    (chunk_id, profile.fingerprint, input_hash(text), profile.dimensions, vector),
+                )
+                written += 1
+            db.commit()
+        return written
+
+    def load_embeddings(
+        self, source_ids: list[str], profile: EmbeddingProfile,
+    ) -> list[tuple[str, list[float]]]:
+        """Read current float32 vectors; no retrieval or runtime calls."""
+        if not source_ids:
+            return []
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            rows = db.execute(
+                f"""SELECT c.id,c.text,c.heading,e.input_hash,e.vector FROM chunk_embeddings e
+                    JOIN chunks c ON c.id=e.chunk_id JOIN documents d ON d.id=c.document_id
+                    WHERE e.model_fingerprint=? AND e.dimensions=?
+                      AND d.source_id IN ({placeholders}) ORDER BY c.id""",
+                (profile.fingerprint, profile.dimensions, *source_ids),
+            ).fetchall()
+        return [
+            (row["id"], list(struct.unpack(f"<{profile.dimensions}f", row["vector"])))
+            for row in rows
+            if row["input_hash"] == input_hash(profile.document_input(row["text"], row["heading"]))
+        ]
+
+    def retrieval_chunks(
+        self, source_ids: list[str], profile: EmbeddingProfile,
+    ) -> list[sqlite3.Row]:
+        """Snapshot text, provenance and cached vectors together to avoid inference races."""
+        if not source_ids:
+            return []
+        placeholders = ",".join("?" for _ in source_ids)
+        with self.connect() as db:
+            return db.execute(
+                f"""SELECT c.id AS chunk_id,c.ordinal,c.text,c.heading,c.page_number,c.marker,
+                           c.extraction_type,d.title,d.relative_path,d.source_id,s.root,
+                           e.input_hash,e.vector,e.dimensions
+                    FROM chunks c JOIN documents d ON d.id=c.document_id
+                    JOIN sources s ON s.id=d.source_id LEFT JOIN chunk_embeddings e
+                      ON e.chunk_id=c.id AND e.model_fingerprint=?
+                    WHERE d.source_id IN ({placeholders}) ORDER BY c.id""",
+                (profile.fingerprint, *source_ids),
+            ).fetchall()
+
+    def neighboring_chunks(self, chunk_ids: list[str], radius: int = 1) -> dict[str, list[str]]:
+        """Return adjacent saved chunks from each matched document, excluding matches."""
+        if not chunk_ids or radius < 1:
+            return {}
+        placeholders = ",".join("?" for _ in chunk_ids)
+        with self.connect() as db:
+            matches = db.execute(
+                f"SELECT id,document_id,ordinal FROM chunks WHERE id IN ({placeholders})",
+                chunk_ids,
+            ).fetchall()
+            result: dict[str, list[str]] = {row["id"]: [] for row in matches}
+            for row in matches:
+                neighbors = db.execute(
+                    "SELECT text FROM chunks WHERE document_id=? AND ordinal BETWEEN ? AND ? "
+                    "AND id<>? ORDER BY ABS(ordinal-?),ordinal",
+                    (row["document_id"], row["ordinal"] - radius,
+                     row["ordinal"] + radius, row["id"], row["ordinal"]),
+                ).fetchall()
+                result[row["id"]] = [item["text"] for item in neighbors]
+        return result
 
     def record_error(
         self,
@@ -342,7 +500,7 @@ class IndexStorage:
                 return db.execute(
                     f"""
                     SELECT d.title,d.relative_path,d.source_id,s.root,c.id AS chunk_id,
-                           c.text,c.page_number,c.heading,c.marker,c.extraction_type,
+                           c.ordinal,c.text,c.page_number,c.heading,c.marker,c.extraction_type,
                            -bm25(chunks_fts) AS rank
                     FROM chunks_fts JOIN chunks c ON c.rowid=chunks_fts.rowid
                     JOIN documents d ON d.id=c.document_id JOIN sources s ON s.id=d.source_id
@@ -354,7 +512,7 @@ class IndexStorage:
             rows = db.execute(
                 f"""
                 SELECT d.title,d.relative_path,d.source_id,s.root,c.id AS chunk_id,
-                       c.text,c.page_number,c.heading,c.marker,c.extraction_type
+                       c.ordinal,c.text,c.page_number,c.heading,c.marker,c.extraction_type
                 FROM chunks c JOIN documents d ON d.id=c.document_id
                 JOIN sources s ON s.id=d.source_id WHERE d.source_id IN ({placeholders})
             """,

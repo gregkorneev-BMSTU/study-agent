@@ -48,7 +48,9 @@ from PySide6.QtWidgets import (
 )
 
 from study_agent.indexer import DocumentIndexer, source_id
-from study_agent.ollama import answer, list_models
+from study_agent.mac_bridge import dispatch
+from study_agent.math_display import has_math, readable_math
+from study_agent.ollama import list_models
 from study_agent.search import SearchHit, SearchWarning, search_sources
 from study_agent.sources import LocalFolderSource
 from study_agent.storage import IndexStorage
@@ -81,6 +83,7 @@ def named(widget: QWidget, name: str) -> QWidget:
 
 def set_status(label: QLabel, text: str, state: str) -> None:
     """Update an existing status label's semantic visual state."""
+    label.setTextFormat(Qt.TextFormat.PlainText)
     label.setText(text)
     label.setProperty("state", state)
     label.style().unpolish(label)
@@ -95,6 +98,36 @@ def _index_and_search(paths: list[Path], query: str) -> tuple[list[SearchHit], l
         indexer.sync_source(source)
     warnings: list[SearchWarning] = []
     return search_sources(sources, query, warnings=warnings, storage=storage), warnings
+
+
+def _backend(request: dict) -> dict:
+    """Use the shared local backend and surface readable protocol errors."""
+    response = dispatch(request)
+    if not response["ok"]:
+        raise RuntimeError(response["error"]["message"])
+    return response["result"]
+
+
+def _decode_hits(items: list[dict]) -> list[SearchHit]:
+    return [SearchHit(**{**item, "source_root": Path(item["source_root"])}) for item in items]
+
+
+def _retrieve_request(request: dict, generate_answer: bool, model: str) -> dict:
+    """Sync and retrieve in one serial library task; never trust UI excerpts as context."""
+    embedding = (
+        request.get("embedding") if request.get("search_mode", "lexical") != "lexical" else None
+    )
+    for root in request["roots"]:
+        _backend({"command": "sync_source", "root": root, "embedding": embedding})
+    result = _backend({**request, "command": "search"})
+    if generate_answer:
+        response = dispatch({**request, "command": "answer", "model": model, "language": "ru"})
+        if response["ok"]:
+            result["response"] = response["result"]
+        else:
+            result["answer_error"] = response["error"]["message"]
+            result["answer_error_details"] = response["error"]
+    return result
 
 
 def _tinted_symbol_icon(name: str, color: str) -> QIcon:
@@ -157,6 +190,7 @@ class MainWindow(QMainWindow):
         self.workers: list[Worker] = []
         self.library_workers: list[Worker] = []
         self.installed_models: list[str] = []
+        self._search_generation = 0
         self.current_page = 0
         self.canvas = named(Canvas(), "canvas")
         self.setCentralWidget(self.canvas)
@@ -458,10 +492,13 @@ class MainWindow(QMainWindow):
         prompt_row = QHBoxLayout()
         self.question = QLineEdit()
         self.question.setPlaceholderText("Спросите о лекциях, конспектах или учебниках…")
-        self.question.returnPressed.connect(self.ask)
+        self.question.returnPressed.connect(lambda: self.ask(False))
         prompt_row.addWidget(self.question, 1)
         self.ask_button = named(QPushButton("Спросить"), "primary")
-        self.ask_button.clicked.connect(self.ask)
+        self.ask_button.clicked.connect(lambda: self.ask(True))
+        self.find_button = QPushButton("Найти фрагменты")
+        self.find_button.clicked.connect(lambda: self.ask(False))
+        prompt_row.addWidget(self.find_button)
         prompt_row.addWidget(self.ask_button)
         layout.addLayout(prompt_row)
         return page
@@ -526,6 +563,36 @@ class MainWindow(QMainWindow):
         self.model_state.setWordWrap(True)
         card_layout.addWidget(self.model_state)
         settings_layout.addWidget(card)
+        retrieval_card = named(QFrame(), "card")
+        retrieval_layout = QVBoxLayout(retrieval_card)
+        retrieval_layout.addWidget(named(QLabel("Поиск по материалам"), "eyebrow"))
+        self.search_mode_combo = QComboBox()
+        for title, mode in (("По словам", "lexical"), ("По смыслу", "semantic"),
+                            ("Гибридный", "hybrid")):
+            self.search_mode_combo.addItem(title, mode)
+        self.search_mode_combo.setCurrentIndex(max(0, self.search_mode_combo.findData(
+            SETTINGS.value("retrieval/mode", "lexical"))))
+        retrieval_layout.addWidget(self.search_mode_combo)
+        self.embedding_combo = QComboBox()
+        self.embedding_combo.addItem("Выберите установленную embedding-модель", None)
+        retrieval_layout.addWidget(self.embedding_combo)
+        self.embedding_state = named(QLabel("Модели не загружаются автоматически."), "status")
+        self.embedding_state.setWordWrap(True)
+        retrieval_layout.addWidget(self.embedding_state)
+        self.document_prefix = QLineEdit(str(SETTINGS.value("retrieval/document_prefix", "")))
+        self.document_prefix.setPlaceholderText("Префикс документов (если требуется моделью)")
+        retrieval_layout.addWidget(self.document_prefix)
+        self.query_prefix = QLineEdit(str(SETTINGS.value("retrieval/query_prefix", "")))
+        self.query_prefix.setPlaceholderText("Префикс запросов (если требуется моделью)")
+        retrieval_layout.addWidget(self.query_prefix)
+        prepare = QPushButton("Подготовить семантический индекс")
+        prepare.clicked.connect(self.prepare_embeddings)
+        retrieval_layout.addWidget(prepare)
+        self.search_mode_combo.currentIndexChanged.connect(self._retrieval_changed)
+        self.embedding_combo.currentIndexChanged.connect(self._retrieval_changed)
+        self.document_prefix.textChanged.connect(self._retrieval_changed)
+        self.query_prefix.textChanged.connect(self._retrieval_changed)
+        settings_layout.addWidget(retrieval_card)
         privacy = named(QFrame(), "card")
         privacy_layout = QVBoxLayout(privacy)
         privacy_layout.setContentsMargins(20, 18, 20, 18)
@@ -699,15 +766,23 @@ class MainWindow(QMainWindow):
             path = Path(selected).resolve()
             if path not in self.sources:
                 self.sources.append(path)
+                if hasattr(self, "_search_generation"):
+                    self._search_generation += 1
+                    self._clear_results()
                 self._save_sources()
                 self._show_sources()
                 self._schedule_index(path)
 
-    def _schedule_index(self, path: Path) -> None:
+    def _schedule_index(self, path: Path, *, prepare_embeddings: bool = False) -> None:
         set_status(self.search_state, f"Индексирую «{path.name}»…", "progress")
-        worker = Worker(
-            lambda: DocumentIndexer(IndexStorage()).sync_source(LocalFolderSource(path))
+        use_embeddings = prepare_embeddings or (
+            hasattr(self, "search_mode_combo")
+            and self.search_mode_combo.currentData() != "lexical"
         )
+        embedding = self._embedding_config() if use_embeddings else None
+        worker = Worker(lambda: _backend({
+            "command": "sync_source", "root": str(path), "embedding": embedding,
+        }))
         worker.succeeded.connect(
             lambda _report: set_status(
                 self.search_state, f"Индексация «{path.name}» завершена.", "success"
@@ -732,6 +807,9 @@ class MainWindow(QMainWindow):
         self._queue_library(worker)
 
     def _removal_finished(self, path: Path) -> None:
+        if hasattr(self, "_search_generation"):
+            self._search_generation += 1
+            self._clear_results()
         self.sources = [source for source in self.sources if source != path]
         self._save_sources()
         self._show_sources()
@@ -744,6 +822,56 @@ class MainWindow(QMainWindow):
         worker.succeeded.connect(self._models_loaded)
         worker.failed.connect(self._models_failed)
         self._run(worker)
+        embedding_worker = Worker(lambda: _backend({"command": "list_embedding_models"}))
+        embedding_worker.succeeded.connect(self._embedding_models_loaded)
+        embedding_worker.failed.connect(
+            lambda message: set_status(self.embedding_state, message, "error")
+        )
+        self._run(embedding_worker)
+
+    def _embedding_config(self) -> dict | None:
+        profile = self.embedding_combo.currentData()
+        if not profile:
+            return None
+        return {**profile, "document_prefix": self.document_prefix.text(),
+                "query_prefix": self.query_prefix.text()}
+
+    def _retrieval_changed(self, _value: object = None) -> None:
+        SETTINGS.setValue("retrieval/mode", self.search_mode_combo.currentData())
+        profile = self.embedding_combo.currentData()
+        SETTINGS.setValue("retrieval/embedding", profile["model"] if profile else "")
+        SETTINGS.setValue("retrieval/document_prefix", self.document_prefix.text())
+        SETTINGS.setValue("retrieval/query_prefix", self.query_prefix.text())
+        self._search_generation += 1
+        self._clear_results()
+        set_status(self.search_state, "Настройки поиска изменены. Повторите запрос.", "warning")
+
+    def _embedding_models_loaded(self, result: dict) -> None:
+        selected = str(SETTINGS.value("retrieval/embedding", ""))
+        self.embedding_combo.blockSignals(True)
+        self.embedding_combo.clear()
+        self.embedding_combo.addItem("Выберите установленную embedding-модель", None)
+        for item in result["models"]:
+            self.embedding_combo.addItem(
+                f"{item['name']} · {item['dimensions']}",
+                {"model": item["name"], "dimensions": item["dimensions"]},
+            )
+            if item["name"] == selected:
+                self.embedding_combo.setCurrentIndex(self.embedding_combo.count() - 1)
+        self.embedding_combo.blockSignals(False)
+        set_status(self.embedding_state,
+                   f"Установлено embedding-моделей: {len(result['models'])}.",
+                   "success" if result["models"] else "warning")
+
+    def prepare_embeddings(self) -> None:
+        if not self._embedding_config():
+            set_status(self.embedding_state, "Выберите установленную embedding-модель.", "warning")
+            return
+        if not self.sources:
+            set_status(self.embedding_state, "Сначала добавьте папку в библиотеку.", "warning")
+            return
+        for path in self.sources:
+            self._schedule_index(path, prepare_embeddings=True)
 
     def _models_loaded(self, models: list[str]) -> None:
         self.installed_models = models
@@ -782,96 +910,150 @@ class MainWindow(QMainWindow):
         SETTINGS.setValue("model", model)
         set_status(self.model_state, f"Сохранена модель: {model}.", "success")
 
-    def ask(self) -> None:
+    def ask(self, generate_answer: bool = True) -> None:
         query = self.question.text().strip()
         if not query:
             return
         if not self.sources:
-            set_status(
-                self.search_state,
-                "Сначала добавьте папку с материалами в разделе «Библиотека».",
-                "warning",
-            )
+            set_status(self.search_state, "Сначала добавьте папку в библиотеку.", "warning")
             return
-        self.question.clear()
+        mode = self.search_mode_combo.currentData()
+        embedding = self._embedding_config()
+        if mode != "lexical" and not embedding:
+            set_status(self.search_state,
+                       "Выберите установленную embedding-модель в настройках.", "warning")
+            return
+        self._search_generation += 1
+        generation = self._search_generation
         self.ask_button.setEnabled(False)
+        self.find_button.setEnabled(False)
         self._search_warning_text = ""
-        set_status(self.search_state, "Индексирую материалы и ищу фрагменты…", "progress")
+        set_status(self.search_state, "Обновляю индекс и ищу материалы локально…", "progress")
         self._clear_results()
-
-        def retrieve() -> tuple[list[SearchHit], list[SearchWarning]]:
-            return _index_and_search(self.sources, query)
-
-        worker = Worker(retrieve)
-        worker.succeeded.connect(lambda result: self._retrieved(query, *result))
-        worker.failed.connect(self._search_failed)
+        request = {"roots": [str(path) for path in self.sources], "query": query,
+                   "search_mode": mode, "embedding": embedding}
+        model = self.model_combo.currentText().strip()
+        worker = Worker(lambda: _retrieve_request(request, generate_answer, model))
+        worker.succeeded.connect(lambda result: self._retrieved_result(generation, result))
+        worker.failed.connect(lambda message: self._request_failed(generation, message))
         self._queue_library(worker)
 
-    def _retrieved(self, query: str, hits: list[SearchHit], warnings: list[SearchWarning]) -> None:
-        warning_text = ""
-        if warnings:
-            names = ", ".join(sorted({warning.document_id for warning in warnings}))
-            warning_text = f" Не удалось прочитать {len(warnings)} фрагм.: {names}."
-        self._search_warning_text = warning_text
-        if not hits:
-            set_status(
-                self.search_state,
-                "В выбранных материалах не нашёл фрагментов по этому запросу." + warning_text,
-                "warning",
-            )
-            self.ask_button.setEnabled(True)
-            return
-        set_status(
-            self.search_state,
-            f"Нашёл {len(hits)} релевантных фрагментов. Формирую ответ локально…{warning_text}",
-            "progress",
-        )
-        for number, hit in enumerate(hits, start=1):
-            self._add_hit(number, hit)
-        context = "\n\n".join(
-            f"[{index}] {hit.source_root.name}/{hit.document_id}\n{hit.excerpt}"
-            for index, hit in enumerate(hits[:5], start=1)
-        )
-        model = SETTINGS.value("model", DEFAULT_MODEL)
-        worker = Worker(lambda: answer(str(model), query, context))
-        worker.succeeded.connect(lambda response: self._answer_loaded(response, hits))
-        worker.failed.connect(self._search_failed)
-        self._run(worker)
+    def _request_failed(self, generation: int, message: str) -> None:
+        self.ask_button.setEnabled(True)
+        self.find_button.setEnabled(True)
+        if generation == self._search_generation:
+            self._search_failed(message)
 
-    def _add_hit(self, number: int, hit: SearchHit) -> None:
+    def _retrieved_result(self, generation: int, result: dict) -> None:
+        self.ask_button.setEnabled(True)
+        self.find_button.setEnabled(True)
+        if generation != self._search_generation:
+            return
+        response = result.get("response")
+        grounded = bool(response and response.get("grounded", False))
+        hits = _decode_hits(response["sources"] if grounded else result["hits"])
+        for number, hit in enumerate(hits, 1):
+            self._add_hit(number if grounded else None, hit)
+        warnings = result.get("warnings", [])
+        pending = result.get("embedding_pending", 0)
+        self._search_warning_text = (
+            f" Предупреждений: {len(warnings)}." if warnings else ""
+        ) + (f" Ожидают эмбеддингов: {pending}." if pending else "")
+        if response:
+            self._answer_loaded(response["answer"], hits if grounded else [])
+            if not grounded:
+                set_status(self.search_state, "Недостаточно контекста для ответа.", "warning")
+        else:
+            set_status(self.search_state,
+                       f"Найдено фрагментов: {len(hits)}." + self._search_warning_text,
+                       "success" if hits else "warning")
+        if result.get("answer_error"):
+            error = result.get("answer_error_details", {})
+            details = error.get("details", {})
+            diagnostic = ["Поиск завершён; ответ не показан.", result["answer_error"]]
+            if error.get("reason"):
+                diagnostic.append(f"Причина: {error['reason']}.")
+            if details.get("source_count") is not None:
+                diagnostic.append(f"Источников в контексте: {details['source_count']}.")
+            if error.get("model"):
+                diagnostic.append(f"Модель: {error['model']}.")
+            if error.get("action"):
+                diagnostic.append(error["action"])
+            set_status(self.search_state, " ".join(diagnostic), "warning")
+
+    def _add_hit(self, number: int | None, hit: SearchHit) -> None:
         card = named(QFrame(), "card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 12, 16, 12)
-        title_text = f"[{number}]  {hit.title}  ·  {hit.source_root.name}/{hit.document_id}"
+        citation = f"[{number}]  " if number is not None else ""
+        title_text = f"{citation}{hit.title}  ·  {hit.source_root.name}/{hit.document_id}"
         title = named(QPushButton(title_text), "link")
         title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
-        excerpt = QLabel(hit.excerpt)
-        excerpt.setWordWrap(True)
-        excerpt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(excerpt)
+        original_button = QPushButton("Original Text")
+        original_button.setCheckable(True)
+        original_text = QWidget()
+        original_layout = QVBoxLayout(original_text)
+        original_layout.setContentsMargins(0, 0, 0, 0)
+        if hit.page_number is not None:
+            original_layout.addWidget(QLabel(f"Страница {hit.page_number}"))
+        elif hit.heading:
+            original_layout.addWidget(QLabel(f"Раздел: {hit.heading}"))
+        for excerpt in hit.matched_excerpts or [hit.excerpt]:
+            self._add_material_text(original_layout, excerpt)
+        original_text.setVisible(False)
+        original_button.toggled.connect(original_text.setVisible)
+        layout.addWidget(original_button)
+        layout.addWidget(original_text)
+        if hit.related_count:
+            layout.addWidget(QLabel(f"Найдено фрагментов в файле: {hit.related_count + 1}"))
+        if "formula_suspect" in hit.quality_warnings:
+            warning = QLabel("В исходной формуле обнаружена подозрительная запись. "
+                             "Сверьте её с оригиналом документа.")
+            warning.setWordWrap(True)
+            layout.addWidget(warning)
         self.results_layout.addWidget(card)
+
+    def _add_material_text(self, layout: QVBoxLayout, text: str) -> None:
+        label = QLabel(readable_math(text))
+        label.setTextFormat(Qt.TextFormat.PlainText)
+        label.setWordWrap(True)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(label)
+        if has_math(text):
+            note = QLabel("Упрощённое отображение формул. "
+                          "Математическая корректность автоматически не проверена.")
+            note.setWordWrap(True)
+            layout.addWidget(named(note, "muted"))
+            raw = QLabel(text)
+            raw.setTextFormat(Qt.TextFormat.PlainText)
+            raw.setWordWrap(True)
+            raw.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            raw.setVisible(False)
+            toggle = QPushButton("Исходный текст / LaTeX")
+            toggle.setCheckable(True)
+            toggle.toggled.connect(raw.setVisible)
+            layout.addWidget(toggle)
+            layout.addWidget(raw)
 
     def _answer_loaded(self, response: str, hits: list[SearchHit]) -> None:
         card = named(QFrame(), "card")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.addWidget(named(QLabel("Ответ модели"), "eyebrow"))
-        answer_label = QLabel(response)
-        answer_label.setWordWrap(True)
-        answer_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(answer_label)
+        self._add_material_text(layout, response)
         self.results_layout.addWidget(card)
         set_status(
             self.search_state,
-            f"Ответ подготовлен локально по {min(len(hits), 5)} источникам."
+            f"Ответ подготовлен локально по {len(hits)} фрагментам."
             + self._search_warning_text,
             "success",
         )
         self.ask_button.setEnabled(True)
 
     def _search_failed(self, message: str) -> None:
+        self.find_button.setEnabled(True)
         set_status(self.search_state, message + getattr(self, "_search_warning_text", ""), "error")
         self.ask_button.setEnabled(True)
 

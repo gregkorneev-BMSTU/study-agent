@@ -10,6 +10,8 @@ from pathlib import Path
 from threading import Event
 
 from study_agent.chunking import CHUNK_VERSION, chunk_blocks
+from study_agent.extractors import DOCX_EXTRACTION_VERSION, PDF_EXTRACTION_VERSION
+from study_agent.markdown import MARKDOWN_VERSION
 from study_agent.sources import DocumentRef, LocalFolderSource
 from study_agent.storage import IndexStorage
 
@@ -150,6 +152,15 @@ class DocumentIndexer:
         verify_hash: bool,
     ) -> None:
         doc_key = document_id(key, doc.path)
+        suffix = Path(doc.path).suffix.lower()
+        if suffix == ".md":
+            processing_version = f"{INDEX_VERSION}:md-{MARKDOWN_VERSION}"
+        elif suffix == ".pdf":
+            processing_version = f"{INDEX_VERSION}:pdf-{PDF_EXTRACTION_VERSION}"
+        elif suffix == ".docx":
+            processing_version = f"{INDEX_VERSION}:docx-{DOCX_EXTRACTION_VERSION}"
+        else:
+            processing_version = INDEX_VERSION
         previous = self.storage.get_document(key, doc.path)
         digest = None
         try:
@@ -160,7 +171,7 @@ class DocumentIndexer:
                 and previous["state"] == "ready"
                 and previous["size_bytes"] == doc.size_bytes
                 and previous["modified_ns"] == doc.modified_ns
-                and previous["version"] == INDEX_VERSION
+                and previous["version"] == processing_version
                 and (not verify_hash or previous["content_hash"] == digest)
             ):
                 report.skipped += 1
@@ -193,7 +204,7 @@ class DocumentIndexer:
                 size_bytes=doc.size_bytes,
                 modified_ns=doc.modified_ns,
                 content_hash=digest,
-                version=INDEX_VERSION,
+                version=processing_version,
                 state=state,
                 warnings=warnings,
                 chunks=chunks,
@@ -220,7 +231,7 @@ class DocumentIndexer:
                 Path(doc.path).suffix.lower(),
                 doc.size_bytes,
                 doc.modified_ns,
-                INDEX_VERSION,
+                processing_version,
                 code,
             )
 

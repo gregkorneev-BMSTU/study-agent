@@ -38,9 +38,7 @@ def test_dispatch_lists_and_searches_selected_materials(tmp_path: Path, monkeypa
     assert search["result"]["hits"][0]["source_root"] == str(root.resolve())
 
 
-def test_dispatch_searches_saved_index_when_source_is_offline(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_dispatch_searches_saved_index_when_source_is_offline(tmp_path: Path, monkeypatch) -> None:
     _temporary_index(tmp_path, monkeypatch)
     root = tmp_path / "offline notes"
     root.mkdir()
@@ -100,51 +98,48 @@ def test_dispatch_index_status_restores_persisted_document_errors(
 
     assert response["ok"] is True
     assert response["result"]["failed"] == 1
-    assert response["result"]["issues"] == [{
-        "document_id": "broken.txt",
-        "title": "broken",
-        "code": "document_extraction_failed",
-        "page_number": None,
-    }]
+    assert response["result"]["issues"] == [
+        {
+            "document_id": "broken.txt",
+            "title": "broken",
+            "code": "document_extraction_failed",
+            "page_number": None,
+        }
+    ]
 
 
-def test_dispatch_uses_same_local_answer_context(monkeypatch) -> None:
-    captured: dict[str, str | None] = {}
+def test_dispatch_retrieves_answer_context_from_database(tmp_path: Path, monkeypatch) -> None:
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "lecture.md").write_text(
+        "Матрица — таблица элементов учебного материала.", encoding="utf-8"
+    )
+    _index(root)
+    captured = {}
 
-    def fake_answer(
-        model: str,
-        question: str,
-        context: str,
-        language: str | None = None,
-    ) -> str:
+    def fake_answer(model, question, context, language=None):
         captured.update(model=model, question=question, context=context, language=language)
-        return "Ответ"
+        return "Матрица — таблица элементов [1]."
 
     monkeypatch.setattr(mac_bridge, "answer", fake_answer)
+    monkeypatch.setattr(mac_bridge, "ensure_local_model", lambda *_: "synthetic-v1")
     response = mac_bridge.dispatch(
         {
             "command": "answer",
-            "model": "qwen3.5:4b",
-            "query": "Что изучается?",
+            "roots": [str(root)],
+            "model": "synthetic-llm",
+            "query": "Матрица",
             "language": "en",
-            "hits": [
-                {
-                    "source_root": "/tmp/Study Notes",
-                    "document_id": "lecture.md",
-                    "excerpt": "Материалы лекции",
-                }
-            ],
+            "hits": [{"excerpt": "FORGED DOCUMENT", "source_root": "/secret"}],
         }
     )
-
     assert response["ok"] is True
-    assert response["result"]["answer"] == "Ответ"
-    assert captured == {
-        "model": "qwen3.5:4b",
-        "question": "Что изучается?",
-        "context": "[1] Study Notes/lecture.md\nМатериалы лекции",
-        "language": "en",
-    }
+    result = response["result"]
+    assert result["grounded"] and result["sources"][0]["document_id"] == "lecture.md"
+    assert "Матрица — таблица элементов" in captured["context"]
+    assert "FORGED" not in captured["context"]
+    assert captured["language"] == "en"
 
 
 def test_dispatch_returns_structured_error_for_unknown_command() -> None:
@@ -308,7 +303,13 @@ def test_failed_pdf_page_does_not_hide_later_page_or_other_document(
             "title": "scan",
             "code": "ocr_failed",
             "page_number": 1,
-        }
+        },
+        {
+            "document_id": "scan.pdf",
+            "title": "scan",
+            "code": "ocr_failed",
+            "page_number": 2,
+        },
     ]
     assert "/tmp/secret" not in str(result)
 
@@ -352,7 +353,98 @@ def test_busy_index_request_can_be_retried_after_lock_release(tmp_path: Path, mo
     assert busy["ok"] is False
     assert busy["error"]["code"] == "index_busy"
     assert mac_bridge.dispatch(request)["result"]["indexed"] == 1
-    search = mac_bridge.dispatch(
-        {"command": "search", "roots": [str(root)], "query": "retry"}
-    )
+    search = mac_bridge.dispatch({"command": "search", "roots": [str(root)], "query": "retry"})
     assert search["result"]["hits"]
+
+
+def test_embedding_failure_keeps_text_index_searchable(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.embeddings import EmbeddingError
+
+    _temporary_index(tmp_path, monkeypatch)
+    root = tmp_path / "notes"
+    root.mkdir()
+    (root / "note.txt").write_text("Матрица содержит элементы по строкам.", encoding="utf-8")
+    monkeypatch.setattr(
+        mac_bridge, "_embedder", lambda _: (_ for _ in ()).throw(EmbeddingError("model removed"))
+    )
+    result = mac_bridge.dispatch(
+        {
+            "command": "sync_source",
+            "root": str(root),
+            "embedding": {"model": "removed", "dimensions": 3},
+        }
+    )
+    assert not result["ok"] and result["error"]["code"] == "embedding_error"
+    result = mac_bridge.dispatch({"command": "search", "roots": [str(root)], "query": "Матрица"})
+    assert result["ok"] and result["result"]["hits"][0]["document_id"] == "note.txt"
+
+
+def test_answer_failure_envelope_explains_cause_without_raw_text(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from study_agent.retrieval import RetrievalResult
+    from study_agent.search import SearchHit
+
+    raw_response = "PRIVATE GENERATED TEXT [19]"
+    repair_feedback = []
+    sample = SearchHit(
+        "Synthetic",
+        "note.txt",
+        "A synthetic paragraph with enough context.",
+        1,
+        tmp_path,
+        chunk_id="doc:0",
+    )
+    monkeypatch.setattr(mac_bridge, "_retrieve", lambda _: (None, [], RetrievalResult([sample])))
+    monkeypatch.setattr(mac_bridge, "ensure_local_model", lambda *a: "synthetic")
+    def answer(*args, **kwargs):
+        if kwargs.get("citation_feedback"):
+            repair_feedback.append(kwargs["citation_feedback"])
+        return raw_response
+
+    monkeypatch.setattr(mac_bridge, "answer", answer)
+    result = mac_bridge.dispatch(
+        {"command": "answer", "query": "Question?", "model": "synthetic-llm", "language": "ru"}
+    )
+    assert not result["ok"]
+    error = result["error"]
+    assert error["code"] == "invalid_citations" and error["reason"] == "unknown_source"
+    assert error["details"] == {"source_count": 1, "invalid_sources": [19]}
+    assert error["stage"] == "citation_repair" and error["model"] == "synthetic-llm"
+    assert error["action"] and "Модель сослалась" in error["message"]
+    assert raw_response not in str(error)
+    assert repair_feedback == ["unknown_source; allowed source labels: [1]"]
+
+
+def test_ollama_failure_during_citation_repair_is_identified(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from study_agent.ollama import OllamaError
+    from study_agent.retrieval import RetrievalResult
+    from study_agent.search import SearchHit
+
+    sample = SearchHit(
+        "Synthetic", "note.txt", "A synthetic paragraph with enough context.",
+        1, tmp_path, chunk_id="doc:0",
+    )
+    monkeypatch.setattr(mac_bridge, "_retrieve", lambda _: (None, [], RetrievalResult([sample])))
+    monkeypatch.setattr(mac_bridge, "ensure_local_model", lambda *a: "synthetic")
+    calls = 0
+
+    def answer(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "Unsupported citation [9]."
+        raise OllamaError("Ollama returned an empty response.")
+
+    monkeypatch.setattr(mac_bridge, "answer", answer)
+    response = mac_bridge.dispatch({
+        "command": "answer", "query": "Question?", "model": "synthetic-llm",
+        "language": "en",
+    })
+    error = response["error"]
+    assert error["code"] == "ollama_error"
+    assert error["stage"] == "citation_repair"
+    assert error["model"] == "synthetic-llm"
+    assert error["reason"] == "Ollama returned an empty response."

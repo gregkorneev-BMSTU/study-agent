@@ -3,12 +3,15 @@
 - [Требования](requirements.md) — утверждённые сценарии и ограничения.
 - [Архитектура](architecture.md) — границы системы и технические риски.
 - [Постоянный индекс документов](document-indexing.md) — хранение, инкрементальная обработка и поиск SA-01.
+- [SA-03: поиск через приложение](sa-03-search.md) — запуск, гибридный retrieval, RAG и результаты проверки.
+- [SA-03: Markdown и эмбеддинги](sa-03-embeddings.md) — структурные фрагменты, локальный runtime и постоянные векторы SQLite.
 - [Нативная индексация macOS](macos-indexing-ui.md) — состояния библиотеки, progress, отмена и источники ответа.
 - [Компоненты](components.md) — обязанности и предварительные интерфейсы.
 - [Контракт backend bridge](backend-protocol.md) — JSON Lines команды, ответы и текущие расхождения Windows-клиента (черновик).
 - [ТЗ по исправлениям DOCX extraction](docx-extraction-review-fixes.md) — критерии исправлений и повторной проверки PR #10.
 - [Текущее состояние](current-state.md) — сделанное и незавершённое.
-- [Release notes — Study Agent v1 Beta 4](releases/v1.0.0-beta.4.md) — функции, проверка и ограничения выпуска.
+- [Release notes — Study Agent v1 Beta 5](releases/v1.0.0-beta.5.md) — функции, проверка и ограничения текущего выпуска.
+- [Release notes — Study Agent v1 Beta 4](releases/v1.0.0-beta.4.md) — предыдущий выпуск.
 - [Дорожная карта](roadmap.md) — этапы дальнейшей работы.
 - [Разработка](development.md) — роли, процесс и Git.
 - [Тестирование](testing.md) — проверки и CI.
