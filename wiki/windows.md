@@ -4,6 +4,8 @@
 
 Windows-клиент PR [#13](https://github.com/gregkorneev-BMSTU/study-agent/pull/13) использует WinUI 3 и общий Python backend. Обычный установщик предназначен для Windows 10/11 x64 и Windows 11 ARM64 через эмуляцию x64. Функциональное соответствие **не подтверждено**: интерактивная приёмка, OCR inference, Ollama, Narrator, high contrast и DPI на Windows не проверялись.
 
+Тестовый установщик опубликован в отдельном prerelease [Study Agent v1 Beta 6.1 for Windows](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6.1-windows). В выпуске доступны EXE и `SHA256SUMS.txt`; тег указывает на протестированный коммит `d4367675b654fe123ddddf019cfd72a085d86024`. Выпуск для macOS не менялся.
+
 Рабочая ветка — `feature/sa-05-windows`. В неё обычным merge включён `origin/main` на `v1.0.0-beta.6.1` (`988bc365bdb7669452b20166bc3f548caa4f0996`); локальный merge-коммит: `5ac9c05`. Более нового `main` на момент проверки не было.
 
 ## Матрица соответствия Beta 6.1

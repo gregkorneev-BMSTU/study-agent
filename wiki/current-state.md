@@ -4,6 +4,8 @@
 
 Работа ведётся на `feature/sa-05-windows`; исходная ветка объединена обычным merge с актуальным на 2026-10-28 `origin/main` (Beta 6.1, `988bc36`). WinUI подключён к текущему JSON Lines backend-контракту: лексический/семантический/гибридный поиск, embedding-подготовка, ответы с backend-selected citations, библиотека с индексированием/отменой/удалением индекса, диагностика OCR, локальный рендер Markdown/формул, выбор языка/темы и onboarding. Подробная матрица и список непроверенных сценариев — [Windows](windows.md).
 
+По запросу опубликован отдельный предварительный выпуск [Study Agent v1 Beta 6.1 for Windows](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6.1-windows) с EXE-установщиком и SHA-256. Его тег указывает на сборку `d436767`; ограничения приёмки Windows сохраняются.
+
 В [Actions run 40780072886](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40780072886) собран автономный EXE-установщик; Windows Server 2022 x64 и Windows 11 ARM64 через эмуляцию прошли автоматическую установку, распаковку и синтетический поиск backend, запуск процесса приложения и деинсталляцию с сохранением пользовательского файла. ZIP доступен в artifact `study-agent-windows-setup`. Общий статус run — failure из-за импорта теста в Linux pytest; следующий коммит `3cda0ad` исправил только этот тест. Интерактивная приёмка на Windows 10/11, OCR inference, Ollama generation и Windows accessibility/DPI не проводились, поэтому соответствие Beta 6.1 не подтверждено. Подробности в [матрице Windows](windows.md) и [отчёте тестирования](testing.md).
 
 ## OCR визуального содержимого — 2026-10-28
