@@ -47,6 +47,7 @@ def _hit(row: sqlite3.Row, score: int) -> SearchHit:
         row["marker"],
         row["extraction_type"],
         row["chunk_id"],
+        chunk_ordinal=row["ordinal"],
     )
 
 

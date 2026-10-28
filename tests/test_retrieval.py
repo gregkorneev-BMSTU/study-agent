@@ -165,6 +165,45 @@ def test_matches_within_a_file_follow_original_chunk_order() -> None:
     assert result.matched_chunk_ids == ["doc:0", "doc:1", "doc:2"]
 
 
+def test_database_retrieval_keeps_chunk_ordinal_when_grouping_results() -> None:
+    import sqlite3
+
+    from study_agent.retrieval import retrieve
+
+    db = sqlite3.connect(":memory:")
+    db.row_factory = sqlite3.Row
+    db.execute(
+        """CREATE TABLE matches (
+            title, relative_path, text, rank, root, page_number, heading,
+            marker, extraction_type, chunk_id, ordinal
+        )"""
+    )
+    db.executemany(
+        "INSERT INTO matches VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            ("A", "a.md", "Третий", 30, "/synthetic", None, None, None,
+             "markdown", "doc:2", 2),
+            ("A", "a.md", "Первый", 20, "/synthetic", None, None, None,
+             "markdown", "doc:0", 0),
+            ("A", "a.md", "Второй", 10, "/synthetic", None, None, None,
+             "markdown", "doc:1", 1),
+        ],
+    )
+
+    class RankedStorage:
+        def search(self, _source_ids, _query, _limit):
+            return db.execute("SELECT * FROM matches ORDER BY rank DESC").fetchall()
+
+        def neighboring_chunks(self, _chunk_ids):
+            return {}
+
+    result = retrieve(RankedStorage(), ["source"], "слово").hits[0]
+
+    assert result.chunk_id == "doc:2"  # Ranking still chooses the representative.
+    assert result.matched_excerpts == ["Первый", "Второй", "Третий"]
+    assert result.matched_chunk_ids == ["doc:0", "doc:1", "doc:2"]
+
+
 def test_math_group_keeps_precise_formula_with_original_provenance() -> None:
     from study_agent.retrieval import _unique
     from study_agent.search import SearchHit
