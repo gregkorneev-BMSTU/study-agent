@@ -1,9 +1,35 @@
+import base64
 from pathlib import Path
 from types import SimpleNamespace
 
 from study_agent import extractors
 from study_agent.models import ExtractedBlock
 from study_agent.sources import LocalFolderSource
+
+_TINY_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg=="
+)
+
+
+def _fake_pillow(monkeypatch) -> None:
+    class Image:
+        size = (1, 1)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+        def convert(self, mode: str):
+            assert mode == "RGB"
+            return self
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "PIL",
+        SimpleNamespace(Image=SimpleNamespace(open=lambda source: Image())),
+    )
 
 
 def test_local_source_lists_supported_files(tmp_path: Path) -> None:
@@ -227,10 +253,9 @@ def test_docx_embedded_image_is_recognized_alongside_printed_text(
     tmp_path: Path, monkeypatch
 ) -> None:
     import docx
-    from PIL import Image
 
     image_path = tmp_path / "handwriting.png"
-    Image.new("RGB", (20, 20), "white").save(image_path)
+    image_path.write_bytes(_TINY_PNG)
     document = docx.Document()
     document.add_heading("Lecture", level=1)
     document.add_paragraph("Printed definition")
@@ -240,6 +265,7 @@ def test_docx_embedded_image_is_recognized_alongside_printed_text(
     cell.paragraphs[0].add_run().add_picture(str(image_path))
     path = tmp_path / "lecture.docx"
     document.save(path)
+    _fake_pillow(monkeypatch)
     calls = []
 
     def fake_ocr(image):
@@ -259,19 +285,18 @@ def test_docx_embedded_image_is_recognized_alongside_printed_text(
         "digital", "digital", "ocr", "digital", "ocr",
     ]
     assert blocks[-1].heading == blocks[2].heading == "Lecture"
-    assert calls == [(20, 20), (20, 20)]
+    assert calls == [(1, 1), (1, 1)]
 
 
 def test_markdown_linked_image_is_indexed_as_local_image(tmp_path: Path, monkeypatch) -> None:
-    from PIL import Image
-
     from study_agent.indexer import DocumentIndexer, source_id
     from study_agent.storage import IndexStorage
 
     (tmp_path / "notes.md").write_text(
         "# Lecture\n\nSee ![handwritten page](handwriting.png)", encoding="utf-8"
     )
-    Image.new("RGB", (20, 20), "white").save(tmp_path / "handwriting.png")
+    (tmp_path / "handwriting.png").write_bytes(_TINY_PNG)
+    _fake_pillow(monkeypatch)
     cache_path = extractors._cache_path
     monkeypatch.setattr(
         extractors, "_cache_path", lambda path: tmp_path / "cache" / cache_path(path).name
