@@ -628,6 +628,7 @@ final class StudyAgentModel: ObservableObject {
         case "embedding_required": return text("Выберите установленную embedding-модель в настройках поиска.")
         case "model_unavailable": return text("Локальная модель недоступна. Обновите список моделей в настройках.")
         case "invalid_citations": return text("Модель вернула непроверяемые ссылки. Найденные фрагменты доступны ниже.")
+        case "ollama_error": return text("Локальная Ollama не завершила генерацию. Проверьте доступность модели и повторите запрос.")
         case "no_context": return text("В материалах недостаточно данных для ответа.")
         case "document_extraction_failed": return text("Не удалось прочитать документ. Проверьте файл и повторите обработку.")
         case "ocr_failed": return text("Не удалось выполнить OCR. Проверьте Chandra OCR в настройках.")

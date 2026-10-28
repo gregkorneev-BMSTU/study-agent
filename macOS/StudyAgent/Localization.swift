@@ -59,6 +59,7 @@ enum L10n {
         "Режим поиска": "Search Mode",
         "Embedding-модель": "Embedding Model",
         "Порог сходства": "Similarity threshold",
+        "Локальная Ollama не завершила генерацию. Проверьте доступность модели и повторите запрос.": "Local Ollama could not finish generating the answer. Check the model and try again.",
         "Ниже порога совпадения по смыслу исключаются из выдачи.": "Semantic matches below this threshold are excluded.",
         "Настройки поиска изменены. Повторите поиск.": "Search settings changed. Run the search again.",
         "Не выбрана": "None",

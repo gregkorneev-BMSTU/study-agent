@@ -380,6 +380,7 @@ def test_answer_failure_envelope_explains_cause_without_raw_text(
     from study_agent.search import SearchHit
 
     raw_response = "PRIVATE GENERATED TEXT [19]"
+    repair_feedback = []
     sample = SearchHit(
         "Synthetic",
         "note.txt",
@@ -390,7 +391,12 @@ def test_answer_failure_envelope_explains_cause_without_raw_text(
     )
     monkeypatch.setattr(mac_bridge, "_retrieve", lambda _: (None, [], RetrievalResult([sample])))
     monkeypatch.setattr(mac_bridge, "ensure_local_model", lambda *a: "synthetic")
-    monkeypatch.setattr(mac_bridge, "answer", lambda *a, **k: raw_response)
+    def answer(*args, **kwargs):
+        if kwargs.get("citation_feedback"):
+            repair_feedback.append(kwargs["citation_feedback"])
+        return raw_response
+
+    monkeypatch.setattr(mac_bridge, "answer", answer)
     result = mac_bridge.dispatch(
         {"command": "answer", "query": "Question?", "model": "synthetic-llm", "language": "ru"}
     )
@@ -398,6 +404,41 @@ def test_answer_failure_envelope_explains_cause_without_raw_text(
     error = result["error"]
     assert error["code"] == "invalid_citations" and error["reason"] == "unknown_source"
     assert error["details"] == {"source_count": 1, "invalid_sources": [19]}
-    assert error["stage"] == "answer" and error["model"] == "synthetic-llm"
+    assert error["stage"] == "citation_repair" and error["model"] == "synthetic-llm"
     assert error["action"] and "Модель сослалась" in error["message"]
     assert raw_response not in str(error)
+    assert repair_feedback == ["unknown_source; allowed source labels: [SOURCE 1]"]
+
+
+def test_ollama_failure_during_citation_repair_is_identified(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from study_agent.ollama import OllamaError
+    from study_agent.retrieval import RetrievalResult
+    from study_agent.search import SearchHit
+
+    sample = SearchHit(
+        "Synthetic", "note.txt", "A synthetic paragraph with enough context.",
+        1, tmp_path, chunk_id="doc:0",
+    )
+    monkeypatch.setattr(mac_bridge, "_retrieve", lambda _: (None, [], RetrievalResult([sample])))
+    monkeypatch.setattr(mac_bridge, "ensure_local_model", lambda *a: "synthetic")
+    calls = 0
+
+    def answer(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "Unsupported citation [9]."
+        raise OllamaError("Ollama returned an empty response.")
+
+    monkeypatch.setattr(mac_bridge, "answer", answer)
+    response = mac_bridge.dispatch({
+        "command": "answer", "query": "Question?", "model": "synthetic-llm",
+        "language": "en",
+    })
+    error = response["error"]
+    assert error["code"] == "ollama_error"
+    assert error["stage"] == "citation_repair"
+    assert error["model"] == "synthetic-llm"
+    assert error["reason"] == "Ollama returned an empty response."

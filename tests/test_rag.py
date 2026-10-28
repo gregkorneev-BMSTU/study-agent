@@ -35,6 +35,15 @@ def test_grounded_answer_retains_exact_snippet_and_page() -> None:
     assert "/synthetic" not in seen["context"]
 
 
+def test_distinct_source_label_is_normalized_for_display() -> None:
+    result = generate_answer(
+        "local", "Что такое матрица?", [hit()],
+        generator=lambda *a, **k: "Матрица — таблица [SOURCE 1].",
+    )
+    assert result.answer == "Матрица — таблица [1]."
+    assert result.grounded
+
+
 @pytest.mark.parametrize(
     "response",
     [
@@ -73,6 +82,14 @@ def test_context_budget_includes_unicode_and_labels() -> None:
     assert len(context.encode("utf-8")) <= 500
     assert sources[0].excerpt in context
     assert sources[0].excerpt != "абвг " * 1000
+
+
+def test_context_omits_ocr_formula_numbers_from_prompt_only() -> None:
+    numbered = r"$$\textcircled{9} \int \frac{dx}{x}=\ln|x|+C$$"
+    context, sources = build_context([hit(numbered)])
+    assert r"\textcircled{9}" not in context
+    assert r"\int \frac{dx}{x}" in context
+    assert sources[0].excerpt == numbered
 
 
 @pytest.mark.parametrize(

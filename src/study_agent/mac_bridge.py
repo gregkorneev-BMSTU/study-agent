@@ -33,6 +33,7 @@ def dispatch(
 ) -> dict[str, Any]:
     """Run one native-app request and return a JSON-serializable response envelope."""
     request_id = request.get("request_id")
+    answer_stage: str | None = None
     try:
         command = request.get("command")
         if command == "list_sources":
@@ -92,6 +93,8 @@ def dispatch(
             model = _required_text(request, "model")
 
             def local_answer(model: str, question: str, context: str, language: str | None) -> str:
+                nonlocal answer_stage
+                answer_stage = "answer_generation"
                 try:
                     ensure_local_model(model, "completion")
                 except EmbeddingError as error:
@@ -101,11 +104,16 @@ def dispatch(
             def repair_answer(
                 model: str, question: str, context: str, language: str | None, error: CitationError
             ) -> str:
+                nonlocal answer_stage
+                answer_stage = "citation_repair"
+                allowed = ", ".join(
+                    f"[SOURCE {number}]"
+                    for number in range(1, int(error.details["source_count"]) + 1)
+                )
+                feedback = f"{error.reason}; allowed source labels: {allowed}"
                 return answer(
                     model, question, context, language=language,
-                    citation_feedback=(
-                        f"{error.reason}; supplied sources: {error.details['source_count']}"
-                    ),
+                    citation_feedback=feedback,
                 )
 
             generated = generate_answer(
@@ -143,7 +151,19 @@ def dispatch(
                 "reason": error.reason,
                 "details": error.details,
                 "action": error.action(language),
-                "stage": "answer",
+                "stage": answer_stage or "answer",
+                "model": request.get("model"),
+            }
+        elif isinstance(error, OllamaError):
+            diagnostic = {
+                "reason": str(error),
+                "stage": answer_stage or "model_request",
+                "model": request.get("model"),
+            }
+        elif answer_stage is not None:
+            diagnostic = {
+                "reason": type(error).__name__,
+                "stage": answer_stage,
                 "model": request.get("model"),
             }
         return {
@@ -165,6 +185,8 @@ def dispatch(
                     if isinstance(error, ModelUnavailableError)
                     else "invalid_citations"
                     if isinstance(error, CitationError)
+                    else "ollama_error"
+                    if isinstance(error, OllamaError)
                     else "backend_error"
                 ),
             },

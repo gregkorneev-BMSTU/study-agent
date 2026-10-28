@@ -77,13 +77,20 @@ _MATH_BLOCK = re.compile(
     r"\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)"
     r"|(?<!\\)\$(?!\$)[^\n$]+(?<!\\)\$(?!\$)"
 )
+_CIRCLED_FORMULA_NUMBER = re.compile(r"\\textcircled\s*\{\s*\d+(?:\.\d+)?\s*\}")
 _CITATION = re.compile(r"(?<!\\)\[(\d+(?:\s*[,;]\s*\d+)*)\]")
+_SOURCE_CITATION = re.compile(
+    r"(?<!\\)\[SOURCE\s+(\d+(?:\s*[,;]\s*\d+)*)\]", re.IGNORECASE
+)
 
 
 def _citation_matches(content: str) -> list[re.Match[str]]:
     # Numeric brackets in math/code are data rather than source references.
     masked = _MATH_BLOCK.sub(lambda match: " " * len(match[0]), mask_markdown_code(content))
-    return list(_CITATION.finditer(masked))
+    return sorted(
+        [*_SOURCE_CITATION.finditer(masked), *_CITATION.finditer(masked)],
+        key=lambda match: match.start(),
+    )
 
 
 def _numbers(match: re.Match[str]) -> list[int]:
@@ -159,7 +166,10 @@ def build_context(
         location = f"; page {hit.page_number}" if hit.page_number else ""
         if hit.heading:
             location += f"; section {hit.heading[:160]}"
-        label = f"[{len(sources) + 1}] {hit.title[:120]} ({hit.document_id[:180]}{location})\n"
+        label = (
+            f"[SOURCE {len(sources) + 1}] {hit.title[:120]} "
+            f"({hit.document_id[:180]}{location})\n"
+        )
         room = remaining - len(label.encode("utf-8")) - 2
         if room < 80:
             break
@@ -184,7 +194,10 @@ def build_context(
         )
         if not meaningful:
             continue
-        part = label + text
+        # OCR equation labels are often transcribed by small local models as
+        # citation IDs. Keep them in the UI source, but omit them from the prompt.
+        prompt_text = _CIRCLED_FORMULA_NUMBER.sub("", text)
+        part = label + prompt_text
         pieces.append(part)
         sources.append(replace(hit, excerpt=text))
         remaining -= len(part.encode("utf-8")) + 2
