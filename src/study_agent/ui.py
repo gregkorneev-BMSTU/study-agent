@@ -991,8 +991,21 @@ class MainWindow(QMainWindow):
         title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
+        original_button = QPushButton("Original Text")
+        original_button.setCheckable(True)
+        original_text = QWidget()
+        original_layout = QVBoxLayout(original_text)
+        original_layout.setContentsMargins(0, 0, 0, 0)
+        if hit.page_number is not None:
+            original_layout.addWidget(QLabel(f"Страница {hit.page_number}"))
+        elif hit.heading:
+            original_layout.addWidget(QLabel(f"Раздел: {hit.heading}"))
         for excerpt in hit.matched_excerpts or [hit.excerpt]:
-            self._add_material_text(layout, excerpt)
+            self._add_material_text(original_layout, excerpt)
+        original_text.setVisible(False)
+        original_button.toggled.connect(original_text.setVisible)
+        layout.addWidget(original_button)
+        layout.addWidget(original_text)
         if hit.related_count:
             layout.addWidget(QLabel(f"Найдено фрагментов в файле: {hit.related_count + 1}"))
         if "formula_suspect" in hit.quality_warnings:

@@ -78,6 +78,28 @@ def test_similarity_threshold_filters_semantic_candidates(tmp_path: Path) -> Non
     assert [hit.document_id for hit in found.hits] == ["algebra.md"]
 
 
+def test_default_threshold_rejects_weak_greeting_match(tmp_path: Path) -> None:
+    storage, key, _ = corpus(tmp_path)
+
+    class WeakMatchEmbedder(SemanticEmbedder):
+        profile = EmbeddingProfile("weak-match", "v1", 3)
+
+        def embed_documents(self, inputs: list[str]) -> list[list[float]]:
+            return [[0.5, 0.8660254, 0] for _ in inputs]
+
+        def embed_query(self, question: str) -> list[float]:
+            return [1, 0, 0]
+
+    embedder = WeakMatchEmbedder()
+    EmbeddingIndexer(storage, embedder).sync_sources([key])
+    default_result = retrieve(storage, [key], "привет", mode="semantic", embedder=embedder)
+    lower_result = retrieve(
+        storage, [key], "привет", mode="semantic", embedder=embedder, min_similarity=0.35
+    )
+    assert default_result.hits == []
+    assert lower_result.hits
+
+
 def test_missing_vectors_mark_index_pending_without_runtime_call(tmp_path: Path) -> None:
     storage, key, embedder = corpus(tmp_path)
     with storage.connect() as db:

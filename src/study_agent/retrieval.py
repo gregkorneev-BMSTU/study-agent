@@ -118,7 +118,7 @@ def retrieve(
     mode: SearchMode = "lexical",
     embedder: Embedder | None = None,
     limit: int = 8,
-    min_similarity: float = 0.35,
+    min_similarity: float = 0.65,
     lexical_weight: float = 0.5,
 ) -> RetrievalResult:
     if mode not in ("lexical", "semantic", "hybrid"):

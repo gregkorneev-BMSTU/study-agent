@@ -223,7 +223,7 @@ private struct SearchPanel: View {
                         }
                     }
                     ForEach(model.hits) { hit in
-                        SearchSourceCard(hit: hit, number: nil, initiallyExpanded: true)
+                        SearchSourceCard(hit: hit, number: nil, initiallyExpanded: false)
                     }
                 }
             }
@@ -263,12 +263,11 @@ private struct SearchSourceCard: View {
                 .help(model.text("Открыть исходный документ"))
                 .accessibilityLabel(model.text("Открыть исходный документ"))
             }
-            if let location = hit.locationDescription(language: model.language) {
-                Text(location).font(.caption).foregroundStyle(.secondary)
-            }
-            MathContentView(text: hit.excerpt, language: model.language)
             DisclosureGroup("Original Text", isExpanded: $expanded) {
                 VStack(alignment: .leading, spacing: 8) {
+                    if let location = hit.locationDescription(language: model.language) {
+                        Text(location).font(.caption).foregroundStyle(.secondary)
+                    }
                     ForEach(Array((hit.matchedExcerpts ?? [hit.excerpt]).enumerated()), id: \.offset) { _, excerpt in
                         MathContentView(text: excerpt, language: model.language)
                     }
@@ -493,7 +492,7 @@ struct SettingsPanel: View {
                     HStack {
                         Text(model.text("Порог сходства"))
                         Spacer()
-                        Text(model.minimumSimilarity, format: .number.precision(.fractionLength(2)))
+                    Text(model.minimumSimilarity, format: .number.precision(.fractionLength(2)))
                             .monospacedDigit()
                     }
                     Slider(value: $model.minimumSimilarity, in: 0...1, step: 0.05)

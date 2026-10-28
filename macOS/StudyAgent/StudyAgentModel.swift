@@ -372,8 +372,12 @@ final class StudyAgentModel: ObservableObject {
         embeddingDimensions = defaults.integer(forKey: Keys.embeddingDimensions)
         documentPrefix = defaults.string(forKey: Keys.documentPrefix) ?? ""
         queryPrefix = defaults.string(forKey: Keys.queryPrefix) ?? ""
-        minimumSimilarity = defaults.object(forKey: Keys.minimumSimilarity) == nil
-            ? 0.35 : defaults.double(forKey: Keys.minimumSimilarity)
+        if defaults.object(forKey: Keys.minimumSimilarity) == nil {
+            let legacyThreshold = defaults.object(forKey: Keys.legacyMinimumSimilarity) as? Double
+            minimumSimilarity = legacyThreshold.flatMap { $0 == 0.35 ? nil : $0 } ?? 0.65
+        } else {
+            minimumSimilarity = defaults.double(forKey: Keys.minimumSimilarity)
+        }
         searchMode = defaults.string(forKey: Keys.searchMode).flatMap(SearchMode.init(rawValue:)) ?? .lexical
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
@@ -1126,7 +1130,8 @@ private enum Keys {
     static let embeddingDimensions = "search.embedding.dimensions.v1"
     static let documentPrefix = "search.embedding.document_prefix.v1"
     static let queryPrefix = "search.embedding.query_prefix.v1"
-    static let minimumSimilarity = "search.minimum_similarity.v1"
+    static let minimumSimilarity = "search.minimum_similarity.v2"
+    static let legacyMinimumSimilarity = "search.minimum_similarity.v1"
     static let folders = "library.bookmarks.v1"
     static let pendingRemovals = "library.pending_removals.v1"
     static let model = "model"

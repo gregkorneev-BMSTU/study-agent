@@ -243,7 +243,7 @@ def _retrieve(request: dict[str, Any]) -> tuple[IndexStorage, list[str], Retriev
         raise EmbeddingRequiredError("Choose an installed embedding model in Settings")
     index = IndexStorage()
     keys = [source_id(root) for root in roots]
-    threshold = request.get("min_similarity", 0.35)
+    threshold = request.get("min_similarity", 0.65)
     if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
         raise ValueError("min_similarity must be between 0 and 1")
     found = retrieve(index, keys, query, mode=mode, embedder=embedder,
