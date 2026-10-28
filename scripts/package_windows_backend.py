@@ -24,6 +24,7 @@ def main() -> int:
         compresslevel=1,
         allowZip64=True,
     ) as output:
+        used_legal_names: set[str] = set()
         for path in sorted(source.rglob("*")):
             if path.is_file():
                 output.write(path, path.relative_to(source).as_posix())
@@ -41,7 +42,14 @@ def main() -> int:
                 try:
                     file = Path(distribution.locate_file(item))
                     if file.is_file():
-                        output.write(file, f"Legal/packages/{safe_name}/{basename}")
+                        prefix = f"Legal/packages/{safe_name}"
+                        target = f"{prefix}/{basename}"
+                        suffix = 1
+                        while target.casefold() in used_legal_names:
+                            target = f"{prefix}/{suffix}/{basename}"
+                            suffix += 1
+                        used_legal_names.add(target.casefold())
+                        output.write(file, target)
                 except OSError:
                     continue
     with zipfile.ZipFile(archive) as packaged:

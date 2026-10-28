@@ -26,7 +26,7 @@ try {
     }
 
     $backendDirectory = Join-Path $sandbox 'backend'
-    Expand-Archive -LiteralPath (Join-Path $installDir 'Backend.zip') -DestinationPath $backendDirectory
+    [System.IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $installDir 'Backend.zip'), $backendDirectory)
     & (Join-Path $PSScriptRoot 'smoke_windows_backend.ps1') -Executable (Join-Path $backendDirectory 'StudyAgentBackend.exe')
 
     $app = Start-Process -FilePath (Join-Path $installDir 'StudyAgent.Windows.exe') `
@@ -48,5 +48,6 @@ try {
     Write-Host 'Installed application, synthetic backend, startup and uninstall smoke passed.'
 }
 finally {
-    Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue
+    try { [System.IO.Directory]::Delete($sandbox, $true) }
+    catch { Write-Warning "Could not remove temporary smoke-test files: $sandbox" }
 }
