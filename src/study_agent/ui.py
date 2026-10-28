@@ -991,9 +991,10 @@ class MainWindow(QMainWindow):
         title.setToolTip(title_text)
         title.clicked.connect(lambda _checked=False, h=hit: self._open_document(h))
         layout.addWidget(title)
-        self._add_material_text(layout, hit.excerpt)
+        for excerpt in hit.matched_excerpts or [hit.excerpt]:
+            self._add_material_text(layout, excerpt)
         if hit.related_count:
-            layout.addWidget(QLabel(f"Ещё {hit.related_count} совпадений в этом разделе"))
+            layout.addWidget(QLabel(f"Найдено фрагментов в файле: {hit.related_count + 1}"))
         if "formula_suspect" in hit.quality_warnings:
             warning = QLabel("В исходной формуле обнаружена подозрительная запись. "
                              "Сверьте её с оригиналом документа.")

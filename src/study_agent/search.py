@@ -25,6 +25,9 @@ class SearchHit:
     related_count: int = 0
     quality_warnings: list[str] = field(default_factory=list)
     full_excerpt: str | None = None
+    matched_excerpts: list[str] = field(default_factory=list)
+    context_excerpts: list[str] = field(default_factory=list)
+    matched_chunk_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

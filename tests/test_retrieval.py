@@ -69,6 +69,15 @@ def test_no_false_sources_when_semantically_unrelated(tmp_path: Path) -> None:
     ).hits
 
 
+def test_similarity_threshold_filters_semantic_candidates(tmp_path: Path) -> None:
+    storage, key, embedder = corpus(tmp_path)
+    found = retrieve(
+        storage, [key], "таблица чисел", mode="semantic", embedder=embedder,
+        min_similarity=0.99,
+    )
+    assert [hit.document_id for hit in found.hits] == ["algebra.md"]
+
+
 def test_missing_vectors_mark_index_pending_without_runtime_call(tmp_path: Path) -> None:
     storage, key, embedder = corpus(tmp_path)
     with storage.connect() as db:
@@ -93,7 +102,7 @@ def test_invalid_mode_is_explicit(tmp_path: Path) -> None:
         retrieve(IndexStorage(tmp_path / "index.sqlite3"), [], "query", mode="unknown")
 
 
-def test_groups_same_section_but_keeps_other_sections_pages_and_documents() -> None:
+def test_groups_all_matches_by_file_and_preserves_excerpts() -> None:
     from study_agent.retrieval import _unique
     from study_agent.search import SearchHit
 
@@ -107,9 +116,10 @@ def test_groups_same_section_but_keeps_other_sections_pages_and_documents() -> N
         SearchHit("PDF", "a.pdf", "Страница два", 4, root, page_number=2, chunk_id="6"),
     ]
     found = _unique(hits, 8)
-    assert [hit.chunk_id for hit in found] == ["1", "3", "4", "5", "6"]
-    assert found[0].related_count == 1
-    assert all(hit.related_count == 0 for hit in found[1:])
+    assert [hit.chunk_id for hit in found] == ["1", "4", "5"]
+    assert found[0].related_count == 2
+    assert found[0].matched_excerpts == ["Первый фрагмент", "Второй фрагмент", "Другой раздел"]
+    assert found[2].related_count == 1
 
 
 def test_math_group_keeps_precise_formula_with_original_provenance() -> None:
@@ -155,7 +165,7 @@ def test_math_group_keeps_precise_formula_with_original_provenance() -> None:
     hit = found[0]
     assert hit.excerpt == r"$$\int \sqrt{x} dx = F(x)+C$$"
     assert hit.excerpt in original
-    assert hit.related_count == 2 and hit.quality_warnings == []
+    assert hit.related_count == 0 and hit.quality_warnings == []
     assert (hit.document_id, hit.marker, hit.chunk_id) == ("notes.md", "line:12", "good")
 
 
@@ -229,7 +239,9 @@ def test_math_signature_filters_conflicting_sections_with_equal_vectors(tmp_path
     general = retrieve(
         storage, [key], "таблица основных интегралов", mode="semantic", embedder=embedder
     )
-    assert len(general.hits) == 4
+    assert len(general.hits) == 1
+    assert len(general.hits[0].matched_excerpts) == 4
+    assert len(general.hits[0].context_excerpts) >= 1
 
 
 def test_precise_math_gate_retains_supporting_prose_but_drops_unrelated_document() -> None:

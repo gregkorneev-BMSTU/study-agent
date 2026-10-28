@@ -163,15 +163,17 @@ def build_context(
         room = remaining - len(label.encode("utf-8")) - 2
         if room < 80:
             break
-        text = hit.excerpt.encode("utf-8")[:room].decode("utf-8", errors="ignore").strip()
+        excerpts = hit.matched_excerpts or [hit.excerpt]
+        context_text = "\n\n".join(dict.fromkeys([*excerpts, *hit.context_excerpts]))
+        text = context_text.encode("utf-8")[:room].decode("utf-8", errors="ignore").strip()
         # Never send half a display formula because the context budget ended inside it.
-        for match in _MATH_BLOCK.finditer(hit.excerpt):
+        for match in _MATH_BLOCK.finditer(context_text):
             if (
-                len(hit.excerpt[: match.start()].encode("utf-8"))
+                len(context_text[: match.start()].encode("utf-8"))
                 < room
-                < len(hit.excerpt[: match.end()].encode("utf-8"))
+                < len(context_text[: match.end()].encode("utf-8"))
             ):
-                text = hit.excerpt[: match.start()].strip()
+                text = context_text[: match.start()].strip()
                 break
         if not text:
             continue

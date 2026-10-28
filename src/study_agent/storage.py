@@ -390,6 +390,27 @@ class IndexStorage:
                 (profile.fingerprint, *source_ids),
             ).fetchall()
 
+    def neighboring_chunks(self, chunk_ids: list[str], radius: int = 1) -> dict[str, list[str]]:
+        """Return adjacent saved chunks from each matched document, excluding matches."""
+        if not chunk_ids or radius < 1:
+            return {}
+        placeholders = ",".join("?" for _ in chunk_ids)
+        with self.connect() as db:
+            matches = db.execute(
+                f"SELECT id,document_id,ordinal FROM chunks WHERE id IN ({placeholders})",
+                chunk_ids,
+            ).fetchall()
+            result: dict[str, list[str]] = {row["id"]: [] for row in matches}
+            for row in matches:
+                neighbors = db.execute(
+                    "SELECT text FROM chunks WHERE document_id=? AND ordinal BETWEEN ? AND ? "
+                    "AND id<>? ORDER BY ABS(ordinal-?),ordinal",
+                    (row["document_id"], row["ordinal"] - radius,
+                     row["ordinal"] + radius, row["id"], row["ordinal"]),
+                ).fetchall()
+                result[row["id"]] = [item["text"] for item in neighbors]
+        return result
+
     def record_error(
         self,
         source_id: str,

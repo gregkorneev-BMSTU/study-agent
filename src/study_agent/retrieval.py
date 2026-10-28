@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 import sqlite3
 import struct
 from dataclasses import asdict, dataclass, replace
@@ -50,11 +51,7 @@ def _hit(row: sqlite3.Row, score: int) -> SearchHit:
 
 
 def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHit]:
-    """Focus math and group candidates by source section, retaining provenance.
-
-    A heading identifies its whole section even when split into adjacent chunks;
-    without one, distinct pages or source markers remain independent results.
-    """
+    """Return one result per file while preserving every matched excerpt."""
     focused = [
         replace(
             hit,
@@ -68,30 +65,48 @@ def _unique(hits: list[SearchHit], limit: int, query: str = "") -> list[SearchHi
         focused.sort(key=lambda hit: -math_relevance(hit.excerpt, query))
     grouped: dict[tuple[object, ...], SearchHit] = {}
     for hit in focused:
-        location = (
-            ("heading", hit.heading)
-            if hit.heading
-            else (
-                ("page", hit.page_number) if hit.page_number is not None else ("marker", hit.marker)
-            )
-        )
-        key = (hit.source_root, hit.document_id, *location)
+        key = (hit.source_root, hit.document_id)
         if key in grouped:
             representative = grouped[key]
-            # Corrupt OCR in one sibling must not hide usable material from its section.
-            if representative.quality_warnings and not formula_warnings(hit.excerpt):
-                grouped[key] = replace(
-                    hit, related_count=representative.related_count + 1, quality_warnings=[]
-                )
-            else:
-                grouped[key] = replace(
-                    representative, related_count=representative.related_count + 1
-                )
+            excerpts = representative.matched_excerpts or [representative.excerpt]
+            if hit.excerpt not in excerpts:
+                excerpts.append(hit.excerpt)
+            clean = not formula_warnings(hit.excerpt)
+            base = hit if representative.quality_warnings and clean else representative
+            previous_ids = representative.matched_chunk_ids or (
+                [representative.chunk_id] if representative.chunk_id else []
+            )
+            grouped[key] = replace(
+                base,
+                related_count=len(excerpts) - 1,
+                matched_excerpts=excerpts,
+                matched_chunk_ids=list(dict.fromkeys(
+                    [*previous_ids, *([hit.chunk_id] if hit.chunk_id else [])]
+                )),
+            )
         else:
-            grouped[key] = replace(hit, quality_warnings=formula_warnings(hit.excerpt))
+            grouped[key] = replace(
+                hit, quality_warnings=formula_warnings(hit.excerpt),
+                matched_excerpts=[hit.excerpt],
+                matched_chunk_ids=[hit.chunk_id] if hit.chunk_id else [],
+            )
     selected = list(grouped.values())
-    if is_math_query(query) and any(math_signature_matches(hit.excerpt, query) for hit in selected):
-        selected = [hit for hit in selected if supports_math_query(hit.excerpt, query)]
+    if is_math_query(query) and any(
+        math_signature_matches(excerpt, query)
+        for hit in selected for excerpt in (hit.matched_excerpts or [hit.excerpt])
+    ):
+        filtered = []
+        for hit in selected:
+            excerpts = [
+                excerpt for excerpt in (hit.matched_excerpts or [hit.excerpt])
+                if supports_math_query(excerpt, query)
+            ]
+            if excerpts:
+                filtered.append(replace(
+                    hit, excerpt=excerpts[0], matched_excerpts=excerpts,
+                    related_count=len(excerpts) - 1,
+                ))
+        selected = filtered
     return selected[:limit]
 
 
@@ -122,7 +137,7 @@ def retrieve(
         ]
     )
     if mode == "lexical":
-        return RetrievalResult(_unique(lexical, limit, query))
+        return RetrievalResult(_attach_neighbors(storage, _unique(lexical, limit, query)))
     if embedder is None:
         raise EmbeddingError("Choose a local embedding model before semantic search")
     profile = embedder.profile
@@ -146,7 +161,20 @@ def retrieve(
         semantic.sort(key=lambda hit: (-hit.score, str(hit.source_root), hit.chunk_id))
         semantic = semantic[:candidate_limit]
     if mode == "semantic":
-        return RetrievalResult(_unique(semantic, limit, query), pending)
+        selected = _unique(semantic, limit, query)
+        return RetrievalResult(_attach_neighbors(storage, selected), pending)
+    if candidates:
+        # In hybrid mode lexical matches only refine candidates that pass the
+        # semantic threshold; this prevents unrelated keyword hits from leaking in.
+        semantic_ids = {hit.chunk_id for hit in semantic}
+        exact_terms = set(re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE))
+        lexical = [
+            hit for hit in lexical
+            if hit.chunk_id in semantic_ids
+            or (exact_terms and exact_terms <= set(
+                re.findall(r"[^\W_]+", hit.excerpt.casefold(), flags=re.UNICODE)
+            ))
+        ]
     # RRF combines ranks instead of adding incompatible BM25 and cosine scales.
     scores: dict[str, float] = {}
     values: dict[str, SearchHit] = {}
@@ -160,4 +188,23 @@ def retrieve(
             scores[key] = scores.get(key, 0.0) + weight / (60 + rank)
     ranked = sorted(values, key=lambda key: (-scores[key], key))
     combined = [replace(values[key], score=round(scores[key] * 1_000_000)) for key in ranked]
-    return RetrievalResult(_unique(combined, limit, query), pending)
+    selected = _unique(combined, limit, query)
+    return RetrievalResult(_attach_neighbors(storage, selected), pending)
+
+
+def _attach_neighbors(storage: IndexStorage, hits: list[SearchHit]) -> list[SearchHit]:
+    all_ids = list(dict.fromkeys(
+        chunk_id for hit in hits for chunk_id in
+        (hit.matched_chunk_ids or ([hit.chunk_id] if hit.chunk_id else []))
+    ))
+    neighbors = storage.neighboring_chunks(all_ids)
+    return [
+        replace(
+            hit,
+            context_excerpts=list(dict.fromkeys(
+                excerpt for chunk_id in (hit.matched_chunk_ids or [hit.chunk_id or ""])
+                for excerpt in neighbors.get(chunk_id, [])
+            )),
+        )
+        for hit in hits
+    ]

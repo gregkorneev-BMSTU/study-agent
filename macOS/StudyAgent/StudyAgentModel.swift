@@ -93,6 +93,7 @@ struct SearchHit: Identifiable, Decodable {
     let documentID: String
     let excerpt: String
     let fullExcerpt: String?
+    let matchedExcerpts: [String]?
     var displayExcerpt: String { fullExcerpt ?? excerpt }
     let score: Int
     let sourceRoot: String
@@ -107,6 +108,7 @@ struct SearchHit: Identifiable, Decodable {
     enum CodingKeys: String, CodingKey {
         case title, excerpt, score
         case fullExcerpt = "full_excerpt"
+        case matchedExcerpts = "matched_excerpts"
         case documentID = "document_id"
         case sourceRoot = "source_root"
         case pageNumber = "page_number"
@@ -123,6 +125,7 @@ struct SearchHit: Identifiable, Decodable {
         documentID = try values.decode(String.self, forKey: .documentID)
         excerpt = try values.decode(String.self, forKey: .excerpt)
         fullExcerpt = try values.decodeIfPresent(String.self, forKey: .fullExcerpt)
+        matchedExcerpts = try values.decodeIfPresent([String].self, forKey: .matchedExcerpts)
         score = try values.decode(Int.self, forKey: .score)
         sourceRoot = try values.decode(String.self, forKey: .sourceRoot)
         pageNumber = try values.decodeIfPresent(Int.self, forKey: .pageNumber)
@@ -257,6 +260,13 @@ final class StudyAgentModel: ObservableObject {
     @Published var queryPrefix: String {
         didSet { defaults.set(queryPrefix, forKey: Keys.queryPrefix); invalidateSearchProfile() }
     }
+    @Published var minimumSimilarity: Double {
+        didSet {
+            defaults.set(minimumSimilarity, forKey: Keys.minimumSimilarity)
+            invalidateSearchResults()
+            searchStatus = text("Настройки поиска изменены. Повторите поиск.")
+        }
+    }
     @Published private(set) var embeddingModels: [EmbeddingModel] = []
     @Published private(set) var embeddingModelStatus = ""
     @Published private(set) var semanticIndexNeedsPreparation = false
@@ -274,6 +284,7 @@ final class StudyAgentModel: ObservableObject {
     private var retrievalFields: [String: Any] {
         var fields = embeddingFields
         fields["search_mode"] = searchMode.rawValue
+        fields["min_similarity"] = minimumSimilarity
         return fields
     }
 
@@ -361,6 +372,8 @@ final class StudyAgentModel: ObservableObject {
         embeddingDimensions = defaults.integer(forKey: Keys.embeddingDimensions)
         documentPrefix = defaults.string(forKey: Keys.documentPrefix) ?? ""
         queryPrefix = defaults.string(forKey: Keys.queryPrefix) ?? ""
+        minimumSimilarity = defaults.object(forKey: Keys.minimumSimilarity) == nil
+            ? 0.35 : defaults.double(forKey: Keys.minimumSimilarity)
         searchMode = defaults.string(forKey: Keys.searchMode).flatMap(SearchMode.init(rawValue:)) ?? .lexical
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
@@ -1113,6 +1126,7 @@ private enum Keys {
     static let embeddingDimensions = "search.embedding.dimensions.v1"
     static let documentPrefix = "search.embedding.document_prefix.v1"
     static let queryPrefix = "search.embedding.query_prefix.v1"
+    static let minimumSimilarity = "search.minimum_similarity.v1"
     static let folders = "library.bookmarks.v1"
     static let pendingRemovals = "library.pending_removals.v1"
     static let model = "model"
