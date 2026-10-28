@@ -2,6 +2,8 @@
 
 ## Windows PR #13: CI сборки и synthetic smoke — 2026-10-28
 
+Для ручной пробы установщика: откройте успешный [Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479), скачайте artifact `study-agent-windows-setup` из блока **Artifacts** и извлеките `StudyAgentSetup.exe`. GitHub API URL артефакта требует авторизации. Установщик собран, но интерактивная установка и запуск на обычной Windows 10/11 машине ещё не подтверждены.
+
 - Добавлен тест `tests/test_windows_packaging.py` для структуры ZIP, исполняемого файла, Python runtime и notice-файлов. Команда `.venv/bin/python -m pytest -q tests/test_windows_packaging.py`: **1 passed**.
 - `.venv/bin/python -m ruff check .`: **успешно**. Полный `pytest` на macOS аварийно завершился с Python `Fatal error: Aborted` при создании Qt `QApplication` в `tests/test_switch.py`; повтор без этого файла дошёл до `tests/test_ui_retrieval.py` и завершился той же Cocoa ошибкой. ОС — macOS 27 arm64, Python 3.12.15. Это не подтверждает результат тестового набора.
 - [GitHub Actions run 40765745575](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40765745575) завершился успешно: Ubuntu Python 3.12.15 — **230 passed, 10 skipped**; Ubuntu Python 3.13.17 — **230 passed, 10 skipped**; Windows Server 2022 / Python 3.12.10 — **229 passed, 11 skipped**, Ruff успешен; WinUI Debug, PyInstaller backend, smoke script, unsigned Release MSIX build и macOS client job прошли. Пропуск POSIX-only SIGKILL проверки на Windows ожидаемый; 10 real-model тестов пропущены без явного `STUDY_AGENT_TEST_MODEL`.

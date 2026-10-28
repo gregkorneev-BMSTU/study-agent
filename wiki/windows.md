@@ -2,7 +2,7 @@
 
 ## Статус
 
-Windows-клиент PR [#13](https://github.com/gregkorneev-BMSTU/study-agent/pull/13) использует WinUI 3 и общий Python backend. GitHub Actions на Windows Server 2022 успешно собрал WinUI Debug, PyInstaller backend, запустил synthetic smoke и собрал unsigned Release MSIX. Это подтверждает сборку и ограниченный smoke, но функциональное соответствие **не подтверждено**: пакет не устанавливался в интерактивной Windows-сессии; OCR inference, Ollama, Narrator, high contrast и DPI не проверялись.
+Windows-клиент PR [#13](https://github.com/gregkorneev-BMSTU/study-agent/pull/13) использует WinUI 3 и общий Python backend. GitHub Actions на Windows Server 2022 собрал WinUI Debug, PyInstaller backend, запустил synthetic smoke, собрал unsigned Release MSIX и установщик `StudyAgentSetup.exe`. Это подтверждает сборку и ограниченный smoke, но функциональное соответствие **не подтверждено**: интерактивная установка и запуск на обычной Windows-машине, OCR inference, Ollama, Narrator, high contrast и DPI не проверялись.
 
 Рабочая ветка — `feature/sa-05-windows`. В неё обычным merge включён `origin/main` на `v1.0.0-beta.6.1` (`988bc365bdb7669452b20166bc3f548caa4f0996`); локальный merge-коммит: `5ac9c05`. Более нового `main` на момент проверки не было.
 
@@ -59,21 +59,28 @@ py -3.12 -m venv .venv
 .\scripts\smoke_windows_backend.ps1
 dotnet build .\windows\StudyAgent.Windows\StudyAgent.Windows.csproj -c Debug -r win-x64 -p:Platform=x64
 dotnet build .\windows\StudyAgent.Windows\StudyAgent.Windows.csproj -c Release -r win-x64 -p:Platform=x64 -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false
+choco install innosetup --no-progress -y
+.\scripts\build_windows_installer.ps1
 ```
 
 Скрипт останавливается, если нет backend executable, runtime или архива. Release MSIX unsigned; `CN=AppPublisher` test certificate не является публично доверенной подписью. SmartScreen и установка на чистой Windows не подтверждены. Для пользовательского запуска Python и зависимости проекта не нужны. Пользовательские настройки/список папок/индекс и загруженные по явному действию Chandra weights располагаются в MSIX `LocalState\StudyAgent`; исходные материалы остаются в подключённых папках.
 
+Для пробной установки собран `StudyAgentSetup.exe` из CI artifact `study-agent-windows-setup`. Он содержит Release MSIX и вызывает `Add-AppxPackage -AllowUnsigned`; запускайте его от имени администратора. Setup EXE и MSIX не подписаны публично доверенным сертификатом, поэтому Windows может показать предупреждение. Установщик предназначен для теста, а не для широкого распространения. Регистрация приложения внутри hosted Windows Server CI не подтверждена; проверьте установку на обычной Windows 10/11 машине. Сам `.exe` не хранится в Git: размер больше лимита GitHub для обычных git-файлов (100 MiB), бинарный файл приложен к Actions run.
+
 Backend smoke создаёт временные кириллические TXT/Markdown материалы и проверяет diagnostics, JSONL progress, индексацию, поиск при выключенном источнике, статус и физическое удаление производных записей. Тест использует временную базу и удаляет каталог после завершения.
 
 ## Фактические проверки в текущей среде
+
+- Установщик для ручной проверки доступен как Actions artifact `study-agent-windows-setup` в [успешном запуске CI 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479). На странице запуска откройте **Artifacts → study-agent-windows-setup**, скачайте ZIP и извлеките `StudyAgentSetup.exe`. Прямая загрузка GitHub API требует авторизации GitHub.
 
 - Host: macOS 27 arm64, Python 3.12.15. Windows/.NET/PowerShell отсутствуют.
 - `.venv/bin/python -m ruff check .` — успешно.
 - `.venv/bin/python -m pytest -q tests/test_windows_packaging.py` — 1 passed.
 - `.venv/bin/pytest -q tests/test_mac_bridge.py tests/test_ocr_model.py tests/test_windows_packaging.py` — 24 passed; проверено локально после финального исправления UTF-8 stdin.
 - Обычный полный `pytest` аварийно завершился при инициализации Qt Cocoa в `tests/test_switch.py`; повтор с offscreen завершился так же. Прогон с игнорированием этой fixture и неотслеживаемых копий `* [0-9].py` дошёл до `tests/test_ui_retrieval.py::test_material_text_uses_plain_text_and_offers_original` и аварийно завершил Qt. Полного успешного результата pytest нет.
-- [GitHub Actions run 40765745575](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40765745575) — **success**: Linux Python 3.12/3.13 `pytest` + Ruff; Windows Python 3.12 `pytest` + Ruff; WinUI Debug; PyInstaller backend package; synthetic Windows smoke (Cyrillic paths, indexing, offline saved-index search, removal); unsigned Release MSIX build; macOS client checks/build.
+- [GitHub Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479) — **success**: Linux Python 3.12/3.13 `pytest` + Ruff; Windows Python 3.12 `pytest` + Ruff; WinUI Debug; PyInstaller backend package; synthetic Windows smoke (Cyrillic paths, indexing, offline saved-index search, removal); unsigned Release MSIX build; Inno Setup EXE generation; macOS client checks/build. Inno Setup launched in silent mode on the hosted runner; that server environment did not provide a reliable interactive install confirmation.
+- Download artifact [study-agent-windows-setup](https://api.github.com/repos/gregkorneev-BMSTU/study-agent/actions/artifacts/12852533928/zip) (316,692,270 bytes; SHA-256 `3b923da8f24cef206eb40648801a25aa09c2d6d95701c982c636f89518372617`); extract `StudyAgentSetup.exe` from the downloaded ZIP.
 - CI artifact `study-agent-windows-release-unsigned` создан (743,843,681 bytes; SHA-256 `d52af6c2bc8390f4dc8ede0dbb12ec400440ed21ecf66ee8d135ef2c711315c0`). Это unsigned build artifact, не подписанный публично доверенным сертификатом и не проверенный установкой.
-- WinUI Release package построен в CI, но MSIX install/launch, SmartScreen, Chandra inference, Ollama generation/streaming, Narrator/high contrast и масштабирование 150–200% на Windows не запускались.
+- WinUI Release package и Setup EXE построены в CI, но интерактивная MSIX install/launch, SmartScreen, Chandra inference, Ollama generation/streaming, Narrator/high contrast и масштабирование 150–200% на Windows не проверены.
 
 Приёмка на Windows остаётся обязательной. Нельзя считать функциональное соответствие подтверждённым до проверки установленного Release MSIX на Windows с TXT, Markdown, цифровым/сканированным PDF, DOCX со встроенным изображением, локальными изображениями Markdown, отменой, ошибками/повторами, lexical/semantic/hybrid, RAG citations, OCR после явной установки весов, открытием исходника и доступностью.
