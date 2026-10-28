@@ -8,7 +8,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Input;
-using Windows.Storage;
 using StudyAgent_Windows.Services;
 using Windows.System;
 
@@ -26,7 +25,6 @@ public sealed partial class HomePage : Page
     private PythonBridgeService.EmbeddingProfile? _lastEmbedding;
     private bool _busy;
     private bool _loadingOptions;
-    private readonly ApplicationDataContainer _settings = ApplicationData.Current.LocalSettings;
     private CancellationTokenSource? _preparation;
 
     public HomePage()
@@ -41,7 +39,7 @@ public sealed partial class HomePage : Page
     {
         ApplyLanguage();
         _loadingOptions = true;
-        string savedMode = _settings.Values["SearchMode"] as string ?? "lexical";
+        string savedMode = AppStorage.GetSetting("SearchMode") as string ?? "lexical";
         SearchModeCombo.SelectedIndex = savedMode switch { "semantic" => 1, "hybrid" => 2, _ => 0 };
         _loadingOptions = false;
         await RefreshEmbeddingModelsAsync();
@@ -52,7 +50,7 @@ public sealed partial class HomePage : Page
     {
         if (SearchModeCombo.SelectedItem is not ComboBoxItem item) return;
         string mode = item.Tag?.ToString() ?? "lexical";
-        _settings.Values["SearchMode"] = mode;
+        AppStorage.SetSetting("SearchMode", mode);
         EmbeddingModelCombo.IsEnabled = mode != "lexical";
         PrepareEmbeddingsButton.IsEnabled = !_busy && SelectedEmbedding() is not null;
         if (!_loadingOptions && mode != "lexical" && EmbeddingModelCombo.Items.Count == 0)
@@ -62,15 +60,15 @@ public sealed partial class HomePage : Page
     private void EmbeddingModel_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingOptions || EmbeddingModelCombo.SelectedItem is not ComboBoxItem item) return;
-        _settings.Values["EmbeddingModel"] = item.Content?.ToString();
-        _settings.Values["EmbeddingDimensions"] = item.Tag?.ToString();
+        AppStorage.SetSetting("EmbeddingModel", item.Content?.ToString());
+        AppStorage.SetSetting("EmbeddingDimensions", item.Tag?.ToString());
         PrepareEmbeddingsButton.IsEnabled = !_busy;
     }
 
     private void CompletionModel_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ModelsComboBox.SelectedItem is string model)
-            _settings.Values["CompletionModel"] = model;
+            AppStorage.SetSetting("CompletionModel", model);
     }
 
     private async Task RefreshEmbeddingModelsAsync()
@@ -86,12 +84,12 @@ public sealed partial class HomePage : Page
                 int dimensions = model.GetProperty("dimensions").GetInt32();
                 EmbeddingModelCombo.Items.Add(new ComboBoxItem { Content = name, Tag = dimensions.ToString() });
             }
-            string? selected = _settings.Values["EmbeddingModel"] as string;
+            string? selected = AppStorage.GetSetting("EmbeddingModel") as string;
             EmbeddingModelCombo.SelectedItem = EmbeddingModelCombo.Items
                 .OfType<ComboBoxItem>().FirstOrDefault(item => (string?)item.Content == selected)
                 ?? EmbeddingModelCombo.Items.OfType<ComboBoxItem>().FirstOrDefault();
             if (EmbeddingModelCombo.SelectedItem is ComboBoxItem chosen)
-                _settings.Values["EmbeddingDimensions"] = chosen.Tag?.ToString();
+                AppStorage.SetSetting("EmbeddingDimensions", chosen.Tag?.ToString());
             EmbeddingStatus.Text = EmbeddingModelCombo.Items.Count == 0
                 ? T("Установленная embedding-модель Ollama не найдена. Лексический поиск доступен.",
                     "No installed Ollama embedding model was found. Lexical search remains available.")
@@ -122,7 +120,7 @@ public sealed partial class HomePage : Page
         try
         {
             using var response = await _bridge.ListModelsAsync();
-            string? previous = _settings.Values["CompletionModel"] as string;
+            string? previous = AppStorage.GetSetting("CompletionModel") as string;
             ModelsComboBox.Items.Clear();
             foreach (JsonElement model in response.RootElement.GetProperty("result").GetProperty("models").EnumerateArray())
                 if (model.GetString() is string name) ModelsComboBox.Items.Add(name);

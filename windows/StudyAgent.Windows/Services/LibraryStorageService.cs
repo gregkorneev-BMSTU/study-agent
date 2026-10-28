@@ -2,15 +2,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using Windows.Storage;
 
 namespace StudyAgent_Windows.Services;
 
 public sealed class LibraryStorageService
 {
     private readonly string _filePath = Path.Combine(
-        ApplicationData.Current.LocalFolder.Path,
-        "StudyAgent",
+        AppStorage.DataFolder,
         "library.json");
 
     public List<string> Load()

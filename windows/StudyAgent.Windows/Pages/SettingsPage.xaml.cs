@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Threading;
 using Windows.System;
-using Windows.Storage;
 using StudyAgent_Windows.Services;
 
 namespace StudyAgent_Windows.Pages;
@@ -18,8 +17,7 @@ public sealed partial class SettingsPage : Page
     {
         InitializeComponent();
 
-        string theme = ApplicationData.Current.LocalSettings
-            .Values["AppTheme"] as string ?? "System";
+        string theme = AppStorage.GetSetting("AppTheme") as string ?? "System";
 
         ThemeCombo.SelectedIndex = theme switch
         {
@@ -212,8 +210,7 @@ public sealed partial class SettingsPage : Page
             _ => "System"
         };
 
-        ApplicationData.Current.LocalSettings
-            .Values["AppTheme"] = theme;
+        AppStorage.SetSetting("AppTheme", theme);
 
         ApplyTheme(theme);
     }

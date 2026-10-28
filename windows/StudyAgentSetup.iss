@@ -1,4 +1,4 @@
-#define MsixPath GetEnv("STUDY_AGENT_MSIX")
+#define PublishDirectory GetEnv("STUDY_AGENT_PUBLISH_DIR")
 #define OutputDirectory GetEnv("STUDY_AGENT_INSTALLER_OUTPUT")
 
 [Setup]
@@ -6,13 +6,12 @@ AppId={{A6D533F4-96F9-4F91-810B-5721FF5A86CA}
 AppName=Study Agent
 AppVersion=1.0.9
 AppPublisher=Study Agent contributors
-DefaultDirName={tmp}\StudyAgentInstaller
-DisableDirPage=yes
+DefaultDirName={localappdata}\Programs\Study Agent
 DisableProgramGroupPage=yes
-Uninstallable=no
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+MinVersion=10.0.17763
 OutputDir={#OutputDirectory}
 OutputBaseFilename=StudyAgentSetup
 Compression=none
@@ -21,37 +20,7 @@ WizardStyle=modern
 SetupLogging=yes
 
 [Files]
-Source: "{#MsixPath}"; DestDir: "{tmp}"; DestName: "StudyAgent.msix"; Flags: dontcopy
+Source: "{#PublishDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-[Code]
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  ResultCode: Integer;
-  PackagePath: String;
-  Parameters: String;
-begin
-  Log('Preparing temporary MSIX extraction.');
-  Result := '';
-  try
-    ExtractTemporaryFile('StudyAgent.msix');
-    Log('Study Agent MSIX extracted successfully.');
-  except
-    Log('Study Agent MSIX extraction failed.');
-    Result := 'Could not extract the Study Agent MSIX package.';
-    Exit;
-  end;
-
-  PackagePath := ExpandConstant('{tmp}\StudyAgent.msix');
-  StringChangeEx(PackagePath, #39, #39#39, True);
-  Parameters := '-NoProfile -ExecutionPolicy Bypass -Command "try { Add-AppxPackage -Path ' + #39 + PackagePath + #39 + ' -AllowUnsigned -ErrorAction Stop } catch { $_ | Out-File -FilePath (Join-Path $env:TEMP ' + #39 + 'StudyAgentInstallError.txt' + #39 + ') -Encoding utf8; exit 1 }"';
-  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
-  begin
-    Log('Could not start Windows PowerShell for MSIX installation.');
-    Result := 'Could not start PowerShell to install the application.';
-    Exit;
-  end;
-
-  Log('PowerShell MSIX installation exit code: ' + IntToStr(ResultCode));
-  if ResultCode <> 0 then
-    Result := 'Windows could not install the MSIX package. See %TEMP%\StudyAgentInstallError.txt for details.';
-end;
+[Icons]
+Name: "{autoprograms}\Study Agent"; Filename: "{app}\StudyAgent.Windows.exe"; WorkingDir: "{app}"

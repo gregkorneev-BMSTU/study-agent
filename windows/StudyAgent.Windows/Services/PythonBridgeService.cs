@@ -39,7 +39,7 @@ public sealed class PythonBridgeService
         string archive = Path.Combine(AppContext.BaseDirectory, "Backend.zip");
         using var stream = File.OpenRead(archive);
         string digest = Convert.ToHexString(SHA256.HashData(stream))[..16];
-        string cacheRoot = Path.Combine(ApplicationData.Current.LocalFolder.Path, "backend-cache");
+        string cacheRoot = Path.Combine(AppStorage.LocalFolder, "backend-cache");
         string destination = Path.Combine(cacheRoot, digest);
         string executable = Path.Combine(destination, "StudyAgentBackend.exe");
 
@@ -176,7 +176,7 @@ public sealed class PythonBridgeService
         };
         info.Environment["PYTHONIOENCODING"] = "utf-8";
         info.Environment["PYTHONUTF8"] = "1";
-        info.Environment["STUDY_AGENT_DATA_DIR"] = Path.Combine(ApplicationData.Current.LocalFolder.Path, "StudyAgent");
+        info.Environment["STUDY_AGENT_DATA_DIR"] = AppStorage.DataFolder;
 
         using var process = new Process { StartInfo = info };
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));

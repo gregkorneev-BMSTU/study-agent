@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$packageRoot = Join-Path $root "windows\StudyAgent.Windows\AppPackages"
+$publishDirectory = Join-Path $root "build\windows-publish"
 $outputDirectory = Join-Path $root "build\windows-installer"
 $script = Join-Path $root "windows\StudyAgentSetup.iss"
 
@@ -18,13 +18,14 @@ if (-not $compiler) {
     throw "Inno Setup 6 compiler not found. Install it before building the Windows installer."
 }
 
-$packages = @(Get-ChildItem -LiteralPath $packageRoot -Filter "*_x64.msix" -File -Recurse)
-if ($packages.Count -ne 1) {
-    throw "Expected exactly one x64 MSIX under $packageRoot; found $($packages.Count)."
+foreach ($required in @("StudyAgent.Windows.exe", "Backend.zip", "Microsoft.UI.Xaml.dll")) {
+    if (-not (Test-Path (Join-Path $publishDirectory $required))) {
+        throw "Required published application file is missing: $publishDirectory\$required. Publish the self-contained app first."
+    }
 }
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-$env:STUDY_AGENT_MSIX = $packages[0].FullName
+$env:STUDY_AGENT_PUBLISH_DIR = $publishDirectory
 $env:STUDY_AGENT_INSTALLER_OUTPUT = $outputDirectory
 & $compiler /Qp $script
 if ($LASTEXITCODE -ne 0) {

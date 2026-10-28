@@ -100,11 +100,20 @@ jobs:
             -c Release -r win-x64 -p:Platform=x64 `
             -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false
 
+      - name: Publish self-contained Windows application
+        run: |
+          dotnet publish "./windows/StudyAgent.Windows/StudyAgent.Windows.csproj" `
+            -c Release -r win-x64 -p:Platform=x64 -p:WindowsPackageType=None `
+            --self-contained true -o "./build/windows-publish"
+
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
       - name: Build Windows setup executable
         run: .\scripts\build_windows_installer.ps1
+
+      - name: Smoke test installed application on x64
+        run: .\scripts\smoke_windows_installer.ps1 -SetupPath .\build\windows-installer\StudyAgentSetup.exe
 
       - name: Upload Windows setup executable
         uses: actions/upload-artifact@v4
@@ -119,22 +128,11 @@ jobs:
     needs: windows-checks
     runs-on: windows-11-arm
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
         with:
           name: study-agent-windows-setup
           path: installer
-      - name: Install and verify package registration
+      - name: Install and run application under x64 emulation
         shell: pwsh
-        run: |
-          $setupLog = Join-Path $env:TEMP "StudyAgentSetup.log"
-          $process = Start-Process -FilePath (Resolve-Path "installer/StudyAgentSetup.exe") `
-            -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$setupLog") `
-            -Wait -PassThru
-          if (Test-Path $setupLog) { Get-Content -LiteralPath $setupLog | Write-Host }
-          $installError = Join-Path $env:TEMP "StudyAgentInstallError.txt"
-          if (Test-Path $installError) { Get-Content -LiteralPath $installError | Write-Host }
-          if ($process.ExitCode -ne 0) { throw "Installer exited with code $($process.ExitCode)." }
-          $nativePowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-          & $nativePowerShell -NoProfile -ExecutionPolicy Bypass -Command `
-            '$package = Get-AppxPackage -Name "A6D533F4-96F9-4F91-810B-5721FF5A86CA"; if (-not $package) { throw "Study Agent package was not registered for the current user." }; $package | Format-List Name, PackageFullName; Remove-AppxPackage -Package $package.PackageFullName -AllUsers -ErrorAction Stop'
-          if ($LASTEXITCODE -ne 0) { throw "Could not verify or remove the installed package." }
+        run: .\scripts\smoke_windows_installer.ps1 -SetupPath .\installer\StudyAgentSetup.exe

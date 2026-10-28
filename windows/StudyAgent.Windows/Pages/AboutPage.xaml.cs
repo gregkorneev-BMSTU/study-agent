@@ -54,8 +54,8 @@ public sealed partial class AboutPage : Page
         }
         catch (Exception)
         {
-            VersionValue.Text =
-                T("Недоступна", "Unavailable");
+            VersionValue.Text = typeof(App).Assembly.GetName().Version?.ToString()
+                ?? T("Недоступна", "Unavailable");
         }
     }
 }

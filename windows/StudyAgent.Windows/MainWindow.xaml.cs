@@ -18,9 +18,7 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) => Services.PythonBridgeService.TerminateAll();
         ApplyLanguage();
 
-        string savedTheme =
-            Windows.Storage.ApplicationData.Current.LocalSettings
-                .Values["AppTheme"] as string ?? "System";
+        string savedTheme = Services.AppStorage.GetSetting("AppTheme") as string ?? "System";
 
         if (Content is FrameworkElement root)
         {
@@ -39,7 +37,7 @@ public sealed partial class MainWindow : Window
         if (Content is FrameworkElement contentRoot)
             contentRoot.Loaded += (_, _) => contentRoot.DispatcherQueue.TryEnqueue(() =>
             {
-                if (Windows.Storage.ApplicationData.Current.LocalSettings.Values["WelcomeShown"] is null)
+                if (Services.AppStorage.GetSetting("WelcomeShown") is null)
                     _ = ShowWelcomeAsync();
             });
     }
@@ -58,7 +56,7 @@ public sealed partial class MainWindow : Window
             XamlRoot = Content.XamlRoot
         };
         bool goToLibrary = await dialog.ShowAsync() == ContentDialogResult.Primary;
-        Windows.Storage.ApplicationData.Current.LocalSettings.Values["WelcomeShown"] = true;
+        Services.AppStorage.SetSetting("WelcomeShown", true);
         if (goToLibrary)
         {
             NavView.SelectedItem = LibraryNavItem;
