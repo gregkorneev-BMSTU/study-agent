@@ -407,7 +407,7 @@ def test_answer_failure_envelope_explains_cause_without_raw_text(
     assert error["stage"] == "citation_repair" and error["model"] == "synthetic-llm"
     assert error["action"] and "Модель сослалась" in error["message"]
     assert raw_response not in str(error)
-    assert repair_feedback == ["unknown_source; allowed source labels: [SOURCE 1]"]
+    assert repair_feedback == ["unknown_source; allowed source labels: [1]"]
 
 
 def test_ollama_failure_during_citation_repair_is_identified(

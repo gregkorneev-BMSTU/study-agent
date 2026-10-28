@@ -68,12 +68,14 @@ def answer(
     }.get(language, "Answer in the same language as the user's question")
     prompt_labels = ("Вопрос", "Материалы") if language == "ru" else ("Question", "Materials")
     source_ids = list(dict.fromkeys(re.findall(r"\[SOURCE\s+(\d+)\]", context)))
-    citation_labels = ", ".join(f"[SOURCE {number}]" for number in source_ids)
+    citation_labels = ", ".join(f"[{number}]" for number in source_ids)
     citation_rules = (
-        f"Use only these source labels: {citation_labels}. Add a source label at the end of "
+        f"Cite sources using only these numeric labels: {citation_labels}. Add the citation "
+        "as [1], [2], etc. at the end of "
         "every factual paragraph, every bullet/list item, and every standalone equation. "
-        "For example: Claim supported by the material [SOURCE 1]. Do not use bare numeric "
-        "citations such as [1]; those can be confused with formula or list numbers."
+        "For example: Claim supported by the material [1]. Never write the word SOURCE "
+        "inside a citation. Numbers inside the study material, including numbered formulas "
+        "or lists, are not source labels."
     )
     result = _post(
         "/api/chat",
@@ -109,12 +111,13 @@ def answer(
                         + (
                             " The previous attempt failed citation validation: " + citation_feedback
                             + ". Write a fresh concise answer from the same materials. "
-                            "Use only the explicitly allowed citation labels. Numbers appearing "
+                            "Use only the explicitly allowed numeric citation labels. "
+                            "Numbers appearing "
                             "inside the study material, including numbered formulas or lists, "
                             "are not source labels and must never be cited. "
                             "Use no headings or introductory filler. "
                             "Every paragraph, list item, and standalone equation must end with "
-                            "one of the explicitly allowed [SOURCE n] labels. "
+                            "one of the explicitly allowed [n] labels, without the word SOURCE. "
                             "Do not add a citation unless that source "
                             "supports the claim. "
                             "If the materials do not support an answer, "

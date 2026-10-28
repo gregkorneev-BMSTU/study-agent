@@ -107,7 +107,7 @@ def dispatch(
                 nonlocal answer_stage
                 answer_stage = "citation_repair"
                 allowed = ", ".join(
-                    f"[SOURCE {number}]"
+                    f"[{number}]"
                     for number in range(1, int(error.details["source_count"]) + 1)
                 )
                 feedback = f"{error.reason}; allowed source labels: {allowed}"
