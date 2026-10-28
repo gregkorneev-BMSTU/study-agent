@@ -16,19 +16,19 @@ Study Agent помогает искать в выбранных учебных �
 
 ## Предпросмотр
 
-Актуальная версия для macOS — нативное приложение SwiftUI/Xcode с фирменной иконкой Study Agent. Изображения ниже — реальные снимки **Beta 3 (build 3)**; в Beta 6.1 обновлены локальный OCR и обработка визуального содержимого PDF и DOCX. Навигация и системные материалы оформляются средствами macOS.
+Для macOS используется нативное приложение SwiftUI/Xcode с фирменной иконкой Study Agent. Ниже — реальные снимки экранов поиска и библиотеки в тёмной и светлой темах. Beta 6.1 также распознаёт визуальное содержимое PDF и DOCX локальной моделью Chandra.
 
 <p align="center">
   <img src="assets/StudyAgent_Apple_Icon_Kit/Master/AppIcon_1024.png" width="112" alt="Иконка Study Agent">
 </p>
 
-| Поиск · тёмная тема | Библиотека · тёмная тема |
+| Поиск · тёмная тема | Поиск · светлая тема |
 | --- | --- |
-| <img src="artifacts/readme/macos-dark-search.png" width="480" alt="Нативный Study Agent для macOS — экран поиска, фирменная иконка в боковой панели"> | <img src="artifacts/readme/macos-dark-library.png" width="480" alt="Нативный Study Agent для macOS — библиотека с центрированным пустым состоянием и кнопкой добавления папки"> |
+| <img src="artifacts/macos-liquid-glass-qa/after/dark-search.jpg" width="480" alt="Нативное приложение Study Agent для macOS — поиск, тёмная тема"> | <img src="artifacts/macos-liquid-glass-qa/after/light-search.jpg" width="480" alt="Нативное приложение Study Agent для macOS — поиск, светлая тема"> |
 
-| Настройки · тёмная тема | Настройки · светлая тема |
+| Библиотека · тёмная тема | Библиотека · светлая тема |
 | --- | --- |
-| <img src="artifacts/readme/macos-dark-settings.png" width="480" alt="Study Agent v1 Beta 3 для macOS — настройки в тёмной теме"> | <img src="artifacts/readme/macos-light-settings.png" width="480" alt="Study Agent v1 Beta 3 для macOS — настройки в светлой теме"> |
+| <img src="artifacts/macos-liquid-glass-qa/after/dark-library.jpg" width="480" alt="Нативное приложение Study Agent для macOS — библиотека, тёмная тема"> | <img src="artifacts/macos-liquid-glass-qa/after/light-library.jpg" width="480" alt="Нативное приложение Study Agent для macOS — библиотека, светлая тема"> |
 
 ## Что планируется
 
