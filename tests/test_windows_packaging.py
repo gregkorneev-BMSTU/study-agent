@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 import pytest
-
-from scripts import package_windows_backend
 
 
 def test_windows_backend_archive_contains_executable_runtime_and_notices(tmp_path: Path) -> None:
@@ -41,6 +40,11 @@ def test_windows_backend_archive_contains_executable_runtime_and_notices(tmp_pat
 def test_windows_backend_archive_preserves_colliding_notices(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    script = Path(__file__).resolve().parents[1] / "scripts" / "package_windows_backend.py"
+    spec = importlib.util.spec_from_file_location("package_windows_backend", script)
+    assert spec is not None and spec.loader is not None
+    package_windows_backend = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(package_windows_backend)
     source = tmp_path / "backend"
     source.mkdir()
     (source / "StudyAgentBackend.exe").write_bytes(b"synthetic executable")
