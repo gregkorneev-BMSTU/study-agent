@@ -128,7 +128,6 @@ def dispatch(
                 "answer": generated.answer,
                 "sources": [hit_value(hit) for hit in generated.sources],
                 "grounded": generated.grounded,
-                "answer_mode": generated.mode,
             }
         elif command == "list_embedding_models":
             result = {"models": list_embedding_models()}

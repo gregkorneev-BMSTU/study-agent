@@ -373,7 +373,7 @@ def test_embedding_failure_keeps_text_index_searchable(tmp_path: Path, monkeypat
     assert result["ok"] and result["result"]["hits"][0]["document_id"] == "note.txt"
 
 
-def test_unverifiable_answer_returns_source_extract_without_raw_model_text(
+def test_answer_failure_envelope_explains_cause_without_raw_text(
     tmp_path: Path, monkeypatch
 ) -> None:
     from study_agent.retrieval import RetrievalResult
@@ -400,13 +400,13 @@ def test_unverifiable_answer_returns_source_extract_without_raw_model_text(
     result = mac_bridge.dispatch(
         {"command": "answer", "query": "Question?", "model": "synthetic-llm", "language": "ru"}
     )
-    assert result["ok"]
-    answer_result = result["result"]
-    assert answer_result["answer_mode"] == "source_extract"
-    assert answer_result["grounded"]
-    assert "PRIVATE GENERATED TEXT" not in answer_result["answer"]
-    assert "A synthetic paragraph with enough context." in answer_result["answer"]
-    assert answer_result["sources"][0]["document_id"] == "note.txt"
+    assert not result["ok"]
+    error = result["error"]
+    assert error["code"] == "invalid_citations" and error["reason"] == "unknown_source"
+    assert error["details"] == {"source_count": 1, "invalid_sources": [19]}
+    assert error["stage"] == "citation_repair" and error["model"] == "synthetic-llm"
+    assert error["action"] and "Модель сослалась" in error["message"]
+    assert raw_response not in str(error)
     assert repair_feedback == ["unknown_source; allowed source labels: [SOURCE 1]"]
 
 

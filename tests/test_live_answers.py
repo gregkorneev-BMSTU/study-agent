@@ -14,7 +14,7 @@ from time import perf_counter
 
 import pytest
 
-from study_agent import mac_bridge
+from study_agent import mac_bridge, ollama
 from study_agent.embeddings import _request, ensure_local_model
 from study_agent.rag import _citation_matches, _numbers, _uncited_paragraph
 from study_agent.retrieval import RetrievalResult
@@ -46,7 +46,22 @@ def test_real_model_answer(case, monkeypatch, live_report) -> None:
                       chunk_id=f'synthetic:{index}') for index, item in enumerate(case['sources'])]
     monkeypatch.setattr(mac_bridge, '_retrieve', lambda _: (None, [], RetrievalResult(hits)))
     original = mac_bridge.answer
+    original_post = ollama._post
     attempts = []
+    token_usage = []
+
+    def observed_post(path, payload):
+        result = original_post(path, payload)
+        token_usage.append({
+            'prompt_eval_count': result.get('prompt_eval_count'),
+            'eval_count': result.get('eval_count'),
+            'done_reason': result.get('done_reason'),
+            'num_ctx': payload['options']['num_ctx'],
+            'num_predict': payload['options']['num_predict'],
+        })
+        return result
+
+    monkeypatch.setattr(ollama, '_post', observed_post)
 
     def observed(*args, **kwargs):
         attempt = {'repair': bool(kwargs.get('citation_feedback'))}
@@ -93,6 +108,60 @@ def test_real_model_answer(case, monkeypatch, live_report) -> None:
         assert all(item['excerpt'] in hits[index].excerpt for item in result['sources']
                    for index in range(len(hits)) if item['document_id'] == hits[index].document_id)
     assert 1 <= len(attempts) <= 2
+    assert token_usage
+    assert all(item['prompt_eval_count'] < item['num_ctx'] for item in token_usage)
+    assert all(item['eval_count'] <= item['num_predict'] for item in token_usage)
+    assert all(item['done_reason'] != 'length' for item in token_usage), token_usage
     if case.get('inject_uncited_paragraph'):
         assert len(attempts) == 2 and attempts[1]['repair']
     row['passed'] = True
+
+
+def test_real_model_answers_large_formula_table_without_token_truncation(monkeypatch) -> None:
+    formulas = [
+        r"\int 1\,dx=x+C",
+        *(rf"\int x^{power}\,dx=\frac{{x^{{{power + 1}}}}}{{{power + 1}}}+C"
+          for power in range(1, 13)),
+        r"\int \sin x\,dx=-\cos x+C",
+        r"\int \cos x\,dx=\sin x+C",
+        r"\int e^x\,dx=e^x+C",
+        r"\int \frac{1}{x}\,dx=\ln|x|+C",
+        r"\int \frac{1}{1+x^2}\,dx=\arctan x+C",
+        r"\int \frac{1}{\sqrt{1-x^2}}\,dx=\arcsin x+C",
+    ]
+    table = "## Таблица интегралов\n\n" + "\n\n".join(
+        f"$$ {formula} $$" for formula in formulas
+    )
+    hit = SearchHit('Synthetic', 'integrals.md', table, 1, Path('/synthetic'), chunk_id='table:0')
+    monkeypatch.setattr(
+        mac_bridge, '_retrieve', lambda _: (None, [], RetrievalResult([hit]))
+    )
+    original_post = ollama._post
+    usage = {}
+
+    def observe_generation(path, payload):
+        result = original_post(path, payload)
+        usage.update({
+            'prompt_eval_count': result.get('prompt_eval_count'),
+            'eval_count': result.get('eval_count'),
+            'done_reason': result.get('done_reason'),
+            'num_ctx': payload['options']['num_ctx'],
+            'num_predict': payload['options']['num_predict'],
+        })
+        return result
+
+    monkeypatch.setattr(ollama, '_post', observe_generation)
+    response = mac_bridge.dispatch({
+        'command': 'answer', 'query': 'Покажи таблицу интегралов из материала.',
+        'model': MODEL, 'language': 'ru',
+    })
+    assert response['ok'], response.get('error')
+    result = response['result']
+    assert result['grounded']
+    assert result['sources'][0]['document_id'] == 'integrals.md'
+    assert r'\int' in result['answer']
+    assert _citation_matches(result['answer'])
+    assert _uncited_paragraph(result['answer'], _citation_matches(result['answer'])) is None
+    assert usage['prompt_eval_count'] < usage['num_ctx']
+    assert usage['eval_count'] <= usage['num_predict']
+    assert usage['done_reason'] != 'length', usage
