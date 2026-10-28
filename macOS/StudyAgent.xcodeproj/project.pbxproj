@@ -16,6 +16,8 @@
 		A10000000000000000000009 /* SetupWizard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* SetupWizard.swift */; };
 		A10000000000000000000010 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* WelcomeView.swift */; };
 		A10000000000000000000011 /* SavedFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* SavedFolder.swift */; };
+        A10000000000000000000012 /* MathContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012; };
+        A10000000000000000000013 /* math in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +32,8 @@
 		A20000000000000000000009 /* SetupWizard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWizard.swift; sourceTree = "<group>"; };
 		A20000000000000000000010 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		A20000000000000000000011 /* SavedFolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedFolder.swift; sourceTree = "<group>"; };
+        A20000000000000000000012 /* MathContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathContentView.swift; sourceTree = "<group>"; };
+        A20000000000000000000013 /* math */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "../assets/math"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,6 +59,8 @@
 				A20000000000000000000002 /* StudyAgentModel.swift */,
 				A20000000000000000000011 /* SavedFolder.swift */,
 				A20000000000000000000003 /* ContentView.swift */,
+                A20000000000000000000012 /* MathContentView.swift */,
+                A20000000000000000000013 /* math */,
 				A20000000000000000000008 /* Localization.swift */,
 				A20000000000000000000009 /* SetupWizard.swift */,
 				A20000000000000000000010 /* WelcomeView.swift */,
@@ -100,11 +106,11 @@
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000011 /* SavedFolder.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */, A10000000000000000000008 /* Localization.swift in Sources */, A10000000000000000000009 /* SetupWizard.swift in Sources */, A10000000000000000000010 /* WelcomeView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000012 /* MathContentView.swift in Sources */, A10000000000000000000001 /* StudyAgentApp.swift in Sources */, A10000000000000000000002 /* StudyAgentModel.swift in Sources */, A10000000000000000000011 /* SavedFolder.swift in Sources */, A10000000000000000000003 /* ContentView.swift in Sources */, A10000000000000000000008 /* Localization.swift in Sources */, A10000000000000000000009 /* SetupWizard.swift in Sources */, A10000000000000000000010 /* WelcomeView.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000004 /* StudyAgent.icns in Resources */, A10000000000000000000005 /* StudyAgentLogo.png in Resources */, A10000000000000000000006 /* StudyAgent.xcassets in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000013 /* math in Resources */, A10000000000000000000004 /* StudyAgent.icns in Resources */, A10000000000000000000005 /* StudyAgentLogo.png in Resources */, A10000000000000000000006 /* StudyAgent.xcassets in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

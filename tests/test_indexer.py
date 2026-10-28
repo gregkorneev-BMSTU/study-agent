@@ -103,12 +103,14 @@ def test_failed_document_does_not_stop_others_or_erase_old_text(
     assert storage.list_warnings([source_id(root)])
     reopened = IndexStorage(tmp_path / "index.sqlite3")
     issues = DocumentIndexer(reopened).get_index_status(source_id(root))["issues"]
-    assert issues == [{
-        "document_id": "bad.txt",
-        "title": "bad",
-        "code": "document_extraction_failed",
-        "page_number": None,
-    }]
+    assert issues == [
+        {
+            "document_id": "bad.txt",
+            "title": "bad",
+            "code": "document_extraction_failed",
+            "page_number": None,
+        }
+    ]
 
 
 def test_cancel_preserves_index_and_resume(tmp_path: Path) -> None:
@@ -196,3 +198,26 @@ def test_file_stat_failure_does_not_stop_scan_or_delete_saved_document(
     assert storage.search([source_id(root)], "durable")
     assert storage.search([source_id(root)], "searchable")
     assert storage.list_warnings([source_id(root)])[0]["code"] == report.errors[0]["code"]
+
+
+def test_markdown_processing_upgrade_reextracts_only_markdown(tmp_path: Path, monkeypatch) -> None:
+    from study_agent.indexer import INDEX_VERSION
+
+    root, source, storage, indexer = _setup(tmp_path)
+    (root / "notes.md").write_text("# Раздел\nФормула $$x^2$$", encoding="utf-8")
+    (root / "notes.txt").write_text("Обычный текст", encoding="utf-8")
+    indexer.sync_source(source)
+    # Simulate a pre-math Markdown index while keeping other formats current.
+    with storage.connect() as db:
+        db.execute("UPDATE documents SET version=? WHERE format='.md'", (INDEX_VERSION,))
+    reads = []
+    original = source.read
+
+    def read(document_id):
+        reads.append(document_id)
+        return original(document_id)
+
+    monkeypatch.setattr(source, "read", read)
+    report = indexer.sync_source(source)
+    assert reads == ["notes.md"]
+    assert report.indexed == 1 and report.skipped == 1

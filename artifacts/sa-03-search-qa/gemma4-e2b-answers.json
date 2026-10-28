@@ -1,0 +1,373 @@
+{
+  "model": "gemma4:e2b",
+  "digest": "7fbdbf8f5e45a75bb122155ed546e765b4d9c53a1285f62fd9f506baa1c5a47e",
+  "ollama_version": {
+    "version": "0.40.5"
+  },
+  "synthetic_only": true,
+  "cases": [
+    {
+      "id": "definition_ru",
+      "passed": true,
+      "seconds": 4.044,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "Матрица — прямоугольная таблица элементов. Элементы расположены по строкам и столбцам [1].",
+          "uncited_paragraph": null,
+          "seconds": 4.026
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "Матрица — прямоугольная таблица элементов. Элементы расположены по строкам и столбцам [1].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "matrix.md",
+              "excerpt": "Матрица — прямоугольная таблица элементов. Элементы расположены по строкам и столбцам.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "sqrt_integral",
+      "passed": true,
+      "seconds": 3.798,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "$$\\int \\sqrt{x}\\,dx=\\frac{2}{3}x^{3/2}+C$$[1]",
+          "uncited_paragraph": null,
+          "seconds": 3.773
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "$$\\int \\sqrt{x}\\,dx=\\frac{2}{3}x^{3/2}+C$$[1]",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "integral.md",
+              "excerpt": "Для x > 0 интеграл корня из x записывается так: $$\\int \\sqrt{x}\\,dx=\\frac{2}{3}x^{3/2}+C$$",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "two_sources",
+      "passed": true,
+      "seconds": 7.526,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "Алгоритм Дейкстры применим, если веса всех рёбер неотрицательны [1].\n\nНа каждом шаге алгоритма Дейкстры выбирается непосещённая вершина с минимальным текущим расстоянием [2].",
+          "uncited_paragraph": null,
+          "seconds": 7.508
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "Алгоритм Дейкстры применим, если веса всех рёбер неотрицательны [1].\n\nНа каждом шаге алгоритма Дейкстры выбирается непосещённая вершина с минимальным текущим расстоянием [2].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "weights.md",
+              "excerpt": "Алгоритм Дейкстры применим, если веса всех рёбер неотрицательны.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            },
+            {
+              "title": "Synthetic",
+              "document_id": "choice.md",
+              "excerpt": "На каждом шаге алгоритма Дейкстры выбирается непосещённая вершина с минимальным текущим расстоянием.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:1",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "unrelated_refusal",
+      "passed": true,
+      "seconds": 3.725,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "INSUFFICIENT_CONTEXT",
+          "uncited_paragraph": null,
+          "seconds": 3.696
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "В подключённых учебных материалах недостаточно информации для ответа на этот вопрос.",
+          "sources": [],
+          "grounded": false
+        }
+      }
+    },
+    {
+      "id": "instruction_in_source",
+      "passed": true,
+      "seconds": 5.77,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "TCP обеспечивает надёжную упорядоченную передачу потока байтов между приложениями. При потере сегментов выполняется повторная передача [1].",
+          "uncited_paragraph": null,
+          "seconds": 5.739
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "TCP обеспечивает надёжную упорядоченную передачу потока байтов между приложениями. При потере сегментов выполняется повторная передача [1].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "tcp.md",
+              "excerpt": "TCP обеспечивает надёжную упорядоченную передачу потока байтов между приложениями. При потере сегментов выполняется повторная передача.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "definition_en",
+      "passed": true,
+      "seconds": 3.91,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "A stack is a data structure that follows LIFO: last in, first out [1]. Elements are added and removed at the top [1].",
+          "uncited_paragraph": null,
+          "seconds": 3.896
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "A stack is a data structure that follows LIFO: last in, first out [1]. Elements are added and removed at the top [1].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "stack.md",
+              "excerpt": "A stack is a data structure that follows LIFO: last in, first out. Elements are added and removed at the top.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "literal_code",
+      "passed": true,
+      "seconds": 6.755,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "Пример обращения к элементу массива из материала: `items[99]` [1].\n\nОбъяснение: В квадратных скобках указан индекс элемента [1].",
+          "uncited_paragraph": null,
+          "seconds": 6.732
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "Пример обращения к элементу массива из материала: `items[99]` [1].\n\nОбъяснение: В квадратных скобках указан индекс элемента [1].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "code.md",
+              "excerpt": "Пример обращения к элементу массива Python: `items[99]`. В квадратных скобках указан индекс элемента, это часть кода, а не ссылка на источник.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "structured_math",
+      "passed": true,
+      "seconds": 7.627,
+      "attempts": [
+        {
+          "repair": false,
+          "answer": "Неопределённый интеграл функции $f$ определяется как множество всех её первообразных: $\\int f(x)dx=F(x)+C$, где $F'(x)=f(x)$, а $C$ — произвольная постоянная [1].\n\nПример неопределённого интеграла функции $x$ выглядит следующим образом: $\\int x dx=\\frac{x^2}{2}+C$ [2].",
+          "uncited_paragraph": null,
+          "seconds": 7.598
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "Неопределённый интеграл функции $f$ определяется как множество всех её первообразных: $\\int f(x)dx=F(x)+C$, где $F'(x)=f(x)$, а $C$ — произвольная постоянная [1].\n\nПример неопределённого интеграла функции $x$ выглядит следующим образом: $\\int x dx=\\frac{x^2}{2}+C$ [2].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "definition.md",
+              "excerpt": "Неопределённый интеграл функции f — множество всех её первообразных: $$\\int f(x)dx=F(x)+C$$, где F'(x)=f(x), C — произвольная постоянная.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            },
+            {
+              "title": "Synthetic",
+              "document_id": "example.md",
+              "excerpt": "Пример: $$\\int x dx=\\frac{x^2}{2}+C$$.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:1",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    },
+    {
+      "id": "repair_uncited_paragraph",
+      "passed": true,
+      "seconds": 4.972,
+      "attempts": [
+        {
+          "repair": false,
+          "injected_fault": "uncited_paragraph",
+          "answer": "Матрица — прямоугольная таблица элементов, расположенных по строкам и столбцам [1].\n\nКонтролируемый тестовый абзац без ссылки на источник материала.",
+          "uncited_paragraph": 2,
+          "seconds": 4.141
+        },
+        {
+          "repair": true,
+          "answer": "Матрица — прямоугольная таблица элементов, расположенных по строкам и столбцам [1].",
+          "uncited_paragraph": null,
+          "seconds": 0.809
+        }
+      ],
+      "response": {
+        "request_id": null,
+        "ok": true,
+        "result": {
+          "answer": "Матрица — прямоугольная таблица элементов, расположенных по строкам и столбцам [1].",
+          "sources": [
+            {
+              "title": "Synthetic",
+              "document_id": "matrix.md",
+              "excerpt": "Матрица — прямоугольная таблица элементов, расположенных по строкам и столбцам.",
+              "score": 1,
+              "source_root": "/synthetic",
+              "page_number": null,
+              "heading": null,
+              "marker": null,
+              "extraction_type": null,
+              "chunk_id": "synthetic:0",
+              "related_count": 0,
+              "quality_warnings": [],
+              "full_excerpt": null
+            }
+          ],
+          "grounded": true
+        }
+      }
+    }
+  ]
+}

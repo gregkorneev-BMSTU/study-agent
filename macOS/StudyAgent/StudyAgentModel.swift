@@ -55,6 +55,24 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
+enum SearchMode: String, CaseIterable, Identifiable {
+    case lexical, semantic, hybrid
+    var id: Self { self }
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .lexical: L10n.text("По словам", language: language)
+        case .semantic: L10n.text("По смыслу", language: language)
+        case .hybrid: L10n.text("Гибридный", language: language)
+        }
+    }
+}
+
+struct EmbeddingModel: Decodable, Identifiable {
+    var id: String { name }
+    let name: String
+    let dimensions: Int
+}
+
 struct SourceSummary: Identifiable, Decodable {
     var id: String { path }
     let name: String
@@ -74,6 +92,9 @@ struct SearchHit: Identifiable, Decodable {
     let title: String
     let documentID: String
     let excerpt: String
+    let fullExcerpt: String?
+    let matchedExcerpts: [String]?
+    var displayExcerpt: String { fullExcerpt ?? excerpt }
     let score: Int
     let sourceRoot: String
     let pageNumber: Int?
@@ -81,14 +102,20 @@ struct SearchHit: Identifiable, Decodable {
     let marker: String?
     let extractionType: String?
     let chunkID: String?
+    let relatedCount: Int?
+    let qualityWarnings: [String]?
 
     enum CodingKeys: String, CodingKey {
         case title, excerpt, score
+        case fullExcerpt = "full_excerpt"
+        case matchedExcerpts = "matched_excerpts"
         case documentID = "document_id"
         case sourceRoot = "source_root"
         case pageNumber = "page_number"
         case heading, marker
         case extractionType = "extraction_type"
+        case relatedCount = "related_count"
+        case qualityWarnings = "quality_warnings"
         case chunkID = "chunk_id"
     }
 
@@ -97,6 +124,8 @@ struct SearchHit: Identifiable, Decodable {
         title = try values.decode(String.self, forKey: .title)
         documentID = try values.decode(String.self, forKey: .documentID)
         excerpt = try values.decode(String.self, forKey: .excerpt)
+        fullExcerpt = try values.decodeIfPresent(String.self, forKey: .fullExcerpt)
+        matchedExcerpts = try values.decodeIfPresent([String].self, forKey: .matchedExcerpts)
         score = try values.decode(Int.self, forKey: .score)
         sourceRoot = try values.decode(String.self, forKey: .sourceRoot)
         pageNumber = try values.decodeIfPresent(Int.self, forKey: .pageNumber)
@@ -104,6 +133,8 @@ struct SearchHit: Identifiable, Decodable {
         marker = try values.decodeIfPresent(String.self, forKey: .marker)
         extractionType = try values.decodeIfPresent(String.self, forKey: .extractionType)
         chunkID = try values.decodeIfPresent(String.self, forKey: .chunkID)
+        relatedCount = try values.decodeIfPresent(Int.self, forKey: .relatedCount)
+        qualityWarnings = try values.decodeIfPresent([String].self, forKey: .qualityWarnings)
     }
 
     func locationDescription(language: AppLanguage) -> String? {
@@ -122,12 +153,16 @@ struct IndexStatus: Decodable {
     let chunks: Int
     let lastIndexedAt: String?
     let issues: [IndexingIssue]?
+    let embeddingTotal: Int?
+    let embeddingReady: Int?
 
     enum CodingKeys: String, CodingKey {
         case documents, ready, partial, failed, chunks
         case sourceID = "source_id"
         case lastIndexedAt = "last_indexed_at"
         case issues
+        case embeddingTotal = "embedding_total"
+        case embeddingReady = "embedding_ready"
     }
 }
 
@@ -192,6 +227,7 @@ final class StudyAgentModel: ObservableObject {
     @Published var isSearching = false
     @Published var searchStatus = "Выберите папку в разделе «Библиотека», чтобы начать поиск."
     @Published var hits: [SearchHit] = []
+    @Published private(set) var searchErrorDetails: String?
     @Published var searchWarnings: [SearchWarning] = []
     @Published var answerText: String?
     @Published private(set) var answerSources: [SearchHit] = []
@@ -205,6 +241,85 @@ final class StudyAgentModel: ObservableObject {
     @Published var modelName: String {
         didSet { defaults.set(modelName, forKey: Keys.model) }
     }
+    @Published var searchMode: SearchMode {
+        didSet { defaults.set(searchMode.rawValue, forKey: Keys.searchMode); invalidateSearchProfile() }
+    }
+    @Published var embeddingModelName: String {
+        didSet {
+            defaults.set(embeddingModelName, forKey: Keys.embeddingModel)
+            embeddingDimensions = embeddingModels.first(where: { $0.name == embeddingModelName })?.dimensions ?? 0
+            invalidateSearchProfile()
+        }
+    }
+    @Published private(set) var embeddingDimensions: Int {
+        didSet { defaults.set(embeddingDimensions, forKey: Keys.embeddingDimensions) }
+    }
+    @Published var documentPrefix: String {
+        didSet { defaults.set(documentPrefix, forKey: Keys.documentPrefix); invalidateSearchProfile() }
+    }
+    @Published var queryPrefix: String {
+        didSet { defaults.set(queryPrefix, forKey: Keys.queryPrefix); invalidateSearchProfile() }
+    }
+    @Published var minimumSimilarity: Double {
+        didSet {
+            defaults.set(minimumSimilarity, forKey: Keys.minimumSimilarity)
+            invalidateSearchResults()
+            searchStatus = text("Настройки поиска изменены. Повторите поиск.")
+        }
+    }
+    @Published private(set) var embeddingModels: [EmbeddingModel] = []
+    @Published private(set) var embeddingModelStatus = ""
+    @Published private(set) var semanticIndexNeedsPreparation = false
+    private var profileRevision = UUID()
+    private var modelRefreshID = UUID()
+
+    var hasEmbeddingProfile: Bool { !embeddingModelName.isEmpty && embeddingDimensions > 0 }
+
+    private var embeddingFields: [String: Any] {
+        guard hasEmbeddingProfile else { return [:] }
+        return ["embedding": ["model": embeddingModelName, "dimensions": embeddingDimensions,
+                              "document_prefix": documentPrefix, "query_prefix": queryPrefix]]
+    }
+
+    private var retrievalFields: [String: Any] {
+        var fields = embeddingFields
+        fields["search_mode"] = searchMode.rawValue
+        fields["min_similarity"] = minimumSimilarity
+        return fields
+    }
+
+    private func invalidateSearchResults() {
+        searchRequestID = UUID()
+        isSearching = false
+        hits = []
+        searchErrorDetails = nil
+        searchWarnings = []
+        answerText = nil
+        answerSources = []
+    }
+
+    private func invalidateSearchProfile() {
+        profileRevision = UUID()
+        invalidateSearchResults()
+        sourceIndexStatuses = [:]
+        semanticIndexNeedsPreparation = hasEmbeddingProfile
+        searchStatus = text("Настройки поиска изменены. Подготовьте индекс и повторите поиск.")
+        // Stop an old-profile batch; a new preparation will use the current profile.
+        if let folderID = activeIndexFolderID { cancelIndexing(for: folderID, removing: false) }
+    }
+
+    func prepareSemanticIndex() {
+        guard hasEmbeddingProfile else { return }
+        semanticIndexNeedsPreparation = false
+        // Active cancellation is asynchronous, so requeue it explicitly for the new profile.
+        if let activeID = activeIndexFolderID,
+           let folder = folders.first(where: { $0.id == activeID }),
+           !pendingIndexFolders.contains(where: { $0.id == activeID }) {
+            pendingIndexFolders.append(folder)
+        }
+        indexFolders(folders)
+    }
+
     @Published var modelStatus = "Список моделей загружается с локального Ollama."
     @Published var ollamaStatus = "Проверка Ollama…"
     @Published var language: AppLanguage {
@@ -253,6 +368,17 @@ final class StudyAgentModel: ObservableObject {
         let savedTheme = defaults.string(forKey: Keys.theme).flatMap(AppTheme.init(rawValue:))
         theme = savedTheme ?? .system
         modelName = defaults.string(forKey: Keys.model) ?? "qwen3.5:4b"
+        embeddingModelName = defaults.string(forKey: Keys.embeddingModel) ?? ""
+        embeddingDimensions = defaults.integer(forKey: Keys.embeddingDimensions)
+        documentPrefix = defaults.string(forKey: Keys.documentPrefix) ?? ""
+        queryPrefix = defaults.string(forKey: Keys.queryPrefix) ?? ""
+        if defaults.object(forKey: Keys.minimumSimilarity) == nil {
+            let legacyThreshold = defaults.object(forKey: Keys.legacyMinimumSimilarity) as? Double
+            minimumSimilarity = legacyThreshold.flatMap { $0 == 0.35 ? nil : $0 } ?? 0.65
+        } else {
+            minimumSimilarity = defaults.double(forKey: Keys.minimumSimilarity)
+        }
+        searchMode = defaults.string(forKey: Keys.searchMode).flatMap(SearchMode.init(rawValue:)) ?? .lexical
         highContrast = defaults.bool(forKey: Keys.highContrast)
         reduceMotion = defaults.bool(forKey: Keys.reduceMotion)
         folders = Self.decodeFolders(from: defaults.data(forKey: Keys.folders))
@@ -356,6 +482,7 @@ final class StudyAgentModel: ObservableObject {
         }
         saveFolders()
         if added > 0 {
+            invalidateSearchResults()
             selectedSection = .library
             if didScheduleInitialIndex { indexFolders(addedFolders) }
             refreshSources()
@@ -363,6 +490,7 @@ final class StudyAgentModel: ObservableObject {
     }
 
     func removeFolder(_ folder: SavedFolder) {
+        invalidateSearchResults()
         let root = SavedFolder.path(of: folder)
         cancelIndexing(for: folder.id, removing: true)
         folders.removeAll { $0.id == folder.id }
@@ -375,6 +503,7 @@ final class StudyAgentModel: ObservableObject {
     }
 
     func removeFolder(at path: String) {
+        invalidateSearchResults()
         if let folder = folders.first(where: { SavedFolder.path(of: $0) == path }) {
             cancelIndexing(for: folder.id, removing: true)
         }
@@ -474,11 +603,18 @@ final class StudyAgentModel: ObservableObject {
         guard let status else {
             return L10n.format("%d документов", language: language, source.documentCount)
         }
-        return L10n.format("%d документов · %d фрагментов", language: language, status.documents, status.chunks)
+        let summary = L10n.format("%d документов · %d фрагментов", language: language, status.documents, status.chunks)
+        if let total = status.embeddingTotal, let ready = status.embeddingReady, hasEmbeddingProfile {
+            return summary + " · " + L10n.format("Векторы: %d из %d", language: language, ready, total)
+        }
+        return summary
     }
 
     func progressLabel(for source: SourceSummary) -> String? {
         guard let progress = indexingProgress[SavedFolder.canonicalPath(source.path)] else { return nil }
+        if progress.phase == "embedding" {
+            return L10n.format("Расчёт эмбеддингов: %d из %d", language: language, progress.current, progress.total)
+        }
         let count = L10n.format("Обработано: %d · Пропущено: %d · Ошибок: %d", language: language, progress.indexed + progress.partial, progress.skipped, progress.failed)
         if progress.total > 0 {
             return L10n.format("Обрабатываются документы: %d из %d\n%@", language: language, progress.current, progress.total, count)
@@ -488,6 +624,12 @@ final class StudyAgentModel: ObservableObject {
 
     func issueMessage(_ code: String) -> String {
         switch code {
+        case "embedding_error": return text("Не удалось рассчитать эмбеддинги. Проверьте локальную модель и повторите подготовку индекса.")
+        case "embedding_required": return text("Выберите установленную embedding-модель в настройках поиска.")
+        case "model_unavailable": return text("Локальная модель недоступна. Обновите список моделей в настройках.")
+        case "invalid_citations": return text("Модель вернула непроверяемые ссылки. Найденные фрагменты доступны ниже.")
+        case "ollama_error": return text("Локальная Ollama не завершила генерацию. Проверьте доступность модели и повторите запрос.")
+        case "no_context": return text("В материалах недостаточно данных для ответа.")
         case "document_extraction_failed": return text("Не удалось прочитать документ. Проверьте файл и повторите обработку.")
         case "ocr_failed": return text("Не удалось выполнить OCR. Проверьте Chandra OCR в настройках.")
         case "document_disappeared": return text("Файл исчез во время обработки. Проверьте папку и повторите синхронизацию.")
@@ -512,11 +654,16 @@ final class StudyAgentModel: ObservableObject {
     }
 
     private func refreshIndexStatuses(for sources: [SourceSummary]) {
+        let revision = profileRevision
+        let profile = embeddingFields
         Task {
             for source in sources {
                 let root = SavedFolder.canonicalPath(source.path)
                 do {
-                    let response = try await bridge.request(command: "index_status", fields: ["root": source.path])
+                    var fields = profile
+                    fields["root"] = source.path
+                    let response = try await bridge.request(command: "index_status", fields: fields)
+                    guard revision == profileRevision else { return }
                     let data = try JSONSerialization.data(withJSONObject: response, options: [.fragmentsAllowed])
                     let status = try JSONDecoder().decode(IndexStatus.self, from: data)
                     sourceIndexStatuses[root] = status
@@ -620,10 +767,11 @@ final class StudyAgentModel: ObservableObject {
                         activeIndexOperationID = nil
                         continue
                     }
+                    let fields = embeddingFields.merging(["root": root.path]) { _, new in new }
                     let task = Task {
                         try await bridge.requestStreaming(
                         command: "sync_source",
-                        fields: ["root": root.path],
+                        fields: fields,
                         progress: { update in
                             guard self.activeIndexFolderID == folder.id,
                                   self.activeIndexOperationID == operationID,
@@ -711,6 +859,7 @@ final class StudyAgentModel: ObservableObject {
     }
 
     func refreshModels() {
+        refreshEmbeddingModels()
         modelStatus = text("Подключение к локальному Ollama…")
         Task {
             do {
@@ -728,10 +877,34 @@ final class StudyAgentModel: ObservableObject {
         }
     }
 
+    func refreshEmbeddingModels() {
+        modelRefreshID = UUID()
+        let refreshID = modelRefreshID
+        Task {
+            do {
+                let response = try await bridge.request(command: "list_embedding_models")
+                guard refreshID == modelRefreshID else { return }
+                embeddingModels = try response.decode("models", as: [EmbeddingModel].self)
+                if let selected = embeddingModels.first(where: { $0.name == embeddingModelName }),
+                   selected.dimensions != embeddingDimensions {
+                    embeddingDimensions = selected.dimensions
+                    invalidateSearchProfile()
+                }
+                embeddingModelStatus = embeddingModels.isEmpty
+                    ? text("Нет установленных embedding-моделей. Установите модель в Ollama и обновите список.")
+                    : text("Используются только установленные локальные модели. Загрузка не запускается.")
+            } catch {
+                guard refreshID == modelRefreshID else { return }
+                embeddingModels = []
+                embeddingModelStatus = localizedError(error)
+            }
+        }
+    }
+
     func saveModel() {
         let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            modelStatus = text("Укажите тег модели Ollama.")
+            modelName = ""
             return
         }
         modelName = trimmed
@@ -742,6 +915,7 @@ final class StudyAgentModel: ObservableObject {
         let searchText = query.trimmingCharacters(in: .whitespacesAndNewlines)
         searchRequestID = UUID()
         let requestID = searchRequestID
+        isSearching = false
         guard !searchText.isEmpty else {
             searchStatus = text("Введите тему или вопрос для поиска.")
             hits = []
@@ -755,64 +929,65 @@ final class StudyAgentModel: ObservableObject {
             return
         }
 
+        guard searchMode == .lexical || hasEmbeddingProfile else {
+            searchStatus = issueMessage("embedding_required")
+            isSearching = false
+            return
+        }
         isSearching = true
         hits = []
+        searchErrorDetails = nil
         searchWarnings = []
         answerText = nil
         answerSources = []
         searchStatus = text("Ищу в подключённых материалах…")
         Task {
             do {
-                let searchResponse = try await bridge.request(command: "search", fields: [
-                    "roots": SavedFolder.searchRoots(folders),
-                    "query": searchText
-                ])
+                var fields = retrievalFields
+                fields["roots"] = SavedFolder.searchRoots(folders)
+                fields["query"] = searchText
+                let searchResponse = try await bridge.request(command: "search", fields: fields)
                 guard requestID == searchRequestID else { return }
                 let found = try searchResponse.decode("hits", as: [SearchHit].self)
                 searchWarnings = (try? searchResponse.decode("warnings", as: [SearchWarning].self)) ?? []
                 hits = found
+                let pending = (try? searchResponse.decode("embedding_pending", as: Bool.self)) ?? false
+                if pending { semanticIndexNeedsPreparation = true }
                 guard !found.isEmpty else {
                     let backendIndexing = (try? searchResponse.decode("indexing", as: Bool.self)) ?? false
-                    searchStatus = backendIndexing || isIndexingFolders
+                    searchStatus = pending ? text("Семантический индекс ещё не готов. Подготовьте его в настройках поиска.") : backendIndexing || isIndexingFolders
                         ? text("Материалы ещё индексируются. Повторите поиск после завершения обработки.")
                         : text("В выбранных материалах не нашёл фрагментов по этому запросу.")
                     isSearching = false
                     return
                 }
-                searchStatus = L10n.format("Нашёл %d фрагментов. Формирую ответ локально…", language: language, found.count)
-                let usedHits = Array(found.prefix(5))
-                let hitValues: [[String: Any]] = usedHits.map { hit in
-                    var value: [String: Any] = [
-                        "title": hit.title,
-                        "document_id": hit.documentID,
-                        "excerpt": hit.excerpt,
-                        "score": hit.score,
-                        "source_root": hit.sourceRoot
-                    ]
-                    if let pageNumber = hit.pageNumber { value["page_number"] = pageNumber }
-                    if let heading = hit.heading { value["heading"] = heading }
-                    if let marker = hit.marker { value["marker"] = marker }
-                    if let extractionType = hit.extractionType { value["extraction_type"] = extractionType }
-                    if let chunkID = hit.chunkID { value["chunk_id"] = chunkID }
-                    return value
+                guard !modelName.isEmpty, modelNames.contains(modelName) else {
+                    searchStatus = pending
+                        ? text("Фрагменты найдены. Семантический индекс ещё не готов; подготовьте его в настройках.")
+                        : L10n.format("Найдено %d фрагментов. Для ответа выберите локальную языковую модель.", language: language, found.count)
+                    isSearching = false
+                    return
                 }
-                let answerResponse = try await bridge.request(command: "answer", fields: [
-                    "model": modelName,
-                    "query": searchText,
-                    "hits": hitValues,
-                    "language": language.rawValue
-                ])
+                searchStatus = L10n.format("Нашёл %d фрагментов. Формирую ответ локально…", language: language, found.count)
+                fields["model"] = modelName
+                fields["language"] = language.rawValue
+                let answerResponse = try await bridge.request(command: "answer", fields: fields)
                 guard requestID == searchRequestID else { return }
                 let generatedAnswer = try answerResponse.decode("answer", as: String.self)
+                let sources = try answerResponse.decode("sources", as: [SearchHit].self)
+                let grounded = try answerResponse.decode("grounded", as: Bool.self)
                 answerText = generatedAnswer.isEmpty ? nil : generatedAnswer
-                answerSources = generatedAnswer.isEmpty ? [] : usedHits
-                searchStatus = L10n.format(
+                answerSources = generatedAnswer.isEmpty || !grounded ? [] : sources
+                searchStatus = grounded ? L10n.format(
                     "Ответ подготовлен локально по %d источникам.",
                     language: language,
-                    usedHits.count
-                )
+                    answerSources.count
+                ) : text("В материалах недостаточно данных для ответа.")
             } catch {
-                if requestID == searchRequestID { searchStatus = localizedError(error) }
+                if requestID == searchRequestID {
+                    searchStatus = localizedError(error)
+                    searchErrorDetails = (error as? BackendClientError)?.technicalDetails
+                }
             }
             if requestID == searchRequestID { isSearching = false }
         }
@@ -843,7 +1018,15 @@ final class StudyAgentModel: ObservableObject {
     }
 
     private func localizedError(_ error: Error) -> String {
-        L10n.text(error.localizedDescription, language: language)
+        if let backend = error as? BackendClientError {
+            if backend.code == "invalid_citations" {
+                return text("Поиск выполнен, ответ модели не показан.") + "\n"
+                    + text(backend.citationReasonMessage) + "\n"
+                    + text("Найденные фрагменты доступны ниже. Сверьте их с оригиналом или повторите ответ с другой локальной моделью.")
+            }
+            return issueMessage(backend.code)
+        }
+        return L10n.text(error.localizedDescription, language: language)
     }
 
     private func saveFolders() {
@@ -943,6 +1126,13 @@ final class StudyAgentModel: ObservableObject {
 }
 
 private enum Keys {
+    static let searchMode = "search.mode.v1"
+    static let embeddingModel = "search.embedding.model.v1"
+    static let embeddingDimensions = "search.embedding.dimensions.v1"
+    static let documentPrefix = "search.embedding.document_prefix.v1"
+    static let queryPrefix = "search.embedding.query_prefix.v1"
+    static let minimumSimilarity = "search.minimum_similarity.v2"
+    static let legacyMinimumSimilarity = "search.minimum_similarity.v1"
     static let folders = "library.bookmarks.v1"
     static let pendingRemovals = "library.pending_removals.v1"
     static let model = "model"
@@ -986,7 +1176,7 @@ private struct MacBackendClient {
                         if error?["code"] as? String == "index_busy" {
                             throw BackendClientError.indexBusy
                         }
-                        throw BackendClientError.backend(code: error?["code"] as? String ?? "backend_error")
+                        throw BackendClientError.fromEnvelope(error)
                     }
                     continuation.resume(returning: result)
                 } catch {
@@ -1058,7 +1248,7 @@ private struct MacBackendClient {
                             if error?["code"] as? String == "index_busy" {
                                 throw BackendClientError.indexBusy
                             }
-                            throw BackendClientError.backend(code: error?["code"] as? String ?? "backend_error")
+                            throw BackendClientError.fromEnvelope(error)
                         }
                         continuation.resume(returning: result)
                     } catch {
@@ -1118,18 +1308,55 @@ private final class BackendProcessControl {
     }
 }
 
-private enum BackendClientError: LocalizedError {
+enum BackendClientError: LocalizedError {
     case missingBackend
     case invalidResponse
     case indexBusy
-    case backend(code: String)
+    case backend(code: String, reason: String? = nil, sourceCount: Int? = nil,
+                 invalidSources: [Int]? = nil, paragraphIndex: Int? = nil,
+                 warningCodes: [String]? = nil, stage: String? = nil, model: String? = nil)
+
+    static func fromEnvelope(_ payload: [String: Any]?) -> BackendClientError {
+        let details = payload?["details"] as? [String: Any]
+        return .backend(code: payload?["code"] as? String ?? "backend_error",
+            reason: payload?["reason"] as? String, sourceCount: details?["source_count"] as? Int,
+            invalidSources: details?["invalid_sources"] as? [Int],
+            paragraphIndex: details?["paragraph_index"] as? Int,
+            warningCodes: details?["warning_codes"] as? [String],
+            stage: payload?["stage"] as? String, model: payload?["model"] as? String)
+    }
+
+    var citationReasonMessage: String {
+        guard case .backend(_, let reason, _, _, _, _, _, _) = self else { return "" }
+        switch reason {
+        case "missing_citations": return "Модель не указала ссылки на найденные источники."
+        case "unknown_source": return "Модель сослалась на источник, которого нет в переданном контексте."
+        case "uncited_paragraph": return "В ответе есть содержательный абзац без ссылки на источник."
+        case "generated_links": return "Модель добавила внешнюю или Markdown-ссылку вместо проверяемого номера источника."
+        case "source_quality": return "В найденном материале обнаружены признаки ошибки распознавания формулы; достоверность ответа не подтверждена."
+        default: return "Ответ не прошёл проверку ссылок на источники."
+        }
+    }
+
+    var technicalDetails: String {
+        guard case .backend(let code, let reason, let count, let invalid, let paragraph, let warnings, let stage, let model) = self else { return code }
+        var fields = ["code: \(code)"]
+        if let reason { fields.append("reason: \(reason)") }
+        if let stage { fields.append("stage: \(stage)") }
+        if let model { fields.append("model: \(model)") }
+        if let count { fields.append("source_count: \(count)") }
+        if let invalid { fields.append("invalid_sources: \(invalid)") }
+        if let paragraph { fields.append("paragraph_index: \(paragraph)") }
+        if let warnings { fields.append("warning_codes: \(warnings.joined(separator: ", "))") }
+        return fields.joined(separator: "\n")
+    }
 
     var code: String {
         switch self {
         case .missingBackend: "backend_missing"
         case .invalidResponse: "backend_invalid_response"
         case .indexBusy: "index_busy"
-        case .backend(let code): code
+        case .backend(let code, _, _, _, _, _, _, _): code
         }
     }
 

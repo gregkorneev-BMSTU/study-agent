@@ -19,6 +19,7 @@ def test_search_ranks_local_files_and_returns_matching_excerpt(tmp_path: Path) -
 
     assert [hit.document_id for hit in hits] == ["strong.md", "weak.txt"]
     assert "Алгоритм" in hits[0].excerpt
+    assert hits[0].chunk_ordinal is not None
 
 
 def test_search_returns_empty_for_nonmatching_query(tmp_path: Path) -> None:

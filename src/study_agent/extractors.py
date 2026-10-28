@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from study_agent.markdown import extract_markdown
 from study_agent.models import ExtractedBlock
 from study_agent.ocr_model import model_directory, model_is_installed
 
@@ -23,7 +24,9 @@ def extract_document(path: Path) -> list[ExtractedBlock]:
     """Extract document blocks; use local Chandra only when a page needs OCR."""
     suffix = path.suffix.lower()
 
-    if suffix in {".txt", ".md"}:
+    if suffix == ".md":
+        return extract_markdown(path.read_text(encoding="utf-8"))
+    if suffix == ".txt":
         return [
             ExtractedBlock(
                 text=path.read_text(encoding="utf-8"), source_type="text", extraction_type="digital"

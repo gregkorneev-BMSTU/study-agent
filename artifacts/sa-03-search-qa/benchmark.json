@@ -1,0 +1,320 @@
+{
+  "model": "qwen3-embedding:0.6b",
+  "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+  "dimensions": 1024,
+  "query_prefix": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: ",
+  "document_prefix": "",
+  "documents": 8,
+  "chunks": 16,
+  "index_seconds": 0.6233834159793332,
+  "restart_seconds": 0.0018723749963101,
+  "restart_skipped": 16,
+  "resident_model": [
+    {
+      "name": "qwen3-embedding:0.6b",
+      "size": 1239752376,
+      "size_vram": 1239752376,
+      "context_length": 4096
+    }
+  ],
+  "modes": {
+    "lexical": {
+      "recall_at_3": 0.6,
+      "mrr_at_8": 0.6,
+      "mean_seconds": 0.0008013165032025426,
+      "queries": [
+        {
+          "query": "Как называется прямоугольный массив чисел?",
+          "expected": "matrix.md",
+          "top3": [],
+          "seconds": 0.0009702910028863698,
+          "reciprocal_rank": 0
+        },
+        {
+          "query": "Как последовательно исключать неизвестные из системы?",
+          "expected": "gauss.md",
+          "top3": [
+            "dijkstra.md"
+          ],
+          "seconds": 0.0011344579979777336,
+          "reciprocal_rank": 0
+        },
+        {
+          "query": "Как найти самый короткий маршрут при положительных весах?",
+          "expected": "dijkstra.md",
+          "top3": [],
+          "seconds": 0.0008279590110760182,
+          "reciprocal_rank": 0
+        },
+        {
+          "query": "Почему горячий конец металлического стержня нагревает холодный?",
+          "expected": "heat.md",
+          "top3": [],
+          "seconds": 0.0007511249859817326,
+          "reciprocal_rank": 0
+        },
+        {
+          "query": "Как устранить повторение данных и аномалии изменения записей?",
+          "expected": "normalization.md",
+          "top3": [
+            "normalization.md",
+            "normalization.md",
+            "stack.md"
+          ],
+          "seconds": 0.0008512079948559403,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Какой протокол повторно отправляет потерянные пакеты?",
+          "expected": "tcp.md",
+          "top3": [
+            "tcp.md"
+          ],
+          "seconds": 0.000762708019465208,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Чем измеряется мгновенная скорость изменения функции?",
+          "expected": "derivative.md",
+          "top3": [
+            "derivative.md"
+          ],
+          "seconds": 0.0006802499992772937,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "В какой структуре последним добавленный элемент извлекается первым?",
+          "expected": "stack.md",
+          "top3": [
+            "stack.md"
+          ],
+          "seconds": 0.000712667009793222,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "TCP",
+          "expected": "tcp.md",
+          "top3": [
+            "tcp.md"
+          ],
+          "seconds": 0.00064504100009799,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Метод Гаусса",
+          "expected": "gauss.md",
+          "top3": [
+            "gauss.md"
+          ],
+          "seconds": 0.0006774580106139183,
+          "reciprocal_rank": 1.0
+        }
+      ]
+    },
+    "semantic": {
+      "recall_at_3": 1.0,
+      "mrr_at_8": 1.0,
+      "mean_seconds": 0.06220689970068634,
+      "queries": [
+        {
+          "query": "Как называется прямоугольный массив чисел?",
+          "expected": "matrix.md",
+          "top3": [
+            "matrix.md",
+            "gauss.md",
+            "derivative.md"
+          ],
+          "seconds": 0.04949287499766797,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Как последовательно исключать неизвестные из системы?",
+          "expected": "gauss.md",
+          "top3": [
+            "gauss.md"
+          ],
+          "seconds": 0.0683815410011448,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Как найти самый короткий маршрут при положительных весах?",
+          "expected": "dijkstra.md",
+          "top3": [
+            "dijkstra.md"
+          ],
+          "seconds": 0.060506499983603135,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Почему горячий конец металлического стержня нагревает холодный?",
+          "expected": "heat.md",
+          "top3": [
+            "heat.md"
+          ],
+          "seconds": 0.05881337501341477,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Как устранить повторение данных и аномалии изменения записей?",
+          "expected": "normalization.md",
+          "top3": [
+            "normalization.md",
+            "stack.md",
+            "normalization.md"
+          ],
+          "seconds": 0.06708270800299942,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Какой протокол повторно отправляет потерянные пакеты?",
+          "expected": "tcp.md",
+          "top3": [
+            "tcp.md"
+          ],
+          "seconds": 0.06442408301518299,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Чем измеряется мгновенная скорость изменения функции?",
+          "expected": "derivative.md",
+          "top3": [
+            "derivative.md"
+          ],
+          "seconds": 0.06454820799990557,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "В какой структуре последним добавленный элемент извлекается первым?",
+          "expected": "stack.md",
+          "top3": [
+            "stack.md",
+            "stack.md"
+          ],
+          "seconds": 0.08121945799211971,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "TCP",
+          "expected": "tcp.md",
+          "top3": [
+            "tcp.md"
+          ],
+          "seconds": 0.053866583009948954,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Метод Гаусса",
+          "expected": "gauss.md",
+          "top3": [
+            "gauss.md"
+          ],
+          "seconds": 0.053733665990876034,
+          "reciprocal_rank": 1.0
+        }
+      ]
+    },
+    "hybrid": {
+      "recall_at_3": 1.0,
+      "mrr_at_8": 1.0,
+      "mean_seconds": 0.06611837500531692,
+      "queries": [
+        {
+          "query": "Как называется прямоугольный массив чисел?",
+          "expected": "matrix.md",
+          "top3": [
+            "matrix.md",
+            "gauss.md",
+            "derivative.md"
+          ],
+          "seconds": 0.05418820900376886,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Как последовательно исключать неизвестные из системы?",
+          "expected": "gauss.md",
+          "top3": [
+            "gauss.md",
+            "dijkstra.md"
+          ],
+          "seconds": 0.06557679202524014,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Как найти самый короткий маршрут при положительных весах?",
+          "expected": "dijkstra.md",
+          "top3": [
+            "dijkstra.md"
+          ],
+          "seconds": 0.06873366699437611,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Почему горячий конец металлического стержня нагревает холодный?",
+          "expected": "heat.md",
+          "top3": [
+            "heat.md"
+          ],
+          "seconds": 0.07700316599220969,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Как устранить повторение данных и аномалии изменения записей?",
+          "expected": "normalization.md",
+          "top3": [
+            "normalization.md",
+            "normalization.md",
+            "stack.md"
+          ],
+          "seconds": 0.06566991700674407,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Какой протокол повторно отправляет потерянные пакеты?",
+          "expected": "tcp.md",
+          "top3": [
+            "tcp.md"
+          ],
+          "seconds": 0.06624470802489668,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Чем измеряется мгновенная скорость изменения функции?",
+          "expected": "derivative.md",
+          "top3": [
+            "derivative.md"
+          ],
+          "seconds": 0.06718329200521111,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "В какой структуре последним добавленный элемент извлекается первым?",
+          "expected": "stack.md",
+          "top3": [
+            "stack.md",
+            "stack.md"
+          ],
+          "seconds": 0.06679408298805356,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "TCP",
+          "expected": "tcp.md",
+          "top3": [
+            "tcp.md"
+          ],
+          "seconds": 0.058009041007608175,
+          "reciprocal_rank": 1.0
+        },
+        {
+          "query": "Метод Гаусса",
+          "expected": "gauss.md",
+          "top3": [
+            "gauss.md"
+          ],
+          "seconds": 0.0717808750050608,
+          "reciprocal_rank": 1.0
+        }
+      ]
+    }
+  }
+}

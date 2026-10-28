@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from study_agent.indexer import source_id
@@ -22,6 +22,13 @@ class SearchHit:
     marker: str | None = None
     extraction_type: str | None = None
     chunk_id: str | None = None
+    related_count: int = 0
+    quality_warnings: list[str] = field(default_factory=list)
+    full_excerpt: str | None = None
+    matched_excerpts: list[str] = field(default_factory=list)
+    context_excerpts: list[str] = field(default_factory=list)
+    matched_chunk_ids: list[str] = field(default_factory=list)
+    chunk_ordinal: int | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +65,7 @@ def search_sources(
             marker=row["marker"],
             extraction_type=row["extraction_type"],
             chunk_id=row["chunk_id"],
+            chunk_ordinal=row["ordinal"],
         )
         for row in rows
     ]
