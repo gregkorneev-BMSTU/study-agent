@@ -10,7 +10,9 @@
 - [Контракт backend bridge](backend-protocol.md) — JSON Lines команды, ответы и текущие расхождения Windows-клиента (черновик).
 - [ТЗ по исправлениям DOCX extraction](docx-extraction-review-fixes.md) — критерии исправлений и повторной проверки PR #10.
 - [Текущее состояние](current-state.md) — сделанное и незавершённое.
-- [Release notes — Study Agent v1 Beta 5](releases/v1.0.0-beta.5.md) — функции, проверка и ограничения текущего выпуска.
+- [Release notes — Study Agent v1 Beta 6.1](releases/v1.0.0-beta.6.1.md) — последний macOS-выпуск и проверка локального OCR.
+- [Release notes — Study Agent v1 Beta 6](releases/v1.0.0-beta.6.md) — локальный семантический и гибридный поиск, RAG и Markdown/LaTeX.
+- [Release notes — Study Agent v1 Beta 5](releases/v1.0.0-beta.5.md) — предыдущий выпуск.
 - [Release notes — Study Agent v1 Beta 4](releases/v1.0.0-beta.4.md) — предыдущий выпуск.
 - [Дорожная карта](roadmap.md) — этапы дальнейшей работы.
 - [Разработка](development.md) — роли, процесс и Git.
