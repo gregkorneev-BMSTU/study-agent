@@ -137,6 +137,7 @@ class AnswerResult:
     answer: str
     sources: list[SearchHit]
     grounded: bool
+    mode: str = "generated"
 
 
 def refusal(language: str | None) -> str:
@@ -232,10 +233,39 @@ def generate_answer(
         return _validated_answer(content, sources, language)
     except CitationError as error:
         if citation_repair is None:
-            raise
+            return _extractive_fallback(sources, language)
         # One bounded fresh attempt using the same sources; never fabricate citations.
-        content = citation_repair(model, question, context, language, error).strip()
-        return _validated_answer(content, sources, language)
+        try:
+            content = citation_repair(model, question, context, language, error).strip()
+            return _validated_answer(content, sources, language)
+        except CitationError:
+            return _extractive_fallback(sources, language)
+
+
+def _extractive_fallback(sources: list[SearchHit], language: str | None) -> AnswerResult:
+    """Show trusted retrieved text when the model cannot produce verifiable citations."""
+    selected: list[SearchHit] = []
+    intro = (
+        "Ответ модели не удалось проверить. Ниже — найденные фрагменты из материалов."
+        if language != "en"
+        else "The model answer could not be verified. Here are the retrieved source excerpts."
+    )
+    sections = [intro]
+    remaining = 4500
+    for source in sources:
+        if len(selected) == 3:
+            break
+        text = source.excerpt.strip()
+        if not text or remaining <= 0:
+            continue
+        encoded = text.encode("utf-8")
+        if len(encoded) > remaining:
+            continue
+        title = source.title.replace("[", "(").replace("]", ")")
+        sections.append(f"**{title} [{len(selected) + 1}]**\n\n{text}")
+        selected.append(source)
+        remaining -= len(text.encode("utf-8"))
+    return AnswerResult("\n\n".join(sections), selected, True, "source_extract")
 
 
 def _validated_answer(

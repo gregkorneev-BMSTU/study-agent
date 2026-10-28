@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from study_agent.rag import CitationError, build_context, generate_answer
+from study_agent.rag import CitationError, _validated_answer, build_context, generate_answer
 from study_agent.search import SearchHit
 
 
@@ -55,7 +55,7 @@ def test_distinct_source_label_is_normalized_for_display() -> None:
 )
 def test_invalid_citations_never_reach_ui(response) -> None:
     with pytest.raises(CitationError):
-        generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: response)
+        _validated_answer(response, [hit()], None)
 
 
 def test_empty_context_refuses_without_calling_model() -> None:
@@ -103,7 +103,7 @@ def test_context_omits_ocr_formula_numbers_from_prompt_only() -> None:
 )
 def test_model_cannot_invent_clickable_source_links(response) -> None:
     with pytest.raises(CitationError, match="links"):
-        generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: response)
+        _validated_answer(response, [hit()], None)
 
 
 def test_only_cited_sources_are_returned_and_renumbered_together() -> None:
@@ -144,7 +144,7 @@ def test_short_definition_is_not_discarded_as_insufficient() -> None:
 )
 def test_error_has_safe_specific_reason_and_details(response, reason, extra) -> None:
     with pytest.raises(CitationError) as failure:
-        generate_answer("local", "Вопрос?", [hit()], generator=lambda *a, **k: response)
+        _validated_answer(response, [hit()], "ru")
     error = failure.value
     assert error.reason == reason
     assert error.details == {"source_count": 1, **extra}
@@ -255,20 +255,34 @@ def test_citation_repair_runs_once_with_same_context_and_revalidates() -> None:
     assert result.grounded and len(result.sources) == 1
 
 
-def test_failed_citation_repair_does_not_bypass_validation() -> None:
+def test_failed_citation_repair_falls_back_to_retrieved_source_text() -> None:
     calls = []
 
     def repair(*args):
         calls.append(1)
         return 'Непроверенный факт [99].'
 
-    with pytest.raises(CitationError) as failure:
-        generate_answer(
-            'local', 'Вопрос?', [hit()], generator=lambda *a, **k: 'Нет ссылки',
-            citation_repair=repair,
-        )
+    result = generate_answer(
+        'local', 'Вопрос?', [hit('A sufficiently long source excerpt for testing citations.')],
+        generator=lambda *a, **k: 'Нет ссылки',
+        citation_repair=repair,
+    )
     assert calls == [1]
-    assert failure.value.reason == 'unknown_source'
+    assert result.mode == 'source_extract'
+    assert result.grounded
+    assert 'Ответ модели не удалось проверить' in result.answer
+    assert 'A sufficiently long source excerpt for testing citations.' in result.answer
+    assert '[1]' in result.answer
+
+
+def test_unverified_answer_without_repair_uses_source_extract() -> None:
+    result = generate_answer(
+        'local', 'Вопрос?', [hit('A sufficiently long source excerpt for testing citations.')],
+        generator=lambda *a, **k: 'Непроверенный ответ без ссылки.'
+    )
+    assert result.mode == 'source_extract'
+    assert 'Непроверенный ответ' not in result.answer
+    assert 'A sufficiently long source excerpt for testing citations.' in result.answer
 
 
 def test_suspect_source_never_triggers_citation_repair() -> None:
@@ -310,13 +324,12 @@ def test_context_limits_five_sources_and_does_not_leak_sixth_to_generator() -> N
 
 
 def test_citation_repair_does_not_accept_another_uncited_explanation() -> None:
-    with pytest.raises(CitationError) as failure:
-        generate_answer(
-            'local', 'Вопрос?', [hit()], generator=lambda *a, **k: 'Нет ссылки',
-            citation_repair=lambda *a: (
-                'Определение [1].\n\n'
-                'Ещё один содержательный абзац без указания подтверждающего источника.'
-            ),
-        )
-    assert failure.value.reason == 'uncited_paragraph'
-    assert failure.value.details['paragraph_index'] == 2
+    result = generate_answer(
+        'local', 'Вопрос?', [hit()], generator=lambda *a, **k: 'Нет ссылки',
+        citation_repair=lambda *a: (
+            'Определение [1].\n\n'
+            'Ещё один содержательный абзац без указания подтверждающего источника.'
+        ),
+    )
+    assert result.mode == 'source_extract'
+    assert 'Ещё один содержательный абзац' not in result.answer
