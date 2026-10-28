@@ -56,7 +56,7 @@ try {
         @{request_id="diag"; command="diagnose_backend"},
         @{request_id="sync"; command="sync_source"; root=$root},
         @{request_id="status"; command="index_status"; root=$root},
-        @{request_id="search"; command="search"; roots=@($root); query="кинетика"; search_mode="lexical"}
+        @{request_id="search"; command="search"; roots=@($root); query="кинематику"; search_mode="lexical"}
     ) $data
     foreach ($id in @("diag", "sync", "status", "search")) {
         if (-not $first.Final.ContainsKey($id) -or -not $first.Final[$id].ok) {
@@ -69,9 +69,9 @@ try {
 
     Move-Item -LiteralPath $root -Destination $moved
     $offline = Invoke-Backend @(
-        @{request_id="offline"; command="search"; roots=@($root); query="кинетика"; search_mode="lexical"},
+        @{request_id="offline"; command="search"; roots=@($root); query="кинематику"; search_mode="lexical"},
         @{request_id="remove"; command="remove_index_source"; root=$root},
-        @{request_id="after-remove"; command="search"; roots=@($root); query="кинетика"; search_mode="lexical"}
+        @{request_id="after-remove"; command="search"; roots=@($root); query="кинематику"; search_mode="lexical"}
     ) $data
     foreach ($id in @("offline", "remove", "after-remove")) {
         if (-not $offline.Final.ContainsKey($id) -or -not $offline.Final[$id].ok) {
@@ -79,7 +79,7 @@ try {
         }
     }
     if ($offline.Final.offline.result.hits.Count -lt 1) { throw "Offline source stopped participating in saved-index search." }
-    if ($offline.Final.after-remove.result.hits.Count -ne 0) { throw "Removing a source left searchable index records." }
+    if ($offline.Final["after-remove"].result.hits.Count -ne 0) { throw "Removing a source left searchable index records." }
     Write-Host "Packaged backend smoke passed: diagnostics, progress ($progressCount events), Cyrillic indexing/search, offline search, status, and removal."
 }
 finally {
