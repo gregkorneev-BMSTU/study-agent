@@ -210,3 +210,11 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 - DMG `dist/StudyAgent-v1.0.0-beta.5-macos-arm64.dmg`: **233,890,933 байта**; `hdiutil verify` вернул `VALID`. SHA-256: `aad616730d26f2742ecf2deac6c5117d6cfb6f323251dfa240612284de84ba39`.
 - В Info.plist указаны версия `1.0.0` и build `5`; Swift-приложение и backend — arm64. Корень образа содержит `Study Agent.app`, `Applications → /Applications` и `.DS_Store`. После копирования приложения из образа `codesign --verify --deep --strict` прошёл.
 - Упакованный helper ответил на `diagnose_backend`: backend healthy, PDF и Chandra runtime доступны, состояние весов — `missing` после очистки пользовательских данных. Сам inference через упакованный helper и запуск SwiftUI-приложения не выполнялись. DMG ad-hoc подписан, не нотариализован; GitHub pre-release опубликован. `pytest` не запускался.
+
+## Локальная сборка v1 Beta 6 — 2026-10-28
+
+- Исходная ветка `main` после PR #14: `eae9884`. Номер сборки повышен до 6 в Xcode, версия Python — `1.0.0b6`; публикация и тег не создавались.
+- `.venv/bin/python -m pytest -q` с локальной копией Qt platform plugins: **221 passed, 10 skipped**. `.venv/bin/python -m ruff check .` и `git diff --check` прошли. Пропущены opt-in проверки живой модели.
+- `scripts/build_macos_dmg.sh --mode development --suffix beta.6` успешно собрал PyInstaller backend и Xcode Release arm64 app. `hdiutil verify` подтвердил целостность DMG. Размер: **236 474 122 байта**; SHA-256: `8d6bd4ca72e5d7a4aa69e97b237ebdedfcf69f5be836648d8dc9f98dd670f48a`.
+- В образе есть `Study Agent.app`, ссылка `Applications → /Applications` и `.DS_Store`. `Info.plist`: версия 1.0.0, build 6; приложение и helper имеют архитектуру arm64. После копирования в `/tmp` строгая проверка ad-hoc подписи `codesign --verify --deep --strict` прошла. Копия в каталоге Desktop получила `com.apple.FinderInfo` от системы и строгую проверку не прошла; проверка копии в `/tmp` устранила этот артефакт среды.
+- Упакованный helper вернул `backend_healthy=true`, `pdf_available=true`, `ocr_runtime_available=true`, `ocr_weights_state=installed` в текущем пользовательском окружении. Веса не входят в DMG. Живой поиск/RAG и OCR inference внутри упакованного приложения, графический запуск и чистая установка на другом Mac не проверялись.
