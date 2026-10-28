@@ -100,11 +100,23 @@ jobs:
             -c Release -r win-x64 -p:Platform=x64 `
             -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=false
 
-      - name: Upload unsigned Windows Release package
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows setup executable
+        run: .\scripts\build_windows_installer.ps1
+
+      - name: Smoke test setup executable installation
+        run: |
+          .\build\windows-installer\StudyAgentSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          $package = Get-AppxPackage -Name "A6D533F4-96F9-4F91-810B-5721FF5A86CA"
+          if (-not $package) { throw "Study Agent package was not registered by Setup.exe." }
+          Remove-AppxPackage -Package $package.PackageFullName
+
+      - name: Upload Windows setup executable
         uses: actions/upload-artifact@v4
         with:
-          name: study-agent-windows-release-unsigned
+          name: study-agent-windows-setup
           path: |
-            build/windows-backend/StudyAgentBackend.zip
-            windows/StudyAgent.Windows/AppPackages/**/*.msix
+            build/windows-installer/StudyAgentSetup.exe
           if-no-files-found: error
