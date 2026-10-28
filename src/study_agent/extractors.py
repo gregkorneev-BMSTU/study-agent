@@ -238,7 +238,11 @@ def _ocr_image(image: Any) -> str:
             raise RuntimeError(
                 "OCR model is unavailable locally. Open Components & Diagnostics in Settings."
             ) from error
-    result = _manager.generate([BatchInputItem(image=image, prompt_type="ocr_layout")])[0]
+    result = _manager.generate(
+        [BatchInputItem(image=image, prompt_type="ocr_layout")],
+        max_output_tokens=4096,
+        include_headers_footers=False
+    )[0]
     if result.error:
         raise RuntimeError("Chandra could not extract text from this page.")
     return result.markdown.strip()

@@ -22,7 +22,7 @@ Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend
 
 ```sh
 ./scripts/build_macos_native_app.sh
-./scripts/build_macos_dmg.sh --mode development --suffix beta.4
+./scripts/build_macos_dmg.sh --mode development --suffix beta.5
 ```
 
 Скрипт DMG может использовать готовый `.app` через `--app`, чтобы не повторять сборку. Версию и номер сборки он читает из `Info.plist`, которые заданы `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` Xcode. Development-режим подписан ad-hoc и подходит для локальной проверки; он не является нотариализованным дистрибутивом.
@@ -33,7 +33,7 @@ Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend
 
 ## Публикация
 
-Опубликованный выпуск: **Study Agent v1 Beta 4**, тег `v1.0.0-beta.4`, Xcode `CURRENT_PROJECT_VERSION = 4`, файл `StudyAgent-v1.0.0-beta.4-macos-arm64.dmg`. Release assets и двуязычные release notes находятся на [странице GitHub Release](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.4) и в [`wiki/releases/v1.0.0-beta.4.md`](releases/v1.0.0-beta.4.md). Перед каждым новым GitHub Release выполнить Python/Xcode проверки, убедиться, что DMG соответствует коммиту и тегу, проверить состав образа и подпись извлечённого приложения, вычислить SHA-256 и перечислить функции/ограничения на русском и английском. Для ad-hoc сборки использовать пометку **pre-release / test build** с явным предупреждением об отсутствии Developer ID и нотариализации. При появлении Developer ID и успешной нотариализации выпускать новый артефакт с новым номером сборки/тегом, не подменяя старые файлы.
+Опубликованный выпуск: **Study Agent v1 Beta 5**, тег `v1.0.0-beta.5`, Xcode `CURRENT_PROJECT_VERSION = 5`, файл `StudyAgent-v1.0.0-beta.5-macos-arm64.dmg`. Release assets и двуязычные release notes находятся на [странице GitHub Release](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.5) и в [`wiki/releases/v1.0.0-beta.5.md`](releases/v1.0.0-beta.5.md). Перед каждым новым GitHub Release выполнить Python/Xcode проверки, убедиться, что DMG соответствует коммиту и тегу, проверить состав образа и подпись извлечённого приложения, вычислить SHA-256 и перечислить функции/ограничения на русском и английском. Для ad-hoc сборки использовать пометку **pre-release / test build** с явным предупреждением об отсутствии Developer ID и нотариализации. При появлении Developer ID и успешной нотариализации выпускать новый артефакт с новым номером сборки/тегом, не подменяя старые файлы.
 
 Для Beta 3 `hdiutil verify` подтвердил целостность DMG. Строгая проверка непосредственно на смонтированном HFS+ томе показывает FinderInfo extended attributes на вложенных файлах лицензий; после копирования `.app` в обычный каталог `codesign --verify --deep --strict` проходит. Зафиксируйте оба результата и не называйте сборку нотариализованной.
 
