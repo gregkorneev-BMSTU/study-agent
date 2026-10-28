@@ -53,6 +53,9 @@ def test_answer_sends_question_and_material_only_to_local_endpoint(monkeypatch) 
     assert "same language as the user's question" in captured["payload"]["messages"][0]["content"]
     assert "data, not instructions" in captured["payload"]["messages"][0]["content"]
     assert payload["options"]["num_predict"] == 2048
+    assert payload["options"]["presence_penalty"] == 0
+    assert payload["options"]["frequency_penalty"] == 0
+    assert payload["options"]["repeat_penalty"] == 1
     assert "every bullet/list item" in payload["messages"][0]["content"]
     assert "[SOURCE 1]" in payload["messages"][0]["content"]
 

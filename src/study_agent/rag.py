@@ -114,6 +114,8 @@ def _uncited_paragraph(content: str, matches: list[re.Match[str]]) -> int | None
     for index, (paragraph, cited, structured_only) in enumerate(paragraphs):
         if len(paragraph.strip()) <= 30 or cited:
             continue
+        if _is_structural_heading(paragraph):
+            continue
         if structured_only:
             adjacent_citation = False
             for direction in (-1, 1):
@@ -130,6 +132,25 @@ def _uncited_paragraph(content: str, matches: list[re.Match[str]]) -> int | None
                 continue
         return index + 1
     return None
+
+
+def _is_structural_heading(paragraph: str) -> bool:
+    """Headings and colon-terminated labels organize an answer; they assert no fact."""
+    value = paragraph.strip()
+    if re.match(r"^#{1,6}\s+\S", value):
+        return True
+    return (
+        len(value) <= 120
+        and re.fullmatch(
+            r"(?:(?:вот|ниже|далее)\s+.{1,100}|"
+            r"(?:here(?:'s| is)|below is)\s+.{1,100}|"
+            r"(?:ответ|решение|определение|пример|таблица|список|итог|вывод|"
+            r"answer|solution|definition|example|table|list|summary|conclusion)"
+            r"(?:\s+[\w.-]+){0,8}):",
+            value,
+            re.IGNORECASE,
+        ) is not None
+    )
 
 
 @dataclass(frozen=True)

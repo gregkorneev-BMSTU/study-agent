@@ -85,7 +85,17 @@ def answer(
             "think": False,
             # The previous 768-token output cap truncated answers to large formula
             # tables before Gemma could emit their required source labels.
-            "options": {"num_ctx": 8192, "num_predict": ANSWER_NUM_PREDICT, "temperature": 0},
+            "options": {
+                "num_ctx": 8192,
+                "num_predict": ANSWER_NUM_PREDICT,
+                "temperature": 0,
+                # Model Modelfiles can set penalties that discourage repeated citation
+                # labels. Use a neutral profile so changing the selected model does not
+                # silently change the answer contract.
+                "presence_penalty": 0,
+                "frequency_penalty": 0,
+                "repeat_penalty": 1,
+            },
             "messages": [
                 {
                     "role": "system",

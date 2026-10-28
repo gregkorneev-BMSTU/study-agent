@@ -35,6 +35,32 @@ def test_grounded_answer_retains_exact_snippet_and_page() -> None:
     assert "/synthetic" not in seen["context"]
 
 
+def test_structural_intro_and_cited_formula_list_are_valid() -> None:
+    answer = (
+        "Вот таблица интегралов из материала:\n\n"
+        "* $\\int 1\\,dx=x+C$ [SOURCE 1]\n"
+        "* $\\int x\\,dx=\\frac{x^2}{2}+C$ [SOURCE 1]"
+    )
+    result = generate_answer(
+        "local", "Покажи таблицу интегралов.", [hit()], generator=lambda *a, **k: answer
+    )
+    assert result.grounded
+    assert result.answer.count("[1]") == 2
+    assert result.answer.startswith("Вот таблица интегралов из материала:")
+
+
+def test_uncited_factual_claim_ending_with_colon_is_still_rejected() -> None:
+    with pytest.raises(CitationError) as failure:
+        generate_answer(
+            "local", "Вопрос?", [hit()],
+            generator=lambda *a, **k: (
+                "Полученная математическая формула из этого расчёта неверна:\n\n"
+                "Подтверждённое утверждение из источника [1]."
+            ),
+        )
+    assert failure.value.reason == "uncited_paragraph"
+
+
 def test_distinct_source_label_is_normalized_for_display() -> None:
     result = generate_answer(
         "local", "Что такое матрица?", [hit()],
