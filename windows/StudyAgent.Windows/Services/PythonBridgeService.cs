@@ -66,10 +66,10 @@ public sealed class PythonBridgeService
     }
 
     public Task<JsonDocument> DiagnoseAsync(CancellationToken token = default) =>
-        SendAsync(Request("diagnose_backend"), token: token);
+        SendAsync(Request("diagnose_backend"), cancellationToken: token);
 
     public Task<JsonDocument> ListSourcesAsync(string[] roots, CancellationToken token = default) =>
-        SendAsync(Request("list_sources", ("roots", roots)), token: token);
+        SendAsync(Request("list_sources", ("roots", roots)), cancellationToken: token);
 
     public Task<JsonDocument> SyncSourceAsync(string root, CancellationToken token = default,
         Action<JsonElement>? progress = null, EmbeddingProfile? embedding = null, bool verifyHash = false) =>
@@ -79,10 +79,10 @@ public sealed class PythonBridgeService
 
     public Task<JsonDocument> IndexStatusAsync(string root, EmbeddingProfile? embedding = null,
         CancellationToken token = default) =>
-        SendAsync(Request("index_status", ("root", root), ("embedding", embedding is null ? null : Embedding(embedding))), token: token);
+        SendAsync(Request("index_status", ("root", root), ("embedding", embedding is null ? null : Embedding(embedding))), cancellationToken: token);
 
     public Task<JsonDocument> RemoveIndexSourceAsync(string root, CancellationToken token = default) =>
-        SendAsync(Request("remove_index_source", ("root", root)), token: token);
+        SendAsync(Request("remove_index_source", ("root", root)), cancellationToken: token);
 
     public Task<JsonDocument> SearchAsync(string[] roots, string query, string mode,
         EmbeddingProfile? embedding = null, CancellationToken token = default,
@@ -91,10 +91,10 @@ public sealed class PythonBridgeService
             ("embedding", embedding is null ? null : Embedding(embedding))), 240, token, progress);
 
     public Task<JsonDocument> ListModelsAsync(CancellationToken token = default) =>
-        SendAsync(Request("list_models"), token: token);
+        SendAsync(Request("list_models"), cancellationToken: token);
 
     public Task<JsonDocument> ListEmbeddingModelsAsync(CancellationToken token = default) =>
-        SendAsync(Request("list_embedding_models"), token: token);
+        SendAsync(Request("list_embedding_models"), cancellationToken: token);
 
     public Task<JsonDocument> InstallOcrModelAsync(CancellationToken token = default,
         Action<JsonElement>? progress = null) =>
