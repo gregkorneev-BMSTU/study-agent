@@ -78,7 +78,7 @@ Backend smoke создаёт временные кириллические TXT/M
 
 - Для пробы скачайте artifact `study-agent-windows-setup` из [Actions run 40780072886](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40780072886) и извлеките `StudyAgentSetup.exe` из ZIP. Размер ZIP — 395,680,424 байта, SHA-256 `a413c2f5816969ee34d5c1667d5c748e77ded704a83594fae859f70fe6d87ad4`. Вход в GitHub может потребоваться. Срок хранения артефакта истекает 27 января 2027 года в 01:27 по Москве.
 - В этом run на Windows Server 2022 x64 (build 20348) и Windows 11 ARM64 (build 26200, x64 emulation) успешно проверены установка, распаковка backend архивом .NET, synthetic backend smoke, запуск процесса приложения на 15 секунд, деинсталляция и сохранение файла пользовательских данных. Интерактивная работа UI и Windows 10 не проверены.
-- Общий статус этого run — failure: Linux pytest не смог импортировать тестовый скрипт из `scripts`. Импорт исправлен следующим коммитом `3cda0ad`; он изменяет только тест, а не файлы приложения, использованные в этом установщике.
+- Общий статус этого run — failure: Linux pytest не смог импортировать тестовый скрипт из `scripts`. Импорт исправлен следующим коммитом `3cda0ad`; он изменяет только тест, а не файлы приложения, использованные в этом установщике. Повторный [run 40781291563](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40781291563) полностью прошёл, включая Linux и оба Windows installer smoke.
 - Старые artifact из run 40771990479 и 40777451857 не следует использовать: первый отклоняет ARM64, а оба содержат архив backend с повторяющимися путями лицензий.
 
 - Host: macOS 27 arm64, Python 3.12.15. Windows/.NET/PowerShell отсутствуют.

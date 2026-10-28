@@ -6,7 +6,7 @@
 
 Первая проверка автономного установщика выявила повторяющиеся пути лицензий в архиве backend. Упаковщик сохраняет все такие файлы под уникальными путями с учётом регистра Windows; `tests/test_windows_packaging.py` проверяет коллизию имён и распаковку. Проверка установленного backend использует тот же `ZipFile.ExtractToDirectory`, что и приложение.
 
-После исправления импорта в [run 40781291563](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40781291563) прошли Linux Python 3.12 и 3.13 pytest + Ruff. Остальные задания этого run на момент записи ещё выполняются.
+После исправления импорта [run 40781291563](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40781291563) полностью прошёл: Linux Python 3.12 и 3.13 pytest + Ruff, macOS client, Windows Python и сборка, установка, синтетический backend smoke и запуск процесса приложения на Windows Server x64 и Windows 11 ARM64. Код приложения по сравнению с опубликованным установщиком не менялся.
 
 - Добавлен тест `tests/test_windows_packaging.py` для структуры ZIP, исполняемого файла, Python runtime и notice-файлов. Команда `.venv/bin/python -m pytest -q tests/test_windows_packaging.py`: **1 passed**.
 - `.venv/bin/python -m ruff check .`: **успешно**. Полный `pytest` на macOS аварийно завершился с Python `Fatal error: Aborted` при создании Qt `QApplication` в `tests/test_switch.py`; повтор без этого файла дошёл до `tests/test_ui_retrieval.py` и завершился той же Cocoa ошибкой. ОС — macOS 27 arm64, Python 3.12.15. Это не подтверждает результат тестового набора.
