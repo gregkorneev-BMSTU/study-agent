@@ -56,8 +56,11 @@ def test_answer_sends_question_and_material_only_to_local_endpoint(monkeypatch) 
     assert "every bullet/list item" in payload["messages"][0]["content"]
     assert "[SOURCE 1]" in payload["messages"][0]["content"]
     system = payload["messages"][0]["content"]
-    assert "preserving its Markdown structure and source order" in system
-    assert "Do not add a title, introduction, explanation, summary" in system
+    assert "Give the minimum answer that fully satisfies the question" in system
+    assert "Add only the Markdown structure needed to make the information easier to read" in system
+    assert "Answer directly, not as a letter" in system
+    assert "Preserve all relevant facts and conditions" in system
+    assert "citations already show provenance" in system
 
 
 def test_answer_uses_selected_interface_language(monkeypatch) -> None:

@@ -95,6 +95,12 @@ def test_real_model_answer(case, monkeypatch, live_report) -> None:
     assert sorted(item['document_id'] for item in result['sources']) == sorted(
         case['expected_documents'])
     normalized = re.sub(r'\s+|\\,|\\!', '', result['answer']).lower()
+    assert not re.match(
+        r"\s*(?:вот ответ|конечно|с удовольствием|согласно материалам|"
+        r"по материалам|according to (?:the )?(?:material|source)|"
+        r"here(?:'s| is) the answer|sure[,!])\b",
+        result['answer'], re.IGNORECASE,
+    ), result['answer']
     for group in case['term_groups']:
         assert any(term.lower() in normalized for term in group), (group, result['answer'])
     for term in case.get('forbidden', []):
