@@ -7,6 +7,10 @@ $uninstallKey = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{A6D533F4-9
 if ((Test-Path "HKCU:\$uninstallKey") -or (Test-Path "HKLM:\$uninstallKey")) {
     throw "An existing Study Agent installation was found; run this smoke test on a clean machine."
 }
+$existingData = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'StudyAgent'
+if (Test-Path -LiteralPath $existingData) {
+    throw "Study Agent user data already exists; run this smoke test on a clean machine."
+}
 $sandbox = Join-Path $env:TEMP ("Study Agent setup smoke " + [guid]::NewGuid())
 $installDir = Join-Path $sandbox "installed app"
 $log = Join-Path $sandbox "setup.log"
@@ -31,11 +35,16 @@ try {
     $app.Refresh()
     if ($app.HasExited) { throw "Installed application exited at startup with code $($app.ExitCode)." }
     Stop-Process -Id $app.Id -Force
+    $app.WaitForExit()
+    New-Item -ItemType Directory -Path $existingData -Force | Out-Null
+    $marker = Join-Path $existingData 'uninstall-preservation-smoke.txt'
+    Set-Content -LiteralPath $marker -Value 'synthetic user data' -Encoding utf8
     $uninstall = Start-Process -FilePath (Join-Path $installDir 'unins000.exe') `
         -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
     if ($uninstall.ExitCode -ne 0 -or (Test-Path (Join-Path $installDir 'StudyAgent.Windows.exe'))) {
         throw "Uninstall failed with code $($uninstall.ExitCode)."
     }
+    if (-not (Test-Path -LiteralPath $marker)) { throw "Uninstall removed user data." }
     Write-Host 'Installed application, synthetic backend, startup and uninstall smoke passed.'
 }
 finally {

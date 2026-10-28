@@ -2,7 +2,7 @@
 
 ## Windows PR #13: CI сборки и synthetic smoke — 2026-10-28
 
-Для ручной пробы установщика: откройте успешный [Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479), скачайте artifact `study-agent-windows-setup` из блока **Artifacts** и извлеките `StudyAgentSetup.exe`. GitHub API URL артефакта требует авторизации. Установщик собран, но интерактивная установка и запуск на обычной Windows 10/11 машине ещё не подтверждены.
+Установщик из [Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479) устарел: он отклоняет ARM64, а установка unsigned MSIX рассчитана на Windows 11. Новый автономный установщик подготовлен для Windows 10/11 x64 и Windows 11 ARM64; интерактивная приёмка остаётся открытой.
 
 - Добавлен тест `tests/test_windows_packaging.py` для структуры ZIP, исполняемого файла, Python runtime и notice-файлов. Команда `.venv/bin/python -m pytest -q tests/test_windows_packaging.py`: **1 passed**.
 - `.venv/bin/python -m ruff check .`: **успешно**. Полный `pytest` на macOS аварийно завершился с Python `Fatal error: Aborted` при создании Qt `QApplication` в `tests/test_switch.py`; повтор без этого файла дошёл до `tests/test_ui_retrieval.py` и завершился той же Cocoa ошибкой. ОС — macOS 27 arm64, Python 3.12.15. Это не подтверждает результат тестового набора.

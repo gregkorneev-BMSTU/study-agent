@@ -3,6 +3,8 @@
 $root = Split-Path -Parent $PSScriptRoot
 $publishDirectory = Join-Path $root "build\windows-publish"
 $outputDirectory = Join-Path $root "build\windows-installer"
+$prerequisiteDirectory = Join-Path $root "build\windows-prerequisites"
+$webViewBootstrapper = Join-Path $prerequisiteDirectory "MicrosoftEdgeWebview2Setup.exe"
 $script = Join-Path $root "windows\StudyAgentSetup.iss"
 
 if (-not (Test-Path $script)) {
@@ -24,8 +26,18 @@ foreach ($required in @("StudyAgent.Windows.exe", "Backend.zip", "Microsoft.UI.X
     }
 }
 
+New-Item -ItemType Directory -Path $prerequisiteDirectory -Force | Out-Null
+if (-not (Test-Path $webViewBootstrapper)) {
+    Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $webViewBootstrapper
+}
+$signature = Get-AuthenticodeSignature -LiteralPath $webViewBootstrapper
+if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notlike "*CN=Microsoft Corporation*") {
+    throw "WebView2 bootstrapper is not signed by Microsoft or its signature is invalid: $webViewBootstrapper"
+}
+
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 $env:STUDY_AGENT_PUBLISH_DIR = $publishDirectory
+$env:STUDY_AGENT_WEBVIEW_BOOTSTRAPPER = $webViewBootstrapper
 $env:STUDY_AGENT_INSTALLER_OUTPUT = $outputDirectory
 & $compiler /Qp $script
 if ($LASTEXITCODE -ne 0) {

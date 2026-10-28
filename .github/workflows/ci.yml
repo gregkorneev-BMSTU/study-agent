@@ -112,9 +112,6 @@ jobs:
       - name: Build Windows setup executable
         run: .\scripts\build_windows_installer.ps1
 
-      - name: Smoke test installed application on x64
-        run: .\scripts\smoke_windows_installer.ps1 -SetupPath .\build\windows-installer\StudyAgentSetup.exe
-
       - name: Upload Windows setup executable
         uses: actions/upload-artifact@v4
         with:
@@ -122,6 +119,20 @@ jobs:
           path: |
             build/windows-installer/StudyAgentSetup.exe
           if-no-files-found: error
+
+  windows-x64-installer:
+    name: Install x64 setup on Windows Server
+    needs: windows-checks
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: study-agent-windows-setup
+          path: installer
+      - name: Install and run application
+        shell: pwsh
+        run: .\scripts\smoke_windows_installer.ps1 -SetupPath .\installer\StudyAgentSetup.exe
 
   windows-arm-installer:
     name: Install x64 setup on Windows 11 ARM
