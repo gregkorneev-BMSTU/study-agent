@@ -109,9 +109,10 @@ jobs:
       - name: Smoke test setup executable installation
         run: |
           .\build\windows-installer\StudyAgentSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-          $package = Get-AppxPackage -Name "A6D533F4-96F9-4F91-810B-5721FF5A86CA"
-          if (-not $package) { throw "Study Agent package was not registered by Setup.exe." }
-          Remove-AppxPackage -Package $package.PackageFullName
+          $nativePowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+          & $nativePowerShell -NoProfile -ExecutionPolicy Bypass -Command `
+            '$package = Get-AppxPackage -Name "A6D533F4-96F9-4F91-810B-5721FF5A86CA"; if (-not $package) { exit 2 }; Remove-AppxPackage -Package $package.PackageFullName'
+          if ($LASTEXITCODE -ne 0) { throw "Study Agent was not installed or could not be removed by Setup.exe." }
 
       - name: Upload Windows setup executable
         uses: actions/upload-artifact@v4
