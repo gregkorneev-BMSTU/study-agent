@@ -11,8 +11,8 @@ DisableDirPage=yes
 DisableProgramGroupPage=yes
 Uninstallable=no
 PrivilegesRequired=admin
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDirectory}
 OutputBaseFilename=StudyAgentSetup
 Compression=none
@@ -42,7 +42,8 @@ begin
   end;
 
   PackagePath := ExpandConstant('{tmp}\StudyAgent.msix');
-  Parameters := '-NoProfile -ExecutionPolicy Bypass -Command "try { Add-AppxPackage -Path ' + #39 + PackagePath + #39 + ' -AllowUnsigned -ErrorAction Stop } catch { Write-Error $_; exit 1 }"';
+  StringChangeEx(PackagePath, #39, #39#39, True);
+  Parameters := '-NoProfile -ExecutionPolicy Bypass -Command "try { Add-AppxPackage -Path ' + #39 + PackagePath + #39 + ' -AllowUnsigned -ErrorAction Stop } catch { $_ | Out-File -FilePath (Join-Path $env:TEMP ' + #39 + 'StudyAgentInstallError.txt' + #39 + ') -Encoding utf8; exit 1 }"';
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
   begin
     Log('Could not start Windows PowerShell for MSIX installation.');
@@ -52,5 +53,5 @@ begin
 
   Log('PowerShell MSIX installation exit code: ' + IntToStr(ResultCode));
   if ResultCode <> 0 then
-    Result := 'Windows could not install the MSIX package. See the PowerShell error window and try again.';
+    Result := 'Windows could not install the MSIX package. See %TEMP%\StudyAgentInstallError.txt for details.';
 end;

@@ -106,21 +106,35 @@ jobs:
       - name: Build Windows setup executable
         run: .\scripts\build_windows_installer.ps1
 
-      - name: Smoke test setup executable installation
-        run: |
-          $setupLog = Join-Path $env:TEMP "StudyAgentSetup.log"
-          .\build\windows-installer\StudyAgentSetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/LOG=$setupLog"
-          if (Test-Path $setupLog) { Get-Content -LiteralPath $setupLog | Write-Host }
-          $nativePowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-          & $nativePowerShell -NoProfile -ExecutionPolicy Bypass -Command `
-            '$package = Get-AppxPackage -AllUsers -Name "A6D533F4-96F9-4F91-810B-5721FF5A86CA"; if ($package) { Remove-AppxPackage -Package $package.PackageFullName -AllUsers }'
-          if ($LASTEXITCODE -ne 0) { Write-Warning "AppX registration/cleanup could not be verified on this Windows Server runner." }
-
       - name: Upload Windows setup executable
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: study-agent-windows-setup
           path: |
             build/windows-installer/StudyAgentSetup.exe
-          if-no-files-found: warn
+          if-no-files-found: error
+
+  windows-arm-installer:
+    name: Install x64 setup on Windows 11 ARM
+    needs: windows-checks
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: study-agent-windows-setup
+          path: installer
+      - name: Install and verify package registration
+        shell: pwsh
+        run: |
+          $setupLog = Join-Path $env:TEMP "StudyAgentSetup.log"
+          $process = Start-Process -FilePath (Resolve-Path "installer/StudyAgentSetup.exe") `
+            -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$setupLog") `
+            -Wait -PassThru
+          if (Test-Path $setupLog) { Get-Content -LiteralPath $setupLog | Write-Host }
+          $installError = Join-Path $env:TEMP "StudyAgentInstallError.txt"
+          if (Test-Path $installError) { Get-Content -LiteralPath $installError | Write-Host }
+          if ($process.ExitCode -ne 0) { throw "Installer exited with code $($process.ExitCode)." }
+          $nativePowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+          & $nativePowerShell -NoProfile -ExecutionPolicy Bypass -Command `
+            '$package = Get-AppxPackage -Name "A6D533F4-96F9-4F91-810B-5721FF5A86CA"; if (-not $package) { throw "Study Agent package was not registered for the current user." }; $package | Format-List Name, PackageFullName; Remove-AppxPackage -Package $package.PackageFullName -AllUsers -ErrorAction Stop'
+          if ($LASTEXITCODE -ne 0) { throw "Could not verify or remove the installed package." }
