@@ -74,15 +74,18 @@ Backend smoke создаёт временные кириллические TXT/M
 
 ## Фактические проверки в текущей среде
 
-- Предыдущий artifact `study-agent-windows-setup` из run 40771990479 содержит устаревший установщик, который отклоняет ARM64; его не следует использовать для проверки текущего варианта.
+- Для пробы скачайте artifact `study-agent-windows-setup` из [Actions run 40780072886](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40780072886) и извлеките `StudyAgentSetup.exe` из ZIP. Размер ZIP — 395,680,424 байта, SHA-256 `a413c2f5816969ee34d5c1667d5c748e77ded704a83594fae859f70fe6d87ad4`. Вход в GitHub может потребоваться. Срок хранения артефакта истекает 27 января 2027 года в 01:27 по Москве.
+- В этом run на Windows Server 2022 x64 (build 20348) и Windows 11 ARM64 (build 26200, x64 emulation) успешно проверены установка, распаковка backend архивом .NET, synthetic backend smoke, запуск процесса приложения на 15 секунд, деинсталляция и сохранение файла пользовательских данных. Интерактивная работа UI и Windows 10 не проверены.
+- Общий статус этого run — failure: Linux pytest не смог импортировать тестовый скрипт из `scripts`. Импорт исправлен следующим коммитом `3cda0ad`; он изменяет только тест, а не файлы приложения, использованные в этом установщике.
+- Старые artifact из run 40771990479 и 40777451857 не следует использовать: первый отклоняет ARM64, а оба содержат архив backend с повторяющимися путями лицензий.
 
 - Host: macOS 27 arm64, Python 3.12.15. Windows/.NET/PowerShell отсутствуют.
 - `.venv/bin/python -m ruff check .` — успешно.
 - `.venv/bin/python -m pytest -q tests/test_windows_packaging.py` — 1 passed.
 - `.venv/bin/pytest -q tests/test_mac_bridge.py tests/test_ocr_model.py tests/test_windows_packaging.py` — 24 passed; проверено локально после финального исправления UTF-8 stdin.
 - Обычный полный `pytest` аварийно завершился при инициализации Qt Cocoa в `tests/test_switch.py`; повтор с offscreen завершился так же. Прогон с игнорированием этой fixture и неотслеживаемых копий `* [0-9].py` дошёл до `tests/test_ui_retrieval.py::test_material_text_uses_plain_text_and_offers_original` и аварийно завершил Qt. Полного успешного результата pytest нет.
-- [GitHub Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479) — **success**: Linux Python 3.12/3.13 `pytest` + Ruff; Windows Python 3.12 `pytest` + Ruff; WinUI Debug; PyInstaller backend package; synthetic Windows smoke (Cyrillic paths, indexing, offline saved-index search, removal); unsigned Release MSIX build; Inno Setup EXE generation; macOS client checks/build. Inno Setup launched in silent mode on the hosted runner; that server environment did not provide a reliable interactive install confirmation.
+- [GitHub Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479) — предыдущая сборка: Linux/Windows pytest и Ruff, WinUI Debug, backend smoke, unsigned MSIX, Inno Setup и macOS client checks/build; его EXE устарел.
 - CI artifact `study-agent-windows-release-unsigned` создан (743,843,681 bytes; SHA-256 `d52af6c2bc8390f4dc8ede0dbb12ec400440ed21ecf66ee8d135ef2c711315c0`). Это unsigned build artifact, не подписанный публично доверенным сертификатом и не проверенный установкой.
-- WinUI Release package и Setup EXE построены в CI, но интерактивная MSIX install/launch, SmartScreen, Chandra inference, Ollama generation/streaming, Narrator/high contrast и масштабирование 150–200% на Windows не проверены.
+- Интерактивные установка и работа приложения на Windows 10/11, SmartScreen, Chandra inference, Ollama generation/streaming, Narrator/high contrast и масштабирование 150–200% на Windows не проверены.
 
 Приёмка на Windows остаётся обязательной. Нельзя считать функциональное соответствие подтверждённым до проверки установленного Release MSIX на Windows с TXT, Markdown, цифровым/сканированным PDF, DOCX со встроенным изображением, локальными изображениями Markdown, отменой, ошибками/повторами, lexical/semantic/hybrid, RAG citations, OCR после явной установки весов, открытием исходника и доступностью.

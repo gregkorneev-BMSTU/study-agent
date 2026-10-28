@@ -2,9 +2,11 @@
 
 ## Windows PR #13: CI сборки и synthetic smoke — 2026-10-28
 
-Установщик из [Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479) устарел: он отклоняет ARM64, а установка unsigned MSIX рассчитана на Windows 11. Новый автономный установщик подготовлен для Windows 10/11 x64 и Windows 11 ARM64; интерактивная приёмка остаётся открытой.
+Установщик из [Actions run 40771990479](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40771990479) устарел: он отклоняет ARM64, а установка unsigned MSIX рассчитана на Windows 11. В [run 40780072886](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40780072886) автономный установщик прошёл автоматическую установку, запуск процесса, synthetic backend smoke и деинсталляцию с сохранением пользовательского файла на Windows Server 2022 x64 и Windows 11 ARM64 через эмуляцию. Общий статус run — failure из-за импорта теста Linux pytest; следующим коммитом `3cda0ad` исправлен только тест. Интерактивная приёмка Windows 10/11 остаётся открытой.
 
 Первая проверка автономного установщика выявила повторяющиеся пути лицензий в архиве backend. Упаковщик сохраняет все такие файлы под уникальными путями с учётом регистра Windows; `tests/test_windows_packaging.py` проверяет коллизию имён и распаковку. Проверка установленного backend использует тот же `ZipFile.ExtractToDirectory`, что и приложение.
+
+После исправления импорта в [run 40781291563](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40781291563) прошли Linux Python 3.12 и 3.13 pytest + Ruff. Остальные задания этого run на момент записи ещё выполняются.
 
 - Добавлен тест `tests/test_windows_packaging.py` для структуры ZIP, исполняемого файла, Python runtime и notice-файлов. Команда `.venv/bin/python -m pytest -q tests/test_windows_packaging.py`: **1 passed**.
 - `.venv/bin/python -m ruff check .`: **успешно**. Полный `pytest` на macOS аварийно завершился с Python `Fatal error: Aborted` при создании Qt `QApplication` в `tests/test_switch.py`; повтор без этого файла дошёл до `tests/test_ui_retrieval.py` и завершился той же Cocoa ошибкой. ОС — macOS 27 arm64, Python 3.12.15. Это не подтверждает результат тестового набора.
