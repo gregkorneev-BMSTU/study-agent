@@ -213,7 +213,7 @@ Dock-иконка macOS 2026-10-24: удалено ручное назначен
 
 ## Локальная сборка v1 Beta 6 — 2026-10-28
 
-- Исходная ветка `main` после PR #14: `eae9884`. Номер сборки повышен до 6 в Xcode, версия Python — `1.0.0b6`; публикация и тег не создавались.
+- Исходная ветка `main` после PR #14: `eae9884`. Номер сборки повышен до 6 в Xcode, версия Python — `1.0.0b6`; образ подготовлен к публикации как pre-release.
 - `.venv/bin/python -m pytest -q` с локальной копией Qt platform plugins: **221 passed, 10 skipped**. `.venv/bin/python -m ruff check .` и `git diff --check` прошли. Пропущены opt-in проверки живой модели.
 - `scripts/build_macos_dmg.sh --mode development --suffix beta.6` успешно собрал PyInstaller backend и Xcode Release arm64 app. `hdiutil verify` подтвердил целостность DMG. Размер: **236 474 122 байта**; SHA-256: `8d6bd4ca72e5d7a4aa69e97b237ebdedfcf69f5be836648d8dc9f98dd670f48a`.
 - В образе есть `Study Agent.app`, ссылка `Applications → /Applications` и `.DS_Store`. `Info.plist`: версия 1.0.0, build 6; приложение и helper имеют архитектуру arm64. После копирования в `/tmp` строгая проверка ad-hoc подписи `codesign --verify --deep --strict` прошла. Копия в каталоге Desktop получила `com.apple.FinderInfo` от системы и строгую проверку не прошла; проверка копии в `/tmp` устранила этот артефакт среды.
