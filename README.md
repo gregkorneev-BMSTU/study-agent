@@ -16,19 +16,19 @@ Study Agent помогает искать в выбранных учебных �
 
 ## Предпросмотр
 
-Для macOS используется нативное приложение SwiftUI/Xcode с фирменной иконкой Study Agent. Ниже — реальные снимки экранов поиска и библиотеки в тёмной и светлой темах. Beta 6.1 также распознаёт визуальное содержимое PDF и DOCX локальной моделью Chandra.
+Для macOS используется нативное приложение SwiftUI/Xcode с фирменной иконкой Study Agent. Ниже — снимки актуальной версии: мастер первого запуска, библиотека, поиск и настройки.
 
 <p align="center">
   <img src="assets/StudyAgent_Apple_Icon_Kit/Master/AppIcon_1024.png" width="112" alt="Иконка Study Agent">
 </p>
 
-| Поиск · тёмная тема | Поиск · светлая тема |
+| Первый запуск | Библиотека |
 | --- | --- |
-| <img src="artifacts/macos-liquid-glass-qa/after/dark-search.jpg" width="480" alt="Нативное приложение Study Agent для macOS — поиск, тёмная тема"> | <img src="artifacts/macos-liquid-glass-qa/after/light-search.jpg" width="480" alt="Нативное приложение Study Agent для macOS — поиск, светлая тема"> |
+| <img src="artifacts/readme/macos-beta-6.1-welcome.png" width="480" alt="Study Agent Beta 6.1 — мастер первого запуска"> | <img src="artifacts/readme/macos-beta-6.1-library.png" width="480" alt="Study Agent Beta 6.1 — библиотека учебных материалов"> |
 
-| Библиотека · тёмная тема | Библиотека · светлая тема |
+| Поиск | Настройки |
 | --- | --- |
-| <img src="artifacts/macos-liquid-glass-qa/after/dark-library.jpg" width="480" alt="Нативное приложение Study Agent для macOS — библиотека, тёмная тема"> | <img src="artifacts/macos-liquid-glass-qa/after/light-library.jpg" width="480" alt="Нативное приложение Study Agent для macOS — библиотека, светлая тема"> |
+| <img src="artifacts/readme/macos-beta-6.1-search.png" width="480" alt="Study Agent Beta 6.1 — поиск по учебным материалам"> | <img src="artifacts/readme/macos-beta-6.1-settings.png" width="480" alt="Study Agent Beta 6.1 — локальная модель и гибридный поиск в настройках"> |
 
 ## Что планируется
 
