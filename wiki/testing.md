@@ -1,11 +1,14 @@
 # Тестирование
 
-## Windows PR #13: подготовка backend-пакета и доступные проверки — 2026-10-28
+## Windows PR #13: CI сборки и synthetic smoke — 2026-10-28
 
 - Добавлен тест `tests/test_windows_packaging.py` для структуры ZIP, исполняемого файла, Python runtime и notice-файлов. Команда `.venv/bin/python -m pytest -q tests/test_windows_packaging.py`: **1 passed**.
 - `.venv/bin/python -m ruff check .`: **успешно**. Полный `pytest` на macOS аварийно завершился с Python `Fatal error: Aborted` при создании Qt `QApplication` в `tests/test_switch.py`; повтор без этого файла дошёл до `tests/test_ui_retrieval.py` и завершился той же Cocoa ошибкой. ОС — macOS 27 arm64, Python 3.12.15. Это не подтверждает результат тестового набора.
-- Windows smoke script `scripts/smoke_windows_backend.ps1` добавлен для синтетического кириллического TXT/Markdown, JSONL diagnostics/progress, index/search/offline-source/remove. Не запускался: `pwsh` отсутствует. Сборка PyInstaller и WinUI Release/MSIX также не запускались: `dotnet` и Windows отсутствуют.
-- Windows CI расширен на установку OCR/packaging extra, сборку backend ZIP, smoke test, WinUI Debug и Release. До фактического запуска CI успешная Windows-сборка не подтверждена.
+- [GitHub Actions run 40765745575](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40765745575) завершился успешно на Windows Server 2022: Windows Python `pytest` и Ruff, WinUI Debug, PyInstaller backend, smoke script и unsigned Release MSIX build. Linux Python 3.12/3.13 checks и macOS client job также прошли.
+- Упакованный backend smoke на синтетических кириллических TXT/Markdown проверил диагностику, JSONL progress, индексацию/лексический поиск, поиск по сохранённому индексу после перемещения источника и удаление индексных записей. Первый прогон обнаружил неверное декодирование Unicode в `sys.stdin`; runtime hook перенастроил stdin на UTF-8, после чего повторный smoke прошёл.
+- Создан unsigned Release artifact `study-agent-windows-release-unsigned` (743,843,681 bytes; SHA-256 `d52af6c2bc8390f4dc8ede0dbb12ec400440ed21ecf66ee8d135ef2c711315c0`). Он не проверен установкой на Windows и не несёт публично доверенной подписи.
+- Локально `.venv/bin/ruff check .` и `.venv/bin/pytest -q tests/test_mac_bridge.py tests/test_ocr_model.py tests/test_windows_packaging.py` прошли (**24 passed**). Полный локальный `pytest` на macOS завершался аварией Cocoa Qt `QApplication`; Windows CI выполнил полный Python test suite успешно.
+- Windows acceptance остаётся открытой: интерактивная установка/запуск MSIX, OCR inference с явно установленными весами, Ollama generation, Narrator, high contrast и DPI не проверялись.
 
 ## SA-03: формирование ответа Gemma и прокрутка (2026-10-27)
 

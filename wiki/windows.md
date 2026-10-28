@@ -2,7 +2,7 @@
 
 ## Статус
 
-Windows-клиент PR [#13](https://github.com/gregkorneev-BMSTU/study-agent/pull/13) использует WinUI 3 и общий Python backend. Локально подтверждены кодовые изменения для Beta 6.1, но функциональное соответствие **не подтверждено**: в текущей среде нет Windows, .NET SDK или PowerShell, Release MSIX и UI не запускались.
+Windows-клиент PR [#13](https://github.com/gregkorneev-BMSTU/study-agent/pull/13) использует WinUI 3 и общий Python backend. GitHub Actions на Windows Server 2022 успешно собрал WinUI Debug, PyInstaller backend, запустил synthetic smoke и собрал unsigned Release MSIX. Это подтверждает сборку и ограниченный smoke, но функциональное соответствие **не подтверждено**: пакет не устанавливался в интерактивной Windows-сессии; OCR inference, Ollama, Narrator, high contrast и DPI не проверялись.
 
 Рабочая ветка — `feature/sa-05-windows`. В неё обычным merge включён `origin/main` на `v1.0.0-beta.6.1` (`988bc365bdb7669452b20166bc3f548caa4f0996`); локальный merge-коммит: `5ac9c05`. Более нового `main` на момент проверки не было.
 
@@ -38,14 +38,14 @@ Chandra weights имеют ограничения Modified OpenRAIL-M, указ�
 
 1. **Backend ZIP:** исправлено — `package_windows_backend.py` создаёт `build/windows-backend/StudyAgentBackend.zip`; Release build останавливается с ошибкой, если его нет.
 2. **Удаление индекса:** исправлено — WinUI выполняет `remove_index_source` до удаления источника из списка; ошибка оставляет источник подключённым.
-3. **Офлайн-папка:** исправлено — перед поиском больше нет обязательного sync каждого пути; backend выполняет retrieval по сохранённому SQLite индексу.
+3. **Офлайн-папка:** исправлено — перед поиском больше нет обязательного sync каждого пути; CI synthetic smoke подтвердил retrieval по сохранённому SQLite индексу после перемещения папки.
 4. **Предупреждения:** исправлено на уровне UI-кода — библиотека читает восстановленные `index_status.issues`, поиск показывает `warnings`, индексация показывает ошибки файлов и счётчики.
 5. **Источники:** исправлено на уровне UI-кода — результат открывает файл в системном приложении, показывает page/heading, полный исходный фрагмент и только проверенные RAG sources.
 6. **Язык ответа:** исправлено — передаётся выбранный `ru`/`en`; контекст ответа извлекает backend из индекса, клиентские `hits` больше не используются.
 7. **Первичная индексация:** исправлено — добавление папки вызывает `sync_source` с прогрессом; действие отмены оставляет доступные записи и допускает повтор.
-8. **Русский текст и таймаут:** испорченные строки заменены; ошибка таймаута использует фактический лимит конкретной операции.
+8. **Русский текст и таймаут:** испорченные строки заменены; ошибка таймаута использует фактический лимит конкретной операции. CI smoke также обнаружил, что упакованный backend читал JSONL stdin не как UTF-8; runtime hook теперь явно перенастраивает stdin, после чего Cyrillic-path smoke прошёл.
 
-Это статус реализации по коду. Полное подтверждение каждого пункта зависит от Windows CI и ручного MSIX теста.
+Это статус реализации по коду с учётом успешного Windows CI smoke/build. Полное подтверждение пользовательских сценариев зависит от установки и проверки Release MSIX в интерактивной Windows-среде.
 
 ## Сборка
 
@@ -70,8 +70,10 @@ Backend smoke создаёт временные кириллические TXT/M
 - Host: macOS 27 arm64, Python 3.12.15. Windows/.NET/PowerShell отсутствуют.
 - `.venv/bin/python -m ruff check .` — успешно.
 - `.venv/bin/python -m pytest -q tests/test_windows_packaging.py` — 1 passed.
+- `.venv/bin/pytest -q tests/test_mac_bridge.py tests/test_ocr_model.py tests/test_windows_packaging.py` — 24 passed; проверено локально после финального исправления UTF-8 stdin.
 - Обычный полный `pytest` аварийно завершился при инициализации Qt Cocoa в `tests/test_switch.py`; повтор с offscreen завершился так же. Прогон с игнорированием этой fixture и неотслеживаемых копий `* [0-9].py` дошёл до `tests/test_ui_retrieval.py::test_material_text_uses_plain_text_and_offers_original` и аварийно завершил Qt. Полного успешного результата pytest нет.
-- WinUI Debug/Release, PowerShell packaging script, bundled backend smoke, MSIX install, Chandra inference, Ollama streaming и accessibility на Windows не запускались.
-- GitHub Actions для новых коммитов этой задачи пока не выполнен; синтетический скрипт настроен в Windows CI PR #13.
+- [GitHub Actions run 40765745575](https://github.com/gregkorneev-BMSTU/study-agent/actions/runs/40765745575) — **success**: Linux Python 3.12/3.13 `pytest` + Ruff; Windows Python 3.12 `pytest` + Ruff; WinUI Debug; PyInstaller backend package; synthetic Windows smoke (Cyrillic paths, indexing, offline saved-index search, removal); unsigned Release MSIX build; macOS client checks/build.
+- CI artifact `study-agent-windows-release-unsigned` создан (743,843,681 bytes; SHA-256 `d52af6c2bc8390f4dc8ede0dbb12ec400440ed21ecf66ee8d135ef2c711315c0`). Это unsigned build artifact, не подписанный публично доверенным сертификатом и не проверенный установкой.
+- WinUI Release package построен в CI, но MSIX install/launch, SmartScreen, Chandra inference, Ollama generation/streaming, Narrator/high contrast и масштабирование 150–200% на Windows не запускались.
 
 Приёмка на Windows остаётся обязательной. Нельзя считать функциональное соответствие подтверждённым до проверки установленного Release MSIX на Windows с TXT, Markdown, цифровым/сканированным PDF, DOCX со встроенным изображением, локальными изображениями Markdown, отменой, ошибками/повторами, lexical/semantic/hybrid, RAG citations, OCR после явной установки весов, открытием исходника и доступностью.
