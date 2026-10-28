@@ -129,6 +129,24 @@ def test_short_definition_is_not_discarded_as_insufficient() -> None:
     assert result.grounded and result.sources[0].excerpt == "TCP — протокол."
 
 
+def test_short_uncited_fact_is_rejected_after_cited_paragraph() -> None:
+    with pytest.raises(CitationError) as failure:
+        generate_answer(
+            "local", "Вопрос?", [hit()],
+            generator=lambda *a, **k: "Матрица — таблица [1].\n\nЗемля круглая.",
+        )
+    assert failure.value.reason == "uncited_paragraph"
+    assert failure.value.details["paragraph_index"] == 2
+
+
+def test_heading_does_not_need_a_separate_citation() -> None:
+    result = generate_answer(
+        "local", "Вопрос?", [hit()],
+        generator=lambda *a, **k: "## Определение\n\nМатрица — таблица [1].",
+    )
+    assert result.grounded
+
+
 @pytest.mark.parametrize(
     ("response", "reason", "extra"),
     [

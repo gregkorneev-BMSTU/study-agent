@@ -112,7 +112,7 @@ def _uncited_paragraph(content: str, matches: list[re.Match[str]]) -> int | None
         structured_only = not visible[start:end].strip(" \n\t:;.,*_")
         paragraphs.append((paragraph, cited, structured_only))
     for index, (paragraph, cited, structured_only) in enumerate(paragraphs):
-        if len(paragraph.strip()) <= 30 or cited:
+        if cited or re.fullmatch(r"#{1,6}[ \t]+[^\n]+", paragraph.strip()):
             continue
         if structured_only:
             adjacent_citation = False
