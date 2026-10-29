@@ -10,7 +10,7 @@ SUFFIX=
 
 usage() {
   cat <<'EOF'
-Usage: scripts/build_macos_dmg.sh [--mode development|distribution] [--app /path/to/Study\ Agent.app] [--output-dir /path] [--suffix beta.1]
+Usage: scripts/build_macos_dmg.sh [--mode development|distribution] [--app /path/to/Study\ Agent.app] [--output-dir /path] [--suffix rc.1]
 
 By default, builds the app with scripts/build_macos_native_app.sh first.
 --app packages an existing app, useful for reviewing the DMG layout.

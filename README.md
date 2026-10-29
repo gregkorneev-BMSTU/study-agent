@@ -4,11 +4,11 @@
 
 Study Agent помогает искать в учебных материалах и получать ответы по найденным фрагментам. Библиотека остаётся на компьютере пользователя, а поиск и генерация ответов работают локально.
 
-> **Последний выпуск:** [Study Agent v1 Beta 6.1](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6.1) для macOS 14+ и Apple Silicon. В этой версии Chandra распознаёт каждую страницу PDF, изображения внутри DOCX и локальные изображения из Markdown, включая рукописные пометки рядом с печатным текстом.
+> **Последний выпуск:** [Study Agent v1.0.0](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0) для macOS 14+ и Apple Silicon. Chandra распознаёт каждую страницу PDF, изображения внутри DOCX и локальные изображения из Markdown, включая рукописные пометки рядом с печатным текстом.
 
 ## Скачать и установить
 
-[Скачать DMG для macOS](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0-beta.6.1/StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg)
+[Скачать DMG для macOS](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0/StudyAgent-v1.0.0-macos-arm64.dmg) · [Что нового](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0) · [SHA-256](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0/StudyAgent-v1.0.0-macos-arm64.dmg.sha256).
 
 Откройте DMG и перетащите **Study Agent.app** в **Applications**. При первом запуске мастер поможет подготовить Ollama и локальную языковую модель. Chandra OCR устанавливается отдельно из настроек. DMG не нотариализован Apple, поэтому macOS может показать предупреждение при первом запуске.
 
@@ -31,11 +31,11 @@ Study Agent помогает искать в учебных материалах
 
 | Первый запуск | Библиотека |
 | --- | --- |
-| <img src="artifacts/readme/macos-beta-6.1-welcome.png" width="480" alt="Study Agent Beta 6.1 — мастер первого запуска"> | <img src="artifacts/readme/macos-beta-6.1-library.png" width="480" alt="Study Agent Beta 6.1 — библиотека учебных материалов"> |
+| <img src="artifacts/readme/macos-v1-welcome.png" width="480" alt="Study Agent — мастер первого запуска"> | <img src="artifacts/readme/macos-v1-library.png" width="480" alt="Study Agent — библиотека учебных материалов"> |
 
 | Поиск | Настройки |
 | --- | --- |
-| <img src="artifacts/readme/macos-beta-6.1-search.png" width="480" alt="Study Agent Beta 6.1 — поиск по учебным материалам"> | <img src="artifacts/readme/macos-beta-6.1-settings.png" width="480" alt="Study Agent Beta 6.1 — локальная модель и гибридный поиск в настройках"> |
+| <img src="artifacts/readme/macos-v1-search.png" width="480" alt="Study Agent — поиск по учебным материалам"> | <img src="artifacts/readme/macos-v1-settings.png" width="480" alt="Study Agent — локальная модель и гибридный поиск в настройках"> |
 
 ## Конфиденциальность
 
@@ -43,6 +43,7 @@ Study Agent помогает искать в учебных материалах
 
 ## Руководства
 
+- [Презентационные материалы](https://github.com/gregkorneev-BMSTU/study-agent-presentation.git)
 - [Первый запуск](wiki/users/onboarding.md)
 - [Настройка локальной модели](wiki/users/model-setup.md)
 - [Распознавание документов и Chandra OCR](wiki/users/chandra-ocr.md)

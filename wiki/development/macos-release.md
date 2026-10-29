@@ -1,4 +1,4 @@
-# macOS Beta: установка и выпуск
+# macOS: установка и выпуск
 
 ← [Разработка](README.md) · [Wiki](../README.md)
 
@@ -36,7 +36,7 @@ Chandra OCR runtime включён в Beta 3; проверка `diagnose_backend
 
 ## Публикация
 
-Текущий выпуск: **Study Agent v1 Beta 6.1**, тег `v1.0.0-beta.6.1`, Xcode `CURRENT_PROJECT_VERSION = 7`, файл `StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg`. Двуязычные release notes: [`wiki/releases/v1.0.0-beta.6.1.md`](../releases/v1.0.0-beta.6.1.md). Предыдущие выпуски — [Beta 6](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6) и [Beta 5](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.5). Перед каждым новым GitHub Release выполнить Python/Xcode проверки, убедиться, что DMG соответствует коммиту и тегу, проверить состав образа и подпись извлечённого приложения, вычислить SHA-256 и перечислить функции/ограничения на русском и английском. Для ad-hoc сборки использовать пометку **pre-release / test build** с явным предупреждением об отсутствии Developer ID и нотариализации. При появлении Developer ID и успешной нотариализации выпускать новый артефакт с новым номером сборки/тегом, не подменяя старые файлы.
+Текущий выпуск: **Study Agent v1.0.0**, тег `v1.0.0`, Xcode `CURRENT_PROJECT_VERSION = 8`, файл `StudyAgent-v1.0.0-macos-arm64.dmg`. Двуязычные release notes: [`wiki/releases/v1.0.0.md`](../releases/v1.0.0.md). Перед каждым новым GitHub Release выполнить Python/Xcode проверки, убедиться, что DMG соответствует коммиту и тегу, проверить состав образа и подпись извлечённого приложения, вычислить SHA-256 и перечислить функции/ограничения на русском и английском. Этот образ подписан ad-hoc и не нотариализован Apple; Gatekeeper может блокировать запуск. Для полноценной macOS-дистрибуции подготовьте Developer ID Application, включите Hardened Runtime и пройдите нотариализацию Apple.
 
 Для Beta 3 `hdiutil verify` подтвердил целостность DMG. Строгая проверка непосредственно на смонтированном HFS+ томе показывает FinderInfo extended attributes на вложенных файлах лицензий; после копирования `.app` в обычный каталог `codesign --verify --deep --strict` проходит. Зафиксируйте оба результата и не называйте сборку нотариализованной.
 
