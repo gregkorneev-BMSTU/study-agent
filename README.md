@@ -8,7 +8,7 @@ Study Agent помогает искать в учебных материалах
 
 ## Скачать и установить
 
-[Скачать DMG для macOS](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0-beta.6.1/StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg) · [Что нового](https://github.com/gregkorneev-BMSTU/study-agent/releases/tag/v1.0.0-beta.6.1) · [SHA-256](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0-beta.6.1/StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg.sha256).
+[Скачать DMG для macOS](https://github.com/gregkorneev-BMSTU/study-agent/releases/download/v1.0.0-beta.6.1/StudyAgent-v1.0.0-beta.6.1-macos-arm64.dmg)
 
 Откройте DMG и перетащите **Study Agent.app** в **Applications**. При первом запуске мастер поможет подготовить Ollama и локальную языковую модель. Chandra OCR устанавливается отдельно из настроек. DMG не нотариализован Apple, поэтому macOS может показать предупреждение при первом запуске.
 
