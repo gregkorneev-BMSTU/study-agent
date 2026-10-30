@@ -42,7 +42,8 @@ Study Agent помогает искать в учебных материалах
 
 ## Руководства
 
-- [Презентационные материалы](https://github.com/gregkorneev-BMSTU/study-agent-presentation.git)
+- [Финальная презентация (автономный HTML)](artifacts/presentation/study-agent-presentation.html)
+- [Исходные материалы презентации](https://github.com/gregkorneev-BMSTU/study-agent-presentation.git)
 - [Первый запуск](wiki/users/onboarding.md)
 - [Настройка локальной модели](wiki/users/model-setup.md)
 - [Распознавание документов и Chandra OCR](wiki/users/chandra-ocr.md)
