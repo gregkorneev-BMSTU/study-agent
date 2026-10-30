@@ -68,6 +68,43 @@
             </StackPanel>
 
             <StackPanel Spacing="12">
+                <TextBlock x:Name="SearchSettingsHeading" Text="Поиск по материалам"
+                    FontSize="18" FontWeight="SemiBold" />
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="12" Padding="16">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="SimilarityLabel" Text="Порог сходства"
+                                FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SimilarityValue" Grid.Column="1" />
+                        </Grid>
+                        <Slider x:Name="SimilaritySlider" Minimum="0" Maximum="1"
+                            StepFrequency="0.05" SmallChange="0.05" LargeChange="0.05"
+                            ValueChanged="SimilaritySlider_ValueChanged" />
+                        <TextBlock x:Name="SimilarityDescription" TextWrapping="Wrap" Opacity="0.7"
+                            Text="Совпадения по смыслу ниже этого порога исключаются из результатов." />
+                        <Expander x:Name="EmbeddingPrefixesExpander" Header="Префиксы embedding-модели">
+                            <StackPanel Spacing="10">
+                                <TextBox x:Name="DocumentPrefixInput" Header="Префикс документов"
+                                    MaxLength="1024" TextChanged="DocumentPrefixInput_TextChanged" />
+                                <TextBox x:Name="QueryPrefixInput" Header="Префикс запросов"
+                                    MaxLength="1024" TextChanged="QueryPrefixInput_TextChanged" />
+                                <TextBlock x:Name="PrefixDescription" TextWrapping="Wrap" Opacity="0.7"
+                                    Text="Оставьте пустыми, если модель не требует префиксов. Используйте значения из документации выбранной модели." />
+                                <TextBlock x:Name="ProfileChangedDescription" TextWrapping="Wrap" Opacity="0.7"
+                                    Text="После изменения префиксов подготовьте семантический индекс заново на странице поиска." />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="12">
                 <TextBlock
                     x:Name="AppearanceHeading"
                     Text="Внешний вид и доступность"

@@ -23,6 +23,7 @@ public sealed partial class HomePage : Page
     private string[] _lastRoots = Array.Empty<string>();
     private string _lastMode = "lexical";
     private PythonBridgeService.EmbeddingProfile? _lastEmbedding;
+    private double _lastMinSimilarity = SearchPreferences.MinimumSimilarity;
     private bool _busy;
     private bool _loadingOptions;
     private CancellationTokenSource? _preparation;
@@ -112,7 +113,8 @@ public sealed partial class HomePage : Page
     {
         if (EmbeddingModelCombo.SelectedItem is not ComboBoxItem item ||
             !int.TryParse(item.Tag?.ToString(), out int dimensions)) return null;
-        return new PythonBridgeService.EmbeddingProfile(item.Content?.ToString() ?? "", dimensions);
+        return new PythonBridgeService.EmbeddingProfile(item.Content?.ToString() ?? "", dimensions,
+            SearchPreferences.DocumentPrefix, SearchPreferences.QueryPrefix);
     }
 
     private async Task RefreshModelsAsync()
@@ -328,7 +330,8 @@ public sealed partial class HomePage : Page
                 throw new InvalidOperationException(T("Для этого режима выберите установленную embedding-модель в Ollama.",
                     "Choose an installed Ollama embedding model for this search mode."));
             SearchStatus.Text = T("Ищем в сохранённом индексе...", "Searching the saved index...");
-            using var response = await _bridge.SearchAsync(roots, query, mode, embedding);
+            _lastMinSimilarity = SearchPreferences.MinimumSimilarity;
+            using var response = await _bridge.SearchAsync(roots, query, mode, embedding, _lastMinSimilarity);
 
             JsonElement result = response.RootElement.GetProperty("result");
             JsonElement hits = result.GetProperty("hits");
@@ -433,7 +436,8 @@ public sealed partial class HomePage : Page
                 _lastRoots,
                 LocalizationService.CurrentLanguage,
                 _lastMode,
-                _lastEmbedding);
+                _lastEmbedding,
+                _lastMinSimilarity);
 
             JsonElement result = response.RootElement.GetProperty("result");
             string answer = result.GetProperty("answer").GetString() ?? T("Модель вернула пустой ответ.", "The model returned an empty answer.");

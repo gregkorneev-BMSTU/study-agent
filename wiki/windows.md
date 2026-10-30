@@ -28,6 +28,8 @@ Windows-клиент PR [#13](https://github.com/gregkorneev-BMSTU/study-agent/p
 | Markdown и LaTeX | `MathContentView.swift`, локальный KaTeX в `assets/math` | Локальный WebView2 renderer использует тот же безопасный Markdown subset и KaTeX, без HTML из источника, ссылок, CDN или сетевых ресурсов; при ошибке остаётся обычный текст | Проверить CSP, вертикальную прокрутку WebView2 и длинные формулы | JS/Python renderer tests, Windows WebView2 |
 | Release пакет и установка | `scripts/build_macos_dmg.sh` (macOS) | WinUI Release включает backend, локальные ресурсы и notices; автономный EXE-установщик ставит приложение в профиль пользователя; отдельный unsigned MSIX остаётся доступен для сборки | Проверить установку и работу на Windows 10/11 x64 и Windows 11 ARM64 | GitHub Actions и ручная приёмка |
 
+Порог сходства (по умолчанию 0.65) и префиксы embedding-модели настраиваются в Settings (`SearchPreferences.cs`) и передаются в `search`/`answer` как `min_similarity` и `embedding.document_prefix`/`query_prefix`. Сборка WinUI с этими правками не запускалась (нет Windows/.NET).
+
 ### OCR и ограничения Chandra
 
 В `pyproject.toml` Chandra — optional extra. `scripts/build_windows_backend.ps1` теперь требует `.[ocr,packaging]` и включает Chandra/Hugging Face/Torch/PDF/OCR runtime в PyInstaller archive; веса остаются отдельными и загружаются только по нажатию **Install OCR weights**. Действие недоступно, пока диагностика не увидела runtime или если веса уже установлены.

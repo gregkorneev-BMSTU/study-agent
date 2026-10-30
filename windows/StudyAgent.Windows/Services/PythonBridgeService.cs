@@ -84,10 +84,11 @@ public sealed class PythonBridgeService
         SendAsync(Request("remove_index_source", ("root", root)), cancellationToken: token);
 
     public Task<JsonDocument> SearchAsync(string[] roots, string query, string mode,
-        EmbeddingProfile? embedding = null, CancellationToken token = default,
+        EmbeddingProfile? embedding = null, double minSimilarity = 0.65, CancellationToken token = default,
         Action<JsonElement>? progress = null) =>
         SendAsync(Request("search", ("roots", roots), ("query", query), ("search_mode", mode),
-            ("embedding", embedding is null ? null : Embedding(embedding))), 240, token, progress);
+            ("embedding", embedding is null ? null : Embedding(embedding)),
+            ("min_similarity", minSimilarity)), 240, token, progress);
 
     public Task<JsonDocument> ListModelsAsync(CancellationToken token = default) =>
         SendAsync(Request("list_models"), cancellationToken: token);
@@ -101,10 +102,11 @@ public sealed class PythonBridgeService
 
     public Task<JsonDocument> AnswerAsync(string model, string query, string[] roots,
         string language, string mode, EmbeddingProfile? embedding = null,
-        CancellationToken token = default) =>
+        double minSimilarity = 0.65, CancellationToken token = default) =>
         SendAsync(Request("answer", ("model", model), ("query", query), ("roots", roots),
             ("language", language), ("search_mode", mode),
-            ("embedding", embedding is null ? null : Embedding(embedding))), 240, token);
+            ("embedding", embedding is null ? null : Embedding(embedding)),
+            ("min_similarity", minSimilarity)), 240, token);
 
     private static object Embedding(EmbeddingProfile profile) => new
     {
@@ -142,7 +144,7 @@ public sealed class PythonBridgeService
         }
         else if (File.Exists(Path.Combine(AppContext.BaseDirectory, "Backend.zip")))
         {
-            backendPath = EnsureArchivedBackend();
+            backendPath = await Task.Run(EnsureArchivedBackend, cancellationToken);
             packaged = true;
         }
         else

@@ -8,7 +8,7 @@
         VerticalScrollBarVisibility="Auto"
         HorizontalScrollBarVisibility="Disabled">
 
-        <StackPanel Padding="32" Spacing="20">
+        <StackPanel Padding="32" Spacing="20" MaxWidth="1100" HorizontalAlignment="Stretch">
 
             <StackPanel Spacing="8">
                 <TextBlock
@@ -17,7 +17,8 @@
 
                 <TextBlock
                     x:Name="SearchSubtitle" Text="Поиск документов и ответы на вопросы"
-                    Style="{StaticResource BodyTextBlockStyle}"/>
+                    Style="{StaticResource BodyTextBlockStyle}"
+                    TextWrapping="Wrap" Opacity="0.75"/>
             </StackPanel>
 
             <Grid ColumnSpacing="12">
@@ -36,59 +37,69 @@
                     x:Name="SearchButton"
                     Grid.Column="1"
                     Content="Найти"
+                    Style="{StaticResource AccentButtonStyle}"
                     Click="SearchButton_Click"/>
             </Grid>
 
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <ComboBox x:Name="SearchModeCombo" Header="Режим поиска" MinWidth="180"
-                    SelectionChanged="SearchMode_SelectionChanged">
-                    <ComboBoxItem Content="Лексический" Tag="lexical" />
-                    <ComboBoxItem Content="Семантический" Tag="semantic" />
-                    <ComboBoxItem Content="Гибридный" Tag="hybrid" />
-                </ComboBox>
-                <ComboBox x:Name="EmbeddingModelCombo" Header="Embedding-модель"
-                    MinWidth="220" IsEnabled="False"
-                    SelectionChanged="EmbeddingModel_SelectionChanged" />
-                <Button x:Name="PrepareEmbeddingsButton" Content="Подготовить семантический индекс"
-                    IsEnabled="False" Click="PrepareEmbeddingsButton_Click" />
-                <Button x:Name="CancelPreparationButton" Content="Отменить"
-                    IsEnabled="False" Click="CancelPreparationButton_Click" />
-            </StackPanel>
-            <TextBlock x:Name="EmbeddingStatus" TextWrapping="Wrap" Opacity="0.75" />
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1" CornerRadius="12" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="SearchOptionsHeading" Text="Режим и семантический индекс"
+                        FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <ComboBox x:Name="SearchModeCombo" Header="Режим поиска"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="SearchMode_SelectionChanged">
+                        <ComboBoxItem Content="Лексический" Tag="lexical" />
+                        <ComboBoxItem Content="Семантический" Tag="semantic" />
+                        <ComboBoxItem Content="Гибридный" Tag="hybrid" />
+                    </ComboBox>
+                    <ComboBox x:Name="EmbeddingModelCombo" Header="Embedding-модель"
+                        HorizontalAlignment="Stretch" IsEnabled="False"
+                        SelectionChanged="EmbeddingModel_SelectionChanged" />
+                    <Button x:Name="PrepareEmbeddingsButton" Content="Подготовить семантический индекс"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        IsEnabled="False" Click="PrepareEmbeddingsButton_Click" />
+                    <Button x:Name="CancelPreparationButton" Content="Отменить"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        IsEnabled="False" Click="CancelPreparationButton_Click" />
+                    <TextBlock x:Name="EmbeddingStatus" TextWrapping="Wrap" Opacity="0.75" />
+                </StackPanel>
+            </Border>
 
-            <StackPanel Spacing="8">
-                <TextBlock
-                    x:Name="ModelHeading" Text="Локальная языковая модель"
-                    FontWeight="SemiBold"/>
-
-                <StackPanel
-                    Orientation="Horizontal"
-                    Spacing="10">
-
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1" CornerRadius="12" Padding="16">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        x:Name="ModelHeading" Text="Локальная языковая модель"
+                        FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
                     <ComboBox
                         x:Name="ModelsComboBox"
-                        Width="260"
+                        HorizontalAlignment="Stretch"
                         PlaceholderText="Модель не выбрана"
                         SelectionChanged="CompletionModel_SelectionChanged" />
 
                     <Button
                         x:Name="RefreshModelsButton"
                         Content="Обновить модели"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                         Click="RefreshModelsButton_Click"/>
 
                     <Button
                         x:Name="GenerateButton"
                         Content="Сгенерировать ответ"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                         IsEnabled="False"
                         Click="GenerateButton_Click"/>
-                </StackPanel>
 
-                <TextBlock
-                    x:Name="OllamaStatus"
-                    Text="Нажмите «Обновить модели», чтобы проверить Ollama."
-                    TextWrapping="Wrap"
-                    Opacity="0.75"/>
-            </StackPanel>
+                    <TextBlock
+                        x:Name="OllamaStatus"
+                        Text="Нажмите «Обновить модели», чтобы проверить Ollama."
+                        TextWrapping="Wrap"
+                        Opacity="0.75"/>
+                </StackPanel>
+            </Border>
 
             <StackPanel Spacing="8">
                 <TextBlock
@@ -97,6 +108,7 @@
                     FontWeight="SemiBold"/>
 
                 <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderThickness="1"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     CornerRadius="8"
@@ -141,9 +153,6 @@
                     x:Name="ResultsPanel"
                     Spacing="12"/>
             </Expander>
-
-
-
         </StackPanel>
     </ScrollViewer>
 </Page>

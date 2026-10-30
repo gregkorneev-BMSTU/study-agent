@@ -29,6 +29,10 @@ public sealed partial class SettingsPage : Page
         LanguageCombo.SelectedIndex =
             LocalizationService.CurrentLanguage == "en" ? 1 : 0;
 
+        SimilaritySlider.Value = SearchPreferences.MinimumSimilarity;
+        DocumentPrefixInput.Text = SearchPreferences.DocumentPrefix;
+        QueryPrefixInput.Text = SearchPreferences.QueryPrefix;
+
         ApplyLanguage();
         _initialized = true;
     }
@@ -52,6 +56,24 @@ public sealed partial class SettingsPage : Page
 
         LanguageCombo.Header =
             T("Язык", "Language");
+
+        SearchSettingsHeading.Text = T("Поиск по материалам", "Search settings");
+        SimilarityLabel.Text = T("Порог сходства", "Similarity threshold");
+        SimilarityValue.Text = SimilaritySlider.Value.ToString("F2");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            SimilaritySlider, T("Порог сходства", "Similarity threshold"));
+        SimilarityDescription.Text = T(
+            "Совпадения по смыслу ниже этого порога исключаются из результатов.",
+            "Semantic matches below this threshold are excluded from the results.");
+        EmbeddingPrefixesExpander.Header = T("Префиксы embedding-модели", "Embedding model prefixes");
+        DocumentPrefixInput.Header = T("Префикс документов", "Document prefix");
+        QueryPrefixInput.Header = T("Префикс запросов", "Query prefix");
+        PrefixDescription.Text = T(
+            "Оставьте пустыми, если модель не требует префиксов. Используйте значения из документации выбранной модели.",
+            "Leave these empty if your model does not require prefixes. Use the values from its documentation.");
+        ProfileChangedDescription.Text = T(
+            "После изменения префиксов подготовьте семантический индекс заново на странице поиска.",
+            "After changing prefixes, prepare the semantic index again on the Search page.");
 
         AppearanceHeading.Text =
             T("Внешний вид и доступность",
@@ -178,6 +200,24 @@ public sealed partial class SettingsPage : Page
     }
 
     private void CancelModelButton_Click(object sender, RoutedEventArgs e) => _modelDownload?.Cancel();
+
+    private void SimilaritySlider_ValueChanged(
+        object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (!_initialized) return;
+        SearchPreferences.MinimumSimilarity = e.NewValue;
+        SimilarityValue.Text = e.NewValue.ToString("F2");
+    }
+
+    private void DocumentPrefixInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_initialized) SearchPreferences.DocumentPrefix = DocumentPrefixInput.Text;
+    }
+
+    private void QueryPrefixInput_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_initialized) SearchPreferences.QueryPrefix = QueryPrefixInput.Text;
+    }
 
     private async void OpenOllamaButton_Click(object sender, RoutedEventArgs e) =>
         await Launcher.LaunchUriAsync(new Uri("https://ollama.com/download"));
