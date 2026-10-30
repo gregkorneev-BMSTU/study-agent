@@ -1,5 +1,8 @@
 # ТЗ: исправления DOCX extraction в PR #10
 
+← [Разработка](README.md) · [Wiki](../README.md)
+
+
 **Контекст:** PR [#10 — DOCX extraction and structured chunk metadata](https://github.com/gregkorneev-BMSTU/study-agent/pull/10), ревизия `40e37db`. Документ превращает замечания ревью в проверяемый план реализации. Это ТЗ, не описание уже существующего поведения.
 
 ## 1. Цель
@@ -86,7 +89,7 @@
 - Проверить всех потребителей `LocalFolderSource.read`, `extract_document` и `search_sources`, включая Python UI, JSON Lines bridge и тесты. Изменение типа результата должно быть отражено в type hints и контракте.
 - Не менять команды `list_sources`, `answer`, `list_models`, `diagnose_backend` и `install_ocr_model` без необходимости.
 - Не отправлять документы, OCR-результаты или локальные пути во внешние сервисы. Извлечение DOCX остаётся локальным.
-- Обновить `wiki/chandra-ocr.md` и `wiki/backend-protocol.md`, если меняется фактический формат результата `search` или описание DTO. Состояние реализации документировать после завершения работ, не заранее.
+- Обновить `wiki/development/chandra-ocr.md` и `wiki/development/backend-protocol.md`, если меняется фактический формат результата `search` или описание DTO. Состояние реализации документировать после завершения работ, не заранее.
 
 ## 6. Обязательные проверки перед повторным ревью
 
