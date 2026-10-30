@@ -227,6 +227,9 @@ public sealed partial class LibraryPage : Page
         }
     }
 
+    public void RequestAddFolder() =>
+        AddFolderButton_Click(AddFolderButton, new RoutedEventArgs());
+
     private async void AddFolderButton_Click(
         object sender, RoutedEventArgs e)
     {
@@ -473,6 +476,7 @@ public sealed partial class LibraryPage : Page
                 "\nOCR: " +
                 (data.GetProperty("ocr_runtime_available").GetBoolean()
                     ? LocalizationService.Text("Доступен", "Available") : LocalizationService.Text("Не установлен", "Not installed"));
+            BackendStatus.Text += "\n" + SystemInfoService.Summary();
             bool ocrRuntime = data.GetProperty("ocr_runtime_available").GetBoolean();
             string weights = data.TryGetProperty("ocr_weights_state", out JsonElement weightState)
                 ? weightState.GetString() ?? "unknown" : "unknown";

@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Input;
+using StudyAgent_Windows.Controls;
 using StudyAgent_Windows.Services;
 using Windows.System;
 
@@ -24,6 +25,8 @@ public sealed partial class HomePage : Page
     private string _lastMode = "lexical";
     private PythonBridgeService.EmbeddingProfile? _lastEmbedding;
     private double _lastMinSimilarity = SearchPreferences.MinimumSimilarity;
+    private JsonElement[] _answerSources = Array.Empty<JsonElement>();
+    private readonly System.Collections.Generic.List<(TextBlock Header, string Root, string Document, string Name)> _cardHeaders = new();
     private bool _busy;
     private bool _loadingOptions;
     private CancellationTokenSource? _preparation;
@@ -274,6 +277,8 @@ public sealed partial class HomePage : Page
         });
     }
 
+    public void FocusQuery() => QueryInput.Focus(FocusState.Programmatic);
+
     private async void QueryInput_KeyDown(
         object sender, KeyRoutedEventArgs e)
     {
@@ -367,24 +372,10 @@ public sealed partial class HomePage : Page
             SearchStatus.Visibility = Visibility.Collapsed;
             ResultsExpander.Visibility = Visibility.Visible;
 
+            _cardHeaders.Clear();
+            _answerSources = Array.Empty<JsonElement>();
             foreach (JsonElement hit in _lastHits)
-            {
-                string title = hit.GetProperty("title")
-                    .GetString() ?? T("Без названия", "Untitled");
-
-                string excerpt = hit.GetProperty("excerpt")
-                    .GetString() ?? "";
-
-                string documentId = hit.GetProperty("document_id")
-                    .GetString() ?? "";
-
-                string sourceRoot = hit.GetProperty("source_root")
-                    .GetString() ?? "";
-
-                double score = hit.GetProperty("score").GetDouble();
-
-                AddResult(hit, title, excerpt, sourceRoot, documentId, score);
-            }
+                AddResult(hit);
 
             SearchStatus.Text = string.Join(Environment.NewLine, notices);
             SearchStatus.Visibility = notices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -441,19 +432,13 @@ public sealed partial class HomePage : Page
 
             JsonElement result = response.RootElement.GetProperty("result");
             string answer = result.GetProperty("answer").GetString() ?? T("Модель вернула пустой ответ.", "The model returned an empty answer.");
-            var markdown = new System.Text.StringBuilder(answer);
-            if (result.TryGetProperty("sources", out JsonElement sources))
-            {
-                int number = 0;
-                foreach (JsonElement source in sources.EnumerateArray())
-                {
-                    number++;
-                    string title = ReadString(source, "title", T("Источник", "Source"));
-                    string meta = SourceMetadata(source);
-                    markdown.Append($"\n\n**[{number}] {title}** {meta}\n\n{ReadString(source, "excerpt", "")}");
-                }
-            }
-            SetAnswer(markdown.ToString());
+            _answerSources = result.TryGetProperty("sources", out JsonElement sources) &&
+                sources.ValueKind == JsonValueKind.Array
+                ? sources.EnumerateArray().Select(source => source.Clone()).ToArray()
+                : Array.Empty<JsonElement>();
+            ApplyCitationNumbers();
+            if (_answerSources.Length > 0) ResultsExpander.IsExpanded = true;
+            SetAnswer(answer);
         }
         catch (Exception ex)
         {
@@ -483,64 +468,77 @@ public sealed partial class HomePage : Page
         SearchProgress.IsActive = busy;
     }
 
-    private void AddResult(
-        JsonElement hit,
-        string title,
-        string excerpt,
-        string sourceRoot,
-        string documentId,
-        double score)
+    private void AddResult(JsonElement hit)
     {
-        var card = new StackPanel
-        {
-            Spacing = 8,
-            Padding = new Thickness(16)
-        };
+        string title = ReadString(hit, "title", T("Без названия", "Untitled"));
+        string documentId = ReadString(hit, "document_id", "");
+        string sourceRoot = ReadString(hit, "source_root", "");
+        string excerpt = ReadString(hit, "excerpt", "");
+        string fileName = Path.GetFileName(documentId.Replace('/', Path.DirectorySeparatorChar));
+        if (string.IsNullOrEmpty(fileName)) fileName = title;
 
-        card.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontSize = 18,
-            FontWeight = new Windows.UI.Text.FontWeight
-            {
-                Weight = 600
-            },
-            TextWrapping = TextWrapping.Wrap
-        });
+        var card = new StackPanel { Spacing = 8, Padding = new Thickness(16) };
 
-        card.Children.Add(new TextBlock
+        var header = new TextBlock
         {
-            Text = excerpt,
+            Text = fileName,
+            FontSize = 16,
+            FontWeight = new Windows.UI.Text.FontWeight { Weight = 600 },
             TextWrapping = TextWrapping.Wrap,
-            MaxLines = 6,
+            IsTextSelectionEnabled = true
+        };
+        card.Children.Add(header);
+        _cardHeaders.Add((header, sourceRoot, documentId, fileName));
+
+        card.Children.Add(new TextBlock
+        {
+            Text = $"{Path.GetFileName(sourceRoot.TrimEnd('\\', '/'))}/{documentId} {SourceMetadata(hit)}".TrimEnd(),
+            Opacity = 0.7,
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
             IsTextSelectionEnabled = true
         });
 
-        card.Children.Add(new TextBlock
-        {
-            Text = $"{T("Источник", "Source")}: {sourceRoot}",
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12
-        });
+        var excerpts = new System.Collections.Generic.List<string>();
+        if (hit.TryGetProperty("matched_excerpts", out JsonElement matched) && matched.ValueKind == JsonValueKind.Array)
+            foreach (JsonElement item in matched.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
+                    excerpts.Add(item.GetString()!);
+        if (excerpts.Count == 0)
+            excerpts.Add(ReadString(hit, "full_excerpt", excerpt));
 
-        card.Children.Add(new TextBlock
-        {
-            Text = $"{T("Документ", "Document")}: {documentId} | {T("Оценка", "Score")}: {score:F2} {SourceMetadata(hit)}",
-            Opacity = 0.7,
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12
-        });
-
-        if (hit.TryGetProperty("full_excerpt", out JsonElement full) &&
-            full.ValueKind == JsonValueKind.String && full.GetString() is string fullText && fullText != excerpt)
-        {
-            card.Children.Add(new Expander
+        var body = new StackPanel { Spacing = 8 };
+        var views = excerpts.Select(text => new RenderedMarkdownView(text)).ToList();
+        foreach (var view in views) body.Children.Add(view);
+        if (hit.TryGetProperty("quality_warnings", out JsonElement qualityWarnings) &&
+            qualityWarnings.ValueKind == JsonValueKind.Array &&
+            qualityWarnings.EnumerateArray().Any(item => item.ValueKind == JsonValueKind.String &&
+                item.GetString() == "formula_suspect"))
+            body.Children.Add(new TextBlock
             {
-                Header = T("Показать исходный фрагмент", "Show original excerpt"),
-                Content = new TextBlock { Text = fullText, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true }
+                Text = "⚠ " + T("В формуле возможна ошибка распознавания. Сверьте с оригиналом.",
+                    "The formula may contain a recognition error. Check it against the original."),
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 12
             });
-        }
+        var original = new Expander
+        {
+            Header = "Original Text",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = body
+        };
+        original.Expanding += (_, _) => { foreach (var view in views) view.Activate(); };
+        card.Children.Add(original);
+
+        int related = ReadInt(hit, "related_count");
+        if (related > 0)
+            card.Children.Add(new TextBlock
+            {
+                Text = string.Format(T("Ещё {0} совпадений в этом разделе", "{0} more matches in this section"), related),
+                Opacity = 0.7,
+                FontSize = 12
+            });
 
         var openButton = new Button { Content = T("Открыть исходный файл", "Open source file"), HorizontalAlignment = HorizontalAlignment.Left };
         openButton.Click += async (_, _) =>
@@ -558,7 +556,7 @@ public sealed partial class HomePage : Page
                 await dialog.ShowAsync();
             }
         };
-        AutomationProperties.SetName(openButton, T("Открыть исходный файл", "Open source file") + ": " + title);
+        AutomationProperties.SetName(openButton, T("Открыть исходный файл", "Open source file") + ": " + fileName);
         card.Children.Add(openButton);
 
         ResultsPanel.Children.Add(new Border
@@ -566,10 +564,21 @@ public sealed partial class HomePage : Page
             Child = card,
             BorderThickness = new Thickness(1),
             BorderBrush = (Microsoft.UI.Xaml.Media.Brush)
-                Application.Current.Resources[
-                    "CardStrokeColorDefaultBrush"],
+                Application.Current.Resources["CardStrokeColorDefaultBrush"],
             CornerRadius = new CornerRadius(8)
         });
+    }
+
+    /// <summary>Prefixes cards used by the validated answer with their backend citation number.</summary>
+    private void ApplyCitationNumbers()
+    {
+        foreach (var (header, root, document, name) in _cardHeaders)
+        {
+            int index = Array.FindIndex(_answerSources, source =>
+                string.Equals(ReadString(source, "source_root", ""), root, StringComparison.OrdinalIgnoreCase) &&
+                ReadString(source, "document_id", "") == document);
+            header.Text = index >= 0 ? $"[{index + 1}] {name}" : name;
+        }
     }
 
     private static async Task OpenSourceAsync(string root, string documentId)

@@ -78,6 +78,27 @@ public sealed partial class MainWindow : Window
         SettingsNavItem.Content =
             Services.LocalizationService.Text("Настройки", "Settings");
     }
+
+    private void FindAccelerator_Invoked(
+        Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
+        Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        if (NavFrame.Content is not HomePage)
+            NavView.SelectedItem = SearchNavItem;
+        (NavFrame.Content as HomePage)?.FocusQuery();
+    }
+
+    private void AddFolderAccelerator_Invoked(
+        Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
+        Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        if (NavFrame.Content is not LibraryPage)
+            NavView.SelectedItem = LibraryNavItem;
+        (NavFrame.Content as LibraryPage)?.RequestAddFolder();
+    }
+
     private void TitleBar_PaneToggleRequested(
         TitleBar sender, object args)
     {

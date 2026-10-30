@@ -12,6 +12,10 @@
     </Window.SystemBackdrop>
 
     <Grid>
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FindAccelerator_Invoked" />
+            <KeyboardAccelerator Key="O" Modifiers="Control" Invoked="AddFolderAccelerator_Invoked" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="48"/>
             <RowDefinition Height="*"/>

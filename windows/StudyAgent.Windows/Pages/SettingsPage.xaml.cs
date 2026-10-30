@@ -164,6 +164,10 @@ public sealed partial class SettingsPage : Page
         ModelInstallProgress.IsIndeterminate = true;
         ModelInstallStatus.Text = T("Загрузка модели начинается только после вашего нажатия. Она может занять значительное место.",
             "The model download starts only after your click and may use significant disk space.");
+        if (SystemInfoService.FreeDiskBytes() is long freeBytes && freeBytes < SystemInfoService.RecommendedModelBytes)
+            ModelInstallStatus.Text += " " + T(
+                $"Свободно только {SystemInfoService.FormatBytes(freeBytes)}: для qwen3.5:4b может не хватить места.",
+                $"Only {SystemInfoService.FormatBytes(freeBytes)} is free: qwen3.5:4b may not fit.");
         var progress = new Progress<(string Status, long? Completed, long? Total)>(value =>
         {
             ModelInstallStatus.Text = value.Status;
